@@ -19,7 +19,9 @@ This directory captures the working engineering baseline for the `Minimal End-to
 13. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
 14. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
 15. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
-16. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+16. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+17. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+18. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
 
 ## Intent
 
@@ -40,6 +42,8 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `domain-glossary.md` locks core project terminology.
 - `acceptance-test-matrix.md` maps backlog items to concrete verification scope.
 - `operator-workflows.md` captures the minimal-stage operational flows the UI and APIs must support.
+- `implementation-roadmap.md` turns the planning set into an ordered execution sequence.
+- `decision-log.md` distinguishes locked decisions from open questions.
 
 ## Current decision baseline
 
