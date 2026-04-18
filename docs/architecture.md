@@ -31,7 +31,7 @@ The minimal system should be small in scope but not short-sighted in shape. The 
 ### Design for integration
 
 - The minimal architecture must assume real HES connectivity later.
-- Persistence and service boundaries should remain compatible with future PostgreSQL deployment, external APIs, and background processing.
+- Persistence and service boundaries should be designed around PostgreSQL from the start, while remaining compatible with external APIs and background processing.
 
 ### Design for localization
 
@@ -59,6 +59,7 @@ The minimal system should be small in scope but not short-sighted in shape. The 
 - SQLAlchemy models
 - Entity relationships
 - Business state transitions such as `pending`, `mapped`, `duplicate`, and `exception`
+- Persistent entity names aligned with the agreed backlog model vocabulary
 
 ### Integration layer
 
@@ -107,8 +108,8 @@ The team should perform structural improvement before adding new features when a
 
 ### Database
 
-- Local development may continue with SQLite for speed.
-- Schema and access patterns must stay compatible with PostgreSQL as the likely operational target.
+- PostgreSQL is the agreed baseline database even for the minimal stage.
+- Schema and access patterns should be designed directly for PostgreSQL capabilities and future scaling needs.
 - Future partitioning and high-volume storage concerns must not be blocked by early schema shortcuts.
 
 ### API and upstream sources
@@ -123,3 +124,18 @@ The team should perform structural improvement before adding new features when a
 - API error responses should be designed so they can later expose localized messages while retaining stable machine-readable codes.
 - New features should avoid binding business rules to one-language-only template strings.
 
+## Target persistence vocabulary
+
+The architecture should align its persistent naming with the backlog baseline.
+
+- `device`
+- `service_point`
+- `measuring_component`
+- `installation_history`
+- `ingest_batch`
+- `hes_read_raw`
+- `hes_event_raw`
+- `canonical_measurement`
+- `ingest_error_log`
+
+If the existing scaffold uses interim names, those differences should be treated as a structural alignment task before expanding feature scope.

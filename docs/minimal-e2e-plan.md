@@ -31,7 +31,7 @@ That sequencing matches the earlier analysis: first build a trusted data pipelin
 
 - Flask keeps the application shape simple while the domain model is still moving.
 - Jinja plus Bootstrap is enough for internal operator screens without frontend overhead.
-- SQLAlchemy lets us keep the schema portable while leaving room to move from SQLite dev to PostgreSQL runtime.
+- SQLAlchemy lets us move quickly while still targeting PostgreSQL as the agreed primary database.
 - The team can get to a working raw-to-canonical flow quickly before introducing task queues, partitioning, and advanced rule engines.
 
 ## Phase boundary
@@ -77,23 +77,38 @@ flowchart LR
 
 ## Current data model
 
-- `IngestionBatch`: stores source metadata and original request payload.
-- `RawRead`: immutable incoming read record with canonical processing status.
-- `RawEvent`: immutable event and alarm record.
-- `ServicePoint`: minimal business location anchor.
-- `Device`: external meter identity from source systems.
-- `MeasuringComponent`: channel-level mapping target for canonicalization.
-- `InstallationHistory`: placeholder for device movement and replacement history.
-- `CanonicalMeasurement`: mapped output for downstream business logic.
-- `ProcessingException`: queue for validation, duplicate, and mapping failures.
+- `ingest_batch`: stores source metadata and original request payload.
+- `hes_read_raw`: immutable incoming read record with canonical processing status.
+- `hes_event_raw`: immutable event and alarm record.
+- `service_point`: minimal business location anchor.
+- `device`: external meter identity from source systems.
+- `measuring_component`: channel-level mapping target for canonicalization.
+- `installation_history`: placeholder for device movement and replacement history.
+- `canonical_measurement`: mapped output for downstream business logic.
+- `ingest_error_log`: queue for validation and ingest-stage failures.
+
+## Target persistent model names
+
+The minimal stage should align with the agreed backlog naming baseline.
+
+- `device`
+- `service_point`
+- `measuring_component`
+- `installation_history`
+- `ingest_batch`
+- `hes_read_raw`
+- `hes_event_raw`
+- `canonical_measurement`
+- `ingest_error_log`
 
 ## Near-term implementation order
 
 1. Lock the raw ingest contract with real HES sample payloads.
-2. Decide whether local development should stay SQLite-only or add Docker PostgreSQL.
-3. Expand the master-data UI so operators can load and correct mappings.
-4. Introduce background workers for non-trivial ingest volume.
-5. Add `Initial Measurement` and VEE status model.
+2. Refactor the existing scaffold from SQLite-oriented defaults to PostgreSQL-oriented defaults.
+3. Refactor current persistent naming to align with the agreed backlog model names.
+4. Expand the master-data UI so operators can load and correct mappings.
+5. Introduce background workers for non-trivial ingest volume.
+6. Add `Initial Measurement` and VEE status model.
 
 ## Architectural notes
 
@@ -101,3 +116,4 @@ flowchart LR
 - Canonical records are created only after duplicate and mapping checks.
 - Exceptions are treated as first-class operational data.
 - The codebase already separates web, API, and service logic so background processing can be introduced without rewriting the Flask surface.
+- The current scaffold still contains interim naming and SQLite-oriented defaults, so structural alignment to PostgreSQL and backlog naming is a planned prerequisite before broader feature growth.

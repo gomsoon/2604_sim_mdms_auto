@@ -59,9 +59,11 @@ Then open `http://127.0.0.1:5000/`.
 
 ## Design notes
 
-- Local development defaults to SQLite so the team can start fast with no external dependency.
-- The app is intentionally structured so `DATABASE_URL` can later point to PostgreSQL without changing the Flask code shape.
+- The current scaffold still defaults to SQLite, but the agreed next structural step is to move the runtime baseline to PostgreSQL.
+- Ongoing development should align persistent naming with the backlog baseline such as `ingest_batch`, `hes_read_raw`, `hes_event_raw`, and `ingest_error_log`.
 - This stage stops at raw ingestion, master-data mapping, canonicalization, and exception visibility.
 
 Additional context lives in [docs/minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md).
+
+Known structural alignment work is tracked in [docs/gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/gap-analysis.md).
 

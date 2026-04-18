@@ -19,6 +19,8 @@ This document defines the development requirements for the `Minimal End-to-End` 
 - Operator-facing dashboard, list views, and APIs
 - External integration readiness for future HES, database, and API connectivity
 - Internationalization readiness for English and Korean user-facing content
+- PostgreSQL-based persistence as the default runtime database for the minimal stage
+- Alignment of target persistent model names with the agreed backlog naming
 
 ### Explicitly out of scope for the current stage
 
@@ -70,8 +72,15 @@ This document defines the development requirements for the `Minimal End-to-End` 
 
 - Even in the minimal stage, the design must assume integration with external systems such as HES, external APIs, and external databases.
 - Integration points must be isolated so that source-specific or protocol-specific logic can be adapted without rewriting core business logic.
-- Local development may use SQLite, but production-oriented structure must remain compatible with PostgreSQL and future external integration patterns.
+- PostgreSQL must be treated as the primary database baseline, not a later migration target.
+- Local convenience choices must not drive schema or naming decisions away from the PostgreSQL-oriented target architecture.
 - API contracts and persistence structures must consider idempotency, delayed delivery, duplicates, and partial upstream data quality.
+
+### Persistent model naming
+
+- The target persistent naming should follow the agreed backlog terminology from the reference PDF.
+- Minimal-stage persistence should use names such as `ingest_batch`, `hes_read_raw`, `hes_event_raw`, `canonical_measurement`, and `ingest_error_log`.
+- If existing code uses interim names, structural refactoring should align those names before substantial feature expansion continues.
 
 ### Internationalization
 
@@ -112,3 +121,4 @@ A feature in the minimal stage is only considered complete if the following are 
 - English and Korean support were considered for user-facing behavior.
 - UTF-8 encoding and Korean text integrity were reviewed for changed files.
 - External integration implications were reviewed.
+- PostgreSQL and agreed persistent naming implications were reviewed.
