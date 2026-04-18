@@ -178,6 +178,7 @@ Close the gap between proof-of-concept and a stable minimal baseline.
 - Add test suite structure
 - Add sample fixtures
 - Improve logging and observability
+- Add lightweight orchestration status visibility for the dashboard
 - Clean up technical debt discovered during earlier stages
 
 #### Test gate
@@ -189,6 +190,7 @@ Close the gap between proof-of-concept and a stable minimal baseline.
 
 - [testing-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/testing-strategy.md)
 - [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+- [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 
 ## Recommended immediate next step
 
@@ -198,6 +200,19 @@ The next implementation work should start at `Stage 1` and `Stage 2` together:
 2. Migration tooling introduction
 
 Only after that should the repository proceed into naming refactor and contract hardening.
+
+## Pre-HES-review design work that can proceed now
+
+Before the real HES schema is shared next week, the project can still make progress on the following:
+
+1. provisional raw-table design
+2. PostgreSQL baseline and driver selection
+3. migration-tool introduction
+4. naming-alignment refactor planning
+5. test design for ingest validation and error handling
+6. orchestration status model planning for dashboard visibility
+
+This work should use the provisional assumptions explicitly and stay ready for adjustment after the HES schema review.
 
 ## Minimal-stage completion checkpoint
 
@@ -210,4 +225,3 @@ The minimal stage is considered meaningfully complete only when:
 - ingest failures are visible and distinguishable
 - operators can inspect the flow by batch and meter
 - tests and regression checks exist for the core path
-

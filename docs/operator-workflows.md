@@ -164,6 +164,7 @@ If the system cannot answer these clearly, mapping quality will remain weak.
 Minimal-stage screens should help operators complete the workflows above with as little ambiguity as possible.
 
 - Dashboard for current ingest and canonical status
+- Dashboard cards at the top showing `waiting`, `processing`, `completed`, and `failed` counts by major stage
 - Raw read visibility
 - Raw event visibility
 - Error visibility
@@ -189,6 +190,8 @@ Operators and support staff should be able to answer these questions quickly:
 - Did canonical conversion happen
 - If not, where did the flow stop
 
+The dashboard should answer these questions first through summary cards before the operator needs to inspect detailed tables.
+
 ## Relationship to acceptance testing
 
 Each workflow in this document should map to at least one integration or functional verification path in [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md).
@@ -203,4 +206,3 @@ The operator workflow is minimally acceptable only when:
 - Operators can review failures clearly
 - Operators can verify canonical conversion and lineage
 - Operators can do the above in English and Korean without structural redesign
-

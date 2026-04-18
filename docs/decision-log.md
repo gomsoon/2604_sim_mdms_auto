@@ -64,6 +64,24 @@ This document records current architectural and process decisions so that the te
   - [development-guide.md](/home/tprover/2604_sim_mdms_auto/docs/development-guide.md)
   - [requirements.md](/home/tprover/2604_sim_mdms_auto/docs/requirements.md)
 
+### D-007. Provisional raw schema can proceed before the real HES schema review
+
+- Status: locked
+- Summary: We may proceed with a provisional raw-table design before receiving the company's actual HES schema, as long as assumptions remain explicit and adjustable
+- Why: This keeps project momentum without falsely treating unknown source details as finalized
+- Related docs:
+  - [provisional-raw-schema.md](/home/tprover/2604_sim_mdms_auto/docs/provisional-raw-schema.md)
+  - [hes-schema-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/hes-schema-checklist.md)
+
+### D-008. Lightweight orchestration is preferred over a heavy workflow engine in the minimal stage
+
+- Status: locked
+- Summary: The minimal stage should use a simple schedule-first orchestration model with visible processing status, rather than adopting a heavy workflow engine immediately
+- Why: It fits the current scope better and still supports operator visibility, retries, and future extension
+- Related docs:
+  - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+  - [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape
@@ -94,6 +112,23 @@ This document records current architectural and process decisions so that the te
 - Related docs:
   - [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
 
+### O-005. Which provisional raw columns will be confirmed by the real HES schema unchanged
+
+- Status: open
+- Why it matters: The provisional schema is intentionally flexible, but next week's HES review must convert assumptions into confirmed columns
+- Current direction: Keep stable core columns and adjust source-specific details after the HES review
+- Related docs:
+  - [provisional-raw-schema.md](/home/tprover/2604_sim_mdms_auto/docs/provisional-raw-schema.md)
+  - [hes-schema-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/hes-schema-checklist.md)
+
+### O-006. What exact scheduler and run-metadata implementation should be used
+
+- Status: open
+- Why it matters: The orchestration principle is agreed, but the specific scheduler, worker model, and metadata-table design still need implementation decisions
+- Current direction: Keep the model lightweight and schedule-first, and defer exact tooling until implementation work begins
+- Related docs:
+  - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+
 ## Deferred decisions
 
 ### X-001. Full localization platform
@@ -116,4 +151,3 @@ This document records current architectural and process decisions so that the te
 - If a locked decision is challenged, record the proposed replacement explicitly
 - Do not let implementation quietly diverge from a locked decision
 - When a decision affects contracts, naming, or testing expectations, update the linked docs in the same change
-

@@ -60,6 +60,14 @@ The normalized internal measurement record created from validated and mapped raw
 
 The minimal-stage error record for ingest validation and ingest persistence failures.
 
+### landing layer
+
+An optional source-specific layer used when incoming HES data cannot be mapped safely into the common raw model immediately.
+
+### common raw layer
+
+The earliest vendor-neutral raw layer in the MDM, intended to unify raw reads and events across compatible HES sources.
+
 ## Processing terms
 
 ### lineage
@@ -106,4 +114,3 @@ A billing-oriented output value such as on-peak usage, off-peak usage, demand, o
 - Use stable machine-readable codes for technical states and validation outcomes
 - Avoid mixing interim scaffold names with target vocabulary in new documentation
 - If English and Korean labels diverge for readability, keep the machine-readable concept stable underneath
-

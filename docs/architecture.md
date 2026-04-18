@@ -93,6 +93,14 @@ flowchart LR
     D -->|invalid or duplicate| G
 ```
 
+## Data-layer stance
+
+- Source-specific landing structures are allowed when a vendor cannot be mapped safely into the common raw model immediately.
+- The common raw layer should remain the earliest shared standard for all compatible HES sources.
+- Canonical, VEE-oriented, final, and downstream business layers should remain vendor-neutral.
+
+More detail is defined in [data-layer-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/data-layer-architecture.md).
+
 ## Refactoring triggers
 
 The team should perform structural improvement before adding new features when any of the following are true:
