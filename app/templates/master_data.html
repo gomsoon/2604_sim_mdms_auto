@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">Master Data</h1>
+    <p class="text-secondary mb-0">Minimal device, service point, and measuring-component mappings used by the canonical flow.</p>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Component ID</th>
+            <th>Source</th>
+            <th>Device ID</th>
+            <th>External Channel</th>
+            <th>Service Point</th>
+            <th>UOM</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.source_system }}</td>
+            <td>{{ row.device.external_meter_id }}</td>
+            <td>{{ row.external_channel_id }}</td>
+            <td>{{ row.service_point.external_id }}</td>
+            <td>{{ row.unit_of_measure }}</td>
+            <td>{{ row.status }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-secondary">No master data loaded yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,10 @@
+.codex
+.codex/
+.env
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+instance/
+*.pyc
+*.egg-info/

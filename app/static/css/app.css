@@ -1,0 +1,39 @@
+:root {
+  --mdms-ink: #11334d;
+  --mdms-muted: #6c7a89;
+  --mdms-sky: #eef6fb;
+  --mdms-accent: #118ab2;
+  --mdms-border: #d9e4ec;
+}
+
+body {
+  background:
+    radial-gradient(circle at top right, rgba(17, 138, 178, 0.12), transparent 24rem),
+    linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%);
+  color: var(--mdms-ink);
+}
+
+.hero-panel {
+  background: linear-gradient(135deg, rgba(17, 51, 77, 0.95), rgba(17, 138, 178, 0.82));
+  color: white;
+  box-shadow: 0 1.5rem 3rem rgba(17, 51, 77, 0.14);
+}
+
+.hero-panel .lead {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.card {
+  border: 1px solid var(--mdms-border);
+  border-radius: 1rem;
+}
+
+.table > :not(caption) > * > * {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.navbar-brand {
+  letter-spacing: 0.02em;
+}
+

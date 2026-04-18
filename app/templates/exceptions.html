@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">Exception Queue</h1>
+    <p class="text-secondary mb-0">Mapping, validation, and duplicate issues are surfaced here for operator follow-up.</p>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Code</th>
+            <th>Status</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.exception_type }}</td>
+            <td>{{ row.exception_code }}</td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.message }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="text-secondary">No exception records available.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

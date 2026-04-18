@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel rounded-4 p-4 p-lg-5 mb-4">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-8">
+      <span class="badge text-bg-light mb-3">Minimal End-to-End</span>
+      <h1 class="display-6 fw-semibold">HES raw ingestion, mapping, canonicalization, and exceptions in one place</h1>
+      <p class="lead text-secondary mb-0">
+        This first scaffold is focused on the shortest believable operator flow: accept raw data,
+        preserve it, map it to master data, and surface failures without hiding lineage.
+      </p>
+    </div>
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="text-uppercase text-secondary small mb-2">Quick Start</div>
+          <code class="d-block mb-2">make init-db</code>
+          <code class="d-block mb-2">make seed-demo</code>
+          <code class="d-block">make run</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small">Service Points</div>
+        <div class="display-6 fw-semibold">{{ stats.service_points }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small">Devices</div>
+        <div class="display-6 fw-semibold">{{ stats.devices }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small">Raw Reads</div>
+        <div class="display-6 fw-semibold">{{ stats.raw_reads }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-secondary small">Exceptions</div>
+        <div class="display-6 fw-semibold">{{ stats.exceptions }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="row g-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Recent Raw Reads</h2>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.raw_reads') }}">View all</a>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Meter</th>
+                <th>Channel</th>
+                <th>Measured At</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in recent_reads %}
+              <tr>
+                <td>{{ row.id }}</td>
+                <td>{{ row.meter_identifier or "-" }}</td>
+                <td>{{ row.channel_identifier or "-" }}</td>
+                <td>{{ row.measured_at|dt }}</td>
+                <td>
+                  <span class="badge text-bg-{{ 'success' if row.canonical_status == 'mapped' else 'warning' if row.canonical_status == 'duplicate' else 'secondary' }}">
+                    {{ row.canonical_status }}
+                  </span>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="text-secondary">No raw reads loaded yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Recent Exceptions</h2>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.exceptions') }}">View queue</a>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for row in recent_exceptions %}
+          <div class="list-group-item px-0">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                <div class="fw-semibold">{{ row.exception_code }}</div>
+                <div class="small text-secondary">{{ row.message }}</div>
+              </div>
+              <span class="badge text-bg-light align-self-start">{{ row.status }}</span>
+            </div>
+          </div>
+          {% else %}
+          <div class="text-secondary">No exceptions recorded.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
