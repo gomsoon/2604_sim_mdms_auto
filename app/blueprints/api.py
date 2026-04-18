@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import select
 
 from app.db import check_database_connection, get_session
-from app.models import ProcessingException, RawEvent, RawRead
+from app.models import HesEventRaw, HesReadRaw, IngestErrorLog
 from app.services.ingestion import ingest_events, ingest_reads
 
 
@@ -68,7 +68,7 @@ def ingest_events_endpoint():
 @bp.get("/raw-reads")
 def list_raw_reads():
     session = get_session()
-    rows = session.scalars(select(RawRead).order_by(RawRead.id.desc()).limit(100)).all()
+    rows = session.scalars(select(HesReadRaw).order_by(HesReadRaw.id.desc()).limit(100)).all()
     return jsonify(
         [
             {
@@ -89,7 +89,7 @@ def list_raw_reads():
 @bp.get("/raw-events")
 def list_raw_events():
     session = get_session()
-    rows = session.scalars(select(RawEvent).order_by(RawEvent.id.desc()).limit(100)).all()
+    rows = session.scalars(select(HesEventRaw).order_by(HesEventRaw.id.desc()).limit(100)).all()
     return jsonify(
         [
             {
@@ -109,7 +109,7 @@ def list_raw_events():
 def list_exceptions():
     session = get_session()
     rows = session.scalars(
-        select(ProcessingException).order_by(ProcessingException.id.desc()).limit(100)
+        select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(100)
     ).all()
     return jsonify(
         [

@@ -18,8 +18,8 @@ class TimestampMixin:
     )
 
 
-class IngestionBatch(TimestampMixin, Base):
-    __tablename__ = "ingestion_batch"
+class IngestBatch(TimestampMixin, Base):
+    __tablename__ = "ingest_batch"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -28,8 +28,8 @@ class IngestionBatch(TimestampMixin, Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
-    raw_reads: Mapped[list["RawRead"]] = relationship(back_populates="ingestion_batch")
-    raw_events: Mapped[list["RawEvent"]] = relationship(back_populates="ingestion_batch")
+    hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="ingest_batch")
+    hes_event_rows: Mapped[list["HesEventRaw"]] = relationship(back_populates="ingest_batch")
 
 
 class ServicePoint(TimestampMixin, Base):
@@ -97,11 +97,11 @@ class InstallationHistory(TimestampMixin, Base):
     device: Mapped[Device] = relationship(back_populates="installation_history")
 
 
-class RawRead(TimestampMixin, Base):
-    __tablename__ = "raw_read"
+class HesReadRaw(TimestampMixin, Base):
+    __tablename__ = "hes_read_raw"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ingestion_batch_id: Mapped[int] = mapped_column(ForeignKey("ingestion_batch.id"), nullable=False)
+    ingest_batch_id: Mapped[int] = mapped_column(ForeignKey("ingest_batch.id"), nullable=False)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     meter_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
     channel_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
@@ -113,21 +113,21 @@ class RawRead(TimestampMixin, Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     canonical_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     is_duplicate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    duplicate_of_id: Mapped[int | None] = mapped_column(ForeignKey("raw_read.id"))
+    duplicate_of_id: Mapped[int | None] = mapped_column(ForeignKey("hes_read_raw.id"))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
-    ingestion_batch: Mapped[IngestionBatch] = relationship(back_populates="raw_reads")
+    ingest_batch: Mapped[IngestBatch] = relationship(back_populates="hes_read_rows")
     canonical_measurement: Mapped["CanonicalMeasurement | None"] = relationship(
-        back_populates="raw_read", uselist=False
+        back_populates="hes_read_raw", uselist=False
     )
-    duplicate_of: Mapped["RawRead | None"] = relationship(remote_side=[id])
+    duplicate_of: Mapped["HesReadRaw | None"] = relationship(remote_side=[id])
 
 
-class RawEvent(TimestampMixin, Base):
-    __tablename__ = "raw_event"
+class HesEventRaw(TimestampMixin, Base):
+    __tablename__ = "hes_event_raw"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ingestion_batch_id: Mapped[int] = mapped_column(ForeignKey("ingestion_batch.id"), nullable=False)
+    ingest_batch_id: Mapped[int] = mapped_column(ForeignKey("ingest_batch.id"), nullable=False)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     meter_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
     event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
@@ -135,14 +135,16 @@ class RawEvent(TimestampMixin, Base):
     severity: Mapped[str | None] = mapped_column(String(30))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
-    ingestion_batch: Mapped[IngestionBatch] = relationship(back_populates="raw_events")
+    ingest_batch: Mapped[IngestBatch] = relationship(back_populates="hes_event_rows")
 
 
 class CanonicalMeasurement(TimestampMixin, Base):
     __tablename__ = "canonical_measurement"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    raw_read_id: Mapped[int] = mapped_column(ForeignKey("raw_read.id"), nullable=False, unique=True)
+    hes_read_raw_id: Mapped[int] = mapped_column(
+        ForeignKey("hes_read_raw.id"), nullable=False, unique=True
+    )
     measuring_component_id: Mapped[int] = mapped_column(
         ForeignKey("measuring_component.id"), nullable=False
     )
@@ -154,14 +156,14 @@ class CanonicalMeasurement(TimestampMixin, Base):
     status_code: Mapped[str | None] = mapped_column(String(40))
     unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False)
 
-    raw_read: Mapped[RawRead] = relationship(back_populates="canonical_measurement")
+    hes_read_raw: Mapped[HesReadRaw] = relationship(back_populates="canonical_measurement")
     measuring_component: Mapped[MeasuringComponent] = relationship(
         back_populates="canonical_measurements"
     )
 
 
-class ProcessingException(TimestampMixin, Base):
-    __tablename__ = "processing_exception"
+class IngestErrorLog(TimestampMixin, Base):
+    __tablename__ = "ingest_error_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exception_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
@@ -169,6 +171,5 @@ class ProcessingException(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="open")
     message: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    raw_read_id: Mapped[int | None] = mapped_column(ForeignKey("raw_read.id"))
-    raw_event_id: Mapped[int | None] = mapped_column(ForeignKey("raw_event.id"))
-
+    hes_read_raw_id: Mapped[int | None] = mapped_column(ForeignKey("hes_read_raw.id"))
+    hes_event_raw_id: Mapped[int | None] = mapped_column(ForeignKey("hes_event_raw.id"))

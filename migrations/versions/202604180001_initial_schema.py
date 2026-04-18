@@ -19,7 +19,7 @@ depends_on = None
 
 def upgrade() -> None:
     op.create_table(
-        "ingestion_batch",
+        "ingest_batch",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("source_system", sa.String(length=50), nullable=False),
         sa.Column("batch_id", sa.String(length=100), nullable=False),
@@ -39,8 +39,8 @@ def upgrade() -> None:
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
     )
-    op.create_index("ix_ingestion_batch_source_system", "ingestion_batch", ["source_system"])
-    op.create_index("ix_ingestion_batch_batch_id", "ingestion_batch", ["batch_id"])
+    op.create_index("ix_ingest_batch_source_system", "ingest_batch", ["source_system"])
+    op.create_index("ix_ingest_batch_batch_id", "ingest_batch", ["batch_id"])
 
     op.create_table(
         "service_point",
@@ -143,9 +143,9 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "raw_read",
+        "hes_read_raw",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("ingestion_batch_id", sa.Integer(), nullable=False),
+        sa.Column("ingest_batch_id", sa.Integer(), nullable=False),
         sa.Column("source_system", sa.String(length=50), nullable=False),
         sa.Column("meter_identifier", sa.String(length=100), nullable=True),
         sa.Column("channel_identifier", sa.String(length=100), nullable=True),
@@ -171,18 +171,18 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
-        sa.ForeignKeyConstraint(["duplicate_of_id"], ["raw_read.id"]),
-        sa.ForeignKeyConstraint(["ingestion_batch_id"], ["ingestion_batch.id"]),
+        sa.ForeignKeyConstraint(["duplicate_of_id"], ["hes_read_raw.id"]),
+        sa.ForeignKeyConstraint(["ingest_batch_id"], ["ingest_batch.id"]),
     )
-    op.create_index("ix_raw_read_source_system", "raw_read", ["source_system"])
-    op.create_index("ix_raw_read_meter_identifier", "raw_read", ["meter_identifier"])
-    op.create_index("ix_raw_read_channel_identifier", "raw_read", ["channel_identifier"])
-    op.create_index("ix_raw_read_measured_at", "raw_read", ["measured_at"])
+    op.create_index("ix_hes_read_raw_source_system", "hes_read_raw", ["source_system"])
+    op.create_index("ix_hes_read_raw_meter_identifier", "hes_read_raw", ["meter_identifier"])
+    op.create_index("ix_hes_read_raw_channel_identifier", "hes_read_raw", ["channel_identifier"])
+    op.create_index("ix_hes_read_raw_measured_at", "hes_read_raw", ["measured_at"])
 
     op.create_table(
-        "raw_event",
+        "hes_event_raw",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("ingestion_batch_id", sa.Integer(), nullable=False),
+        sa.Column("ingest_batch_id", sa.Integer(), nullable=False),
         sa.Column("source_system", sa.String(length=50), nullable=False),
         sa.Column("meter_identifier", sa.String(length=100), nullable=True),
         sa.Column("event_time", sa.DateTime(timezone=True), nullable=True),
@@ -201,16 +201,16 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
-        sa.ForeignKeyConstraint(["ingestion_batch_id"], ["ingestion_batch.id"]),
+        sa.ForeignKeyConstraint(["ingest_batch_id"], ["ingest_batch.id"]),
     )
-    op.create_index("ix_raw_event_source_system", "raw_event", ["source_system"])
-    op.create_index("ix_raw_event_meter_identifier", "raw_event", ["meter_identifier"])
-    op.create_index("ix_raw_event_event_time", "raw_event", ["event_time"])
+    op.create_index("ix_hes_event_raw_source_system", "hes_event_raw", ["source_system"])
+    op.create_index("ix_hes_event_raw_meter_identifier", "hes_event_raw", ["meter_identifier"])
+    op.create_index("ix_hes_event_raw_event_time", "hes_event_raw", ["event_time"])
 
     op.create_table(
         "canonical_measurement",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("raw_read_id", sa.Integer(), nullable=False),
+        sa.Column("hes_read_raw_id", sa.Integer(), nullable=False),
         sa.Column("measuring_component_id", sa.Integer(), nullable=False),
         sa.Column("device_id", sa.Integer(), nullable=False),
         sa.Column("service_point_id", sa.Integer(), nullable=False),
@@ -231,24 +231,24 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
-        sa.ForeignKeyConstraint(["raw_read_id"], ["raw_read.id"]),
+        sa.ForeignKeyConstraint(["hes_read_raw_id"], ["hes_read_raw.id"]),
         sa.ForeignKeyConstraint(["measuring_component_id"], ["measuring_component.id"]),
         sa.ForeignKeyConstraint(["device_id"], ["device.id"]),
         sa.ForeignKeyConstraint(["service_point_id"], ["service_point.id"]),
-        sa.UniqueConstraint("raw_read_id", name="uq_canonical_measurement_raw_read_id"),
+        sa.UniqueConstraint("hes_read_raw_id", name="uq_canonical_measurement_hes_read_raw_id"),
     )
     op.create_index("ix_canonical_measurement_measured_at", "canonical_measurement", ["measured_at"])
 
     op.create_table(
-        "processing_exception",
+        "ingest_error_log",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("exception_type", sa.String(length=40), nullable=False),
         sa.Column("exception_code", sa.String(length=80), nullable=False),
         sa.Column("status", sa.String(length=30), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
         sa.Column("details", sa.JSON(), nullable=False),
-        sa.Column("raw_read_id", sa.Integer(), nullable=True),
-        sa.Column("raw_event_id", sa.Integer(), nullable=True),
+        sa.Column("hes_read_raw_id", sa.Integer(), nullable=True),
+        sa.Column("hes_event_raw_id", sa.Integer(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -261,31 +261,31 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
-        sa.ForeignKeyConstraint(["raw_read_id"], ["raw_read.id"]),
-        sa.ForeignKeyConstraint(["raw_event_id"], ["raw_event.id"]),
+        sa.ForeignKeyConstraint(["hes_read_raw_id"], ["hes_read_raw.id"]),
+        sa.ForeignKeyConstraint(["hes_event_raw_id"], ["hes_event_raw.id"]),
     )
-    op.create_index("ix_processing_exception_exception_type", "processing_exception", ["exception_type"])
-    op.create_index("ix_processing_exception_exception_code", "processing_exception", ["exception_code"])
+    op.create_index("ix_ingest_error_log_exception_type", "ingest_error_log", ["exception_type"])
+    op.create_index("ix_ingest_error_log_exception_code", "ingest_error_log", ["exception_code"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_processing_exception_exception_code", table_name="processing_exception")
-    op.drop_index("ix_processing_exception_exception_type", table_name="processing_exception")
-    op.drop_table("processing_exception")
+    op.drop_index("ix_ingest_error_log_exception_code", table_name="ingest_error_log")
+    op.drop_index("ix_ingest_error_log_exception_type", table_name="ingest_error_log")
+    op.drop_table("ingest_error_log")
 
     op.drop_index("ix_canonical_measurement_measured_at", table_name="canonical_measurement")
     op.drop_table("canonical_measurement")
 
-    op.drop_index("ix_raw_event_event_time", table_name="raw_event")
-    op.drop_index("ix_raw_event_meter_identifier", table_name="raw_event")
-    op.drop_index("ix_raw_event_source_system", table_name="raw_event")
-    op.drop_table("raw_event")
+    op.drop_index("ix_hes_event_raw_event_time", table_name="hes_event_raw")
+    op.drop_index("ix_hes_event_raw_meter_identifier", table_name="hes_event_raw")
+    op.drop_index("ix_hes_event_raw_source_system", table_name="hes_event_raw")
+    op.drop_table("hes_event_raw")
 
-    op.drop_index("ix_raw_read_measured_at", table_name="raw_read")
-    op.drop_index("ix_raw_read_channel_identifier", table_name="raw_read")
-    op.drop_index("ix_raw_read_meter_identifier", table_name="raw_read")
-    op.drop_index("ix_raw_read_source_system", table_name="raw_read")
-    op.drop_table("raw_read")
+    op.drop_index("ix_hes_read_raw_measured_at", table_name="hes_read_raw")
+    op.drop_index("ix_hes_read_raw_channel_identifier", table_name="hes_read_raw")
+    op.drop_index("ix_hes_read_raw_meter_identifier", table_name="hes_read_raw")
+    op.drop_index("ix_hes_read_raw_source_system", table_name="hes_read_raw")
+    op.drop_table("hes_read_raw")
 
     op.drop_table("installation_history")
 
@@ -298,7 +298,6 @@ def downgrade() -> None:
     op.drop_index("ix_service_point_source_system", table_name="service_point")
     op.drop_table("service_point")
 
-    op.drop_index("ix_ingestion_batch_batch_id", table_name="ingestion_batch")
-    op.drop_index("ix_ingestion_batch_source_system", table_name="ingestion_batch")
-    op.drop_table("ingestion_batch")
-
+    op.drop_index("ix_ingest_batch_batch_id", table_name="ingest_batch")
+    op.drop_index("ix_ingest_batch_source_system", table_name="ingest_batch")
+    op.drop_table("ingest_batch")

@@ -68,10 +68,9 @@ Then open `http://127.0.0.1:5000/`.
 
 - The runtime baseline now targets PostgreSQL and expects a valid `DATABASE_URL`.
 - Migration setup is now aligned around Alembic instead of unmanaged schema creation.
-- Ongoing development should align persistent naming with the backlog baseline such as `ingest_batch`, `hes_read_raw`, `hes_event_raw`, and `ingest_error_log`.
+- Persistent naming is aligned with the backlog baseline such as `ingest_batch`, `hes_read_raw`, `hes_event_raw`, and `ingest_error_log`.
 - This stage stops at raw ingestion, master-data mapping, canonicalization, and exception visibility.
 
 Additional context lives in [docs/minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md).
 
 Known structural alignment work is tracked in [docs/gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/gap-analysis.md).
-

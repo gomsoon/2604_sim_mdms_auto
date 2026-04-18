@@ -7,10 +7,10 @@ from app.db import get_session
 from app.models import (
     CanonicalMeasurement,
     Device,
+    HesEventRaw,
+    HesReadRaw,
+    IngestErrorLog,
     MeasuringComponent,
-    ProcessingException,
-    RawEvent,
-    RawRead,
     ServicePoint,
 )
 
@@ -25,14 +25,14 @@ def dashboard():
         "service_points": session.scalar(select(func.count()).select_from(ServicePoint)) or 0,
         "devices": session.scalar(select(func.count()).select_from(Device)) or 0,
         "components": session.scalar(select(func.count()).select_from(MeasuringComponent)) or 0,
-        "raw_reads": session.scalar(select(func.count()).select_from(RawRead)) or 0,
-        "raw_events": session.scalar(select(func.count()).select_from(RawEvent)) or 0,
+        "raw_reads": session.scalar(select(func.count()).select_from(HesReadRaw)) or 0,
+        "raw_events": session.scalar(select(func.count()).select_from(HesEventRaw)) or 0,
         "canonical": session.scalar(select(func.count()).select_from(CanonicalMeasurement)) or 0,
-        "exceptions": session.scalar(select(func.count()).select_from(ProcessingException)) or 0,
+        "exceptions": session.scalar(select(func.count()).select_from(IngestErrorLog)) or 0,
     }
-    recent_reads = session.scalars(select(RawRead).order_by(RawRead.id.desc()).limit(10)).all()
+    recent_reads = session.scalars(select(HesReadRaw).order_by(HesReadRaw.id.desc()).limit(10)).all()
     recent_exceptions = session.scalars(
-        select(ProcessingException).order_by(ProcessingException.id.desc()).limit(10)
+        select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(10)
     ).all()
     return render_template(
         "dashboard.html",
@@ -45,14 +45,14 @@ def dashboard():
 @bp.get("/raw-reads")
 def raw_reads():
     session = get_session()
-    rows = session.scalars(select(RawRead).order_by(RawRead.id.desc()).limit(100)).all()
+    rows = session.scalars(select(HesReadRaw).order_by(HesReadRaw.id.desc()).limit(100)).all()
     return render_template("raw_reads.html", rows=rows)
 
 
 @bp.get("/raw-events")
 def raw_events():
     session = get_session()
-    rows = session.scalars(select(RawEvent).order_by(RawEvent.id.desc()).limit(100)).all()
+    rows = session.scalars(select(HesEventRaw).order_by(HesEventRaw.id.desc()).limit(100)).all()
     return render_template("raw_events.html", rows=rows)
 
 
@@ -60,7 +60,7 @@ def raw_events():
 def exceptions():
     session = get_session()
     rows = session.scalars(
-        select(ProcessingException).order_by(ProcessingException.id.desc()).limit(100)
+        select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(100)
     ).all()
     return render_template("exceptions.html", rows=rows)
 
@@ -72,4 +72,3 @@ def master_data():
         select(MeasuringComponent).order_by(MeasuringComponent.id.desc()).limit(100)
     ).all()
     return render_template("master_data.html", rows=components)
-

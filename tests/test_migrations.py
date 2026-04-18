@@ -25,9 +25,8 @@ def test_alembic_upgrade_creates_expected_tables(tmp_path: Path):
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
 
-    assert "ingestion_batch" in tables
-    assert "raw_read" in tables
-    assert "raw_event" in tables
+    assert "ingest_batch" in tables
+    assert "hes_read_raw" in tables
+    assert "hes_event_raw" in tables
     assert "canonical_measurement" in tables
-    assert "processing_exception" in tables
-
+    assert "ingest_error_log" in tables
