@@ -1,5 +1,17 @@
 {% extends "base.html" %}
 
+{% macro status_options(selected) -%}
+  {% for value in ["active", "inactive"] %}
+  <option value="{{ value }}" {% if selected == value %}selected{% endif %}>{{ t_or("common.status." ~ value, value) }}</option>
+  {% endfor %}
+{%- endmacro %}
+
+{% macro service_type_options(selected) -%}
+  {% for value in ["electric", "gas", "water"] %}
+  <option value="{{ value }}" {% if selected == value %}selected{% endif %}>{{ t_or("common.service_type." ~ value, value) }}</option>
+  {% endfor %}
+{%- endmacro %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
@@ -8,40 +20,309 @@
   </div>
 </div>
 
-<div class="card shadow-sm">
-  <div class="card-body">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle">
-        <thead>
-          <tr>
-            <th>{{ t("table.component_id") }}</th>
-            <th>{{ t("table.source") }}</th>
-            <th>{{ t("table.device_id") }}</th>
-            <th>{{ t("table.external_channel") }}</th>
-            <th>{{ t("table.service_point") }}</th>
-            <th>{{ t("table.uom") }}</th>
-            <th>{{ t("table.status") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in rows %}
-          <tr>
-            <td>{{ row.id }}</td>
-            <td>{{ row.source_system }}</td>
-            <td>{{ row.device.external_meter_id }}</td>
-            <td>{{ row.external_channel_id }}</td>
-            <td>{{ row.service_point.external_id }}</td>
-            <td>{{ row.unit_of_measure }}</td>
-            <td>{{ t_or("common.status." ~ row.status, row.status) }}</td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<section id="service-points" class="mb-5">
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 mb-3">{{ t("page.master_data.create_service_point") }}</h2>
+          <form method="post" action="{{ url_for('web.create_service_point_view') }}">
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.source_system") }}</label>
+              <input class="form-control" name="source_system" value="HES" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.external_id") }}</label>
+              <input class="form-control" name="external_id" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.service_type") }}</label>
+              <select class="form-select" name="service_type">
+                {{ service_type_options("electric") }}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.name") }}</label>
+              <input class="form-control" name="name">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.status") }}</label>
+              <select class="form-select" name="status">
+                {{ status_options("active") }}
+              </select>
+            </div>
+            <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">{{ t("page.master_data.service_points") }}</h2>
+            <span class="text-secondary small">{{ service_points|length }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>{{ t("table.id") }}</th>
+                  <th>{{ t("table.source") }}</th>
+                  <th>{{ t("table.external_id") }}</th>
+                  <th>{{ t("table.name") }}</th>
+                  <th>{{ t("table.service_type") }}</th>
+                  <th>{{ t("table.status") }}</th>
+                  <th>{{ t("table.actions") }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in service_points %}
+                <tr>
+                  <form method="post" action="{{ url_for('web.update_service_point_view', service_point_id=row.id) }}">
+                    <td>{{ row.id }}</td>
+                    <td><input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required></td>
+                    <td><input class="form-control form-control-sm" name="external_id" value="{{ row.external_id }}" required></td>
+                    <td><input class="form-control form-control-sm" name="name" value="{{ row.name or '' }}"></td>
+                    <td>
+                      <select class="form-select form-select-sm" name="service_type">
+                        {{ service_type_options(row.service_type) }}
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="status">
+                        {{ status_options(row.status) }}
+                      </select>
+                    </td>
+                    <td><button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button></td>
+                  </form>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
+</section>
+
+<section id="devices" class="mb-5">
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 mb-3">{{ t("page.master_data.create_device") }}</h2>
+          <form method="post" action="{{ url_for('web.create_device_view') }}">
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.source_system") }}</label>
+              <input class="form-control" name="source_system" value="HES" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.external_meter_id") }}</label>
+              <input class="form-control" name="external_meter_id" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.serial_number") }}</label>
+              <input class="form-control" name="serial_number">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.service_point") }}</label>
+              <select class="form-select" name="service_point_id" required>
+                <option value="">{{ t("common.none") }}</option>
+                {% for service_point in service_points %}
+                <option value="{{ service_point.id }}">{{ service_point.external_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.status") }}</label>
+              <select class="form-select" name="status">
+                {{ status_options("active") }}
+              </select>
+            </div>
+            <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">{{ t("page.master_data.devices") }}</h2>
+            <span class="text-secondary small">{{ devices|length }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>{{ t("table.id") }}</th>
+                  <th>{{ t("table.source") }}</th>
+                  <th>{{ t("table.device_id") }}</th>
+                  <th>{{ t("table.serial_number") }}</th>
+                  <th>{{ t("table.service_point") }}</th>
+                  <th>{{ t("table.status") }}</th>
+                  <th>{{ t("table.actions") }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in devices %}
+                <tr>
+                  <form method="post" action="{{ url_for('web.update_device_view', device_id=row.id) }}">
+                    <td>{{ row.id }}</td>
+                    <td><input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required></td>
+                    <td><input class="form-control form-control-sm" name="external_meter_id" value="{{ row.external_meter_id }}" required></td>
+                    <td><input class="form-control form-control-sm" name="serial_number" value="{{ row.serial_number or '' }}"></td>
+                    <td>
+                      <select class="form-select form-select-sm" name="service_point_id" required>
+                        {% for service_point in service_points %}
+                        <option value="{{ service_point.id }}" {% if row.service_point_id == service_point.id %}selected{% endif %}>{{ service_point.external_id }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="status">
+                        {{ status_options(row.status) }}
+                      </select>
+                    </td>
+                    <td><button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button></td>
+                  </form>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="components" class="mb-5">
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 mb-3">{{ t("page.master_data.create_component") }}</h2>
+          <form method="post" action="{{ url_for('web.create_component_view') }}">
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.source_system") }}</label>
+              <input class="form-control" name="source_system" value="HES" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.device") }}</label>
+              <select class="form-select" name="device_id" required>
+                <option value="">{{ t("common.none") }}</option>
+                {% for device in devices %}
+                <option value="{{ device.id }}">{{ device.external_meter_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.service_point") }}</label>
+              <select class="form-select" name="service_point_id" required>
+                <option value="">{{ t("common.none") }}</option>
+                {% for service_point in service_points %}
+                <option value="{{ service_point.id }}">{{ service_point.external_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.external_channel_id") }}</label>
+              <input class="form-control" name="external_channel_id" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.unit_of_measure") }}</label>
+              <input class="form-control" name="unit_of_measure" value="kWh" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.multiplier") }}</label>
+              <input class="form-control" name="multiplier" type="number" min="0.000001" step="0.000001" value="1" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.status") }}</label>
+              <select class="form-select" name="status">
+                {{ status_options("active") }}
+              </select>
+            </div>
+            <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">{{ t("page.master_data.components") }}</h2>
+            <span class="text-secondary small">{{ rows|length }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>{{ t("table.component_id") }}</th>
+                  <th>{{ t("table.source") }}</th>
+                  <th>{{ t("table.device_id") }}</th>
+                  <th>{{ t("table.service_point") }}</th>
+                  <th>{{ t("table.external_channel") }}</th>
+                  <th>{{ t("table.uom") }}</th>
+                  <th>{{ t("table.multiplier") }}</th>
+                  <th>{{ t("table.status") }}</th>
+                  <th>{{ t("table.actions") }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in rows %}
+                <tr>
+                  <form method="post" action="{{ url_for('web.update_component_view', component_id=row.id) }}">
+                    <td>{{ row.id }}</td>
+                    <td><input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required></td>
+                    <td>
+                      <select class="form-select form-select-sm" name="device_id" required>
+                        {% for device in devices %}
+                        <option value="{{ device.id }}" {% if row.device_id == device.id %}selected{% endif %}>{{ device.external_meter_id }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="service_point_id" required>
+                        {% for service_point in service_points %}
+                        <option value="{{ service_point.id }}" {% if row.service_point_id == service_point.id %}selected{% endif %}>{{ service_point.external_id }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td><input class="form-control form-control-sm" name="external_channel_id" value="{{ row.external_channel_id }}" required></td>
+                    <td><input class="form-control form-control-sm" name="unit_of_measure" value="{{ row.unit_of_measure }}" required></td>
+                    <td><input class="form-control form-control-sm" name="multiplier" type="number" min="0.000001" step="0.000001" value="{{ row.multiplier }}" required></td>
+                    <td>
+                      <select class="form-select form-select-sm" name="status">
+                        {{ status_options(row.status) }}
+                      </select>
+                    </td>
+                    <td><button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button></td>
+                  </form>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="9" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 {% endblock %}

@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+from sqlalchemy import select
+
+from app.models import Device, ServicePoint
+from app.services.master_data import create_device, create_service_point
+
+
+def test_create_service_point_via_web_creates_record(client, session):
+    response = client.post(
+        "/master-data/service-points",
+        data={
+            "source_system": "HES",
+            "external_id": "SP-WEB-1001",
+            "service_type": "electric",
+            "name": "Web Service Point",
+            "status": "active",
+        },
+        follow_redirects=True,
+    )
+
+    service_point = session.scalar(
+        select(ServicePoint).where(ServicePoint.external_id == "SP-WEB-1001").limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "Service point created successfully." in response.get_data(as_text=True)
+    assert service_point is not None
+
+
+def test_update_device_via_web_supports_korean_feedback(client, session):
+    client.get("/master-data?lang=ko")
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-WEB-2001",
+        service_type="electric",
+        name="Web Site",
+        status="active",
+    )
+    device = create_device(
+        session,
+        source_system="HES",
+        external_meter_id="MTR-WEB-2001",
+        serial_number="SER-WEB-2001",
+        service_point_id=service_point.id,
+        status="active",
+    )
+    session.commit()
+
+    response = client.post(
+        f"/master-data/devices/{device.id}",
+        data={
+            "source_system": "HES",
+            "external_meter_id": "MTR-WEB-2001",
+            "serial_number": "SER-WEB-UPDATED",
+            "service_point_id": str(service_point.id),
+            "status": "inactive",
+        },
+        follow_redirects=True,
+    )
+
+    updated_device = session.get(Device, device.id)
+
+    assert response.status_code == 200
+    assert "장치가 수정되었습니다." in response.get_data(as_text=True)
+    assert updated_device is not None
+    assert updated_device.serial_number == "SER-WEB-UPDATED"
+    assert updated_device.status == "inactive"
+
+
+def test_create_service_point_via_web_rejects_empty_external_id_in_korean(client, session):
+    client.get("/master-data?lang=ko")
+
+    response = client.post(
+        "/master-data/service-points",
+        data={
+            "source_system": "HES",
+            "external_id": "",
+            "service_type": "electric",
+            "name": "Broken",
+            "status": "active",
+        },
+        follow_redirects=True,
+    )
+
+    service_point = session.scalar(
+        select(ServicePoint).where(ServicePoint.name == "Broken").limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "외부 ID는 필수입니다." in response.get_data(as_text=True)
+    assert service_point is None

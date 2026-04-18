@@ -45,6 +45,18 @@
 
     <main class="py-4">
       <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="mb-4">
+          {% for category, message in messages %}
+          <div class="alert alert-{{ category }}" role="alert">
+            <strong class="me-2">{{ t("flash.success") if category == "success" else t("flash.error") }}</strong>
+            <span>{{ message }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
         {% block content %}{% endblock %}
       </div>
     </main>
