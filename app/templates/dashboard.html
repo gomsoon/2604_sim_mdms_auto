@@ -24,6 +24,47 @@
 </section>
 
 <section class="row g-3 mb-4">
+  {% for card in stage_cards %}
+  <div class="col-lg-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="fw-semibold">{{ t(card.title_key) }}</div>
+          <span class="badge text-bg-light">{{ card.waiting + card.processing + card.completed + card.failed }}</span>
+        </div>
+        <div class="row g-2 text-center">
+          <div class="col-6">
+            <div class="border rounded-3 py-2 px-2 h-100">
+              <div class="text-secondary small">{{ t("dashboard.stage.waiting") }}</div>
+              <div class="fw-semibold">{{ card.waiting }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="border rounded-3 py-2 px-2 h-100">
+              <div class="text-secondary small">{{ t("dashboard.stage.processing") }}</div>
+              <div class="fw-semibold">{{ card.processing }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="border rounded-3 py-2 px-2 h-100">
+              <div class="text-secondary small">{{ t("dashboard.stage.completed") }}</div>
+              <div class="fw-semibold text-success">{{ card.completed }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="border rounded-3 py-2 px-2 h-100">
+              <div class="text-secondary small">{{ t("dashboard.stage.failed") }}</div>
+              <div class="fw-semibold text-danger">{{ card.failed }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="row g-3 mb-4">
   <div class="col-6 col-lg-3">
     <div class="card shadow-sm h-100">
       <div class="card-body">

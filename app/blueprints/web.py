@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.db import get_session
 from app.i18n import get_locale, translate, translate_master_data_error
 from app.models import (
-    CanonicalMeasurement,
     Device,
     HesEventRaw,
     HesReadRaw,
@@ -14,6 +13,7 @@ from app.models import (
     MeasuringComponent,
     ServicePoint,
 )
+from app.services.dashboard import build_dashboard_snapshot
 from app.services.master_data import (
     MasterDataValidationError,
     create_device,
@@ -31,24 +31,13 @@ bp = Blueprint("web", __name__)
 @bp.get("/")
 def dashboard():
     session = get_session()
-    stats = {
-        "service_points": session.scalar(select(func.count()).select_from(ServicePoint)) or 0,
-        "devices": session.scalar(select(func.count()).select_from(Device)) or 0,
-        "components": session.scalar(select(func.count()).select_from(MeasuringComponent)) or 0,
-        "raw_reads": session.scalar(select(func.count()).select_from(HesReadRaw)) or 0,
-        "raw_events": session.scalar(select(func.count()).select_from(HesEventRaw)) or 0,
-        "canonical": session.scalar(select(func.count()).select_from(CanonicalMeasurement)) or 0,
-        "exceptions": session.scalar(select(func.count()).select_from(IngestErrorLog)) or 0,
-    }
-    recent_reads = session.scalars(select(HesReadRaw).order_by(HesReadRaw.id.desc()).limit(10)).all()
-    recent_exceptions = session.scalars(
-        select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(10)
-    ).all()
+    snapshot = build_dashboard_snapshot(session)
     return render_template(
         "dashboard.html",
-        stats=stats,
-        recent_reads=recent_reads,
-        recent_exceptions=recent_exceptions,
+        stats=snapshot.stats,
+        stage_cards=snapshot.stage_cards,
+        recent_reads=snapshot.recent_reads,
+        recent_exceptions=snapshot.recent_exceptions,
     )
 
 
