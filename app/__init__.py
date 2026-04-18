@@ -7,14 +7,19 @@ from flask import Flask
 
 from app.blueprints.api import bp as api_bp
 from app.blueprints.web import bp as web_bp
-from app.config import Config
-from app.db import create_all, get_session, init_app as init_db
+from app.config import Config, get_database_url, get_secret_key
+from app.db import get_session, init_app as init_db
+from app.migrations import upgrade_db
 from app.services.seeds import seed_demo_environment
 
 
 def create_app() -> Flask:
     app = Flask(__name__, instance_relative_config=True)
-    app.config.from_object(Config)
+    app.config.from_mapping(
+        APP_TITLE=Config.APP_TITLE,
+        SECRET_KEY=get_secret_key(),
+        DATABASE_URL=get_database_url(),
+    )
 
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
 
@@ -31,8 +36,8 @@ def create_app() -> Flask:
 def register_commands(app: Flask) -> None:
     @app.cli.command("init-db")
     def init_db_command() -> None:
-        create_all()
-        click.echo("Database tables created.")
+        upgrade_db(app.config["DATABASE_URL"])
+        click.echo("Database schema upgraded to head.")
 
     @app.cli.command("seed-demo")
     def seed_demo_command() -> None:
@@ -62,4 +67,3 @@ def register_filters(app: Flask) -> None:
             return value.strftime("%Y-%m-%d %H:%M:%S")
         except AttributeError:
             return str(value)
-

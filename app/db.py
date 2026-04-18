@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flask import Flask
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, scoped_session, sessionmaker
 
@@ -17,7 +17,7 @@ _engine: Engine | None = None
 def init_app(app: Flask) -> None:
     global _engine
 
-    _engine = create_engine(app.config["DATABASE_URL"], future=True)
+    _engine = create_engine(app.config["DATABASE_URL"], future=True, pool_pre_ping=True)
     SessionLocal.configure(bind=_engine)
 
     @app.teardown_appcontext
@@ -36,8 +36,7 @@ def get_session():
     return SessionLocal
 
 
-def create_all() -> None:
-    from app import models  # noqa: F401
-
-    Base.metadata.create_all(bind=get_engine())
+def check_database_connection() -> None:
+    with get_engine().connect() as connection:
+        connection.execute(text("SELECT 1"))
 

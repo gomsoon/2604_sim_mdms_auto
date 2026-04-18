@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SQLITE_PATH = (BASE_DIR / "instance" / "mdms_dev.db").as_posix()
+DEFAULT_DATABASE_URL = "postgresql+psycopg://mdms_app:change-me@127.0.0.1:5432/mdms_dev"
+
+
+def get_secret_key() -> str:
+    return os.getenv("SECRET_KEY", "dev-secret-key")
+
+
+def get_database_url() -> str:
+    return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
 class Config:
     APP_TITLE = "MDMS Minimal E2E"
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
-    DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}")
 

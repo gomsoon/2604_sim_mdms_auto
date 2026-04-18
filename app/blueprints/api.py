@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 from sqlalchemy import select
 
-from app.db import get_session
+from app.db import check_database_connection, get_session
 from app.models import ProcessingException, RawEvent, RawRead
 from app.services.ingestion import ingest_events, ingest_reads
 
@@ -13,7 +13,22 @@ bp = Blueprint("api", __name__)
 
 @bp.get("/health")
 def health_check():
-    return jsonify({"status": "ok"})
+    try:
+        check_database_connection()
+    except Exception as exc:
+        return (
+            jsonify(
+                {
+                    "status": "degraded",
+                    "database": "down",
+                    "error": str(exc),
+                }
+            ),
+            503,
+        )
+
+    return jsonify({"status": "ok", "database": "up"})
+
 
 
 @bp.post("/ingest/reads")
@@ -108,4 +123,3 @@ def list_exceptions():
             for row in rows
         ]
     )
-

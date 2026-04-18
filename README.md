@@ -23,6 +23,13 @@ make seed-demo
 make run
 ```
 
+Before `make init-db`, make sure local PostgreSQL is running and the application role/database already exist. The current `.env.example` expects:
+
+- role: `mdms_app`
+- database: `mdms_dev`
+- host: `127.0.0.1`
+- port: `5432`
+
 Then open `http://127.0.0.1:5000/`.
 
 ## Key routes
@@ -59,7 +66,8 @@ Then open `http://127.0.0.1:5000/`.
 
 ## Design notes
 
-- The current scaffold still defaults to SQLite, but the agreed next structural step is to move the runtime baseline to PostgreSQL.
+- The runtime baseline now targets PostgreSQL and expects a valid `DATABASE_URL`.
+- Migration setup is now aligned around Alembic instead of unmanaged schema creation.
 - Ongoing development should align persistent naming with the backlog baseline such as `ingest_batch`, `hes_read_raw`, `hes_event_raw`, and `ingest_error_log`.
 - This stage stops at raw ingestion, master-data mapping, canonicalization, and exception visibility.
 

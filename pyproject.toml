@@ -9,7 +9,9 @@ description = "Minimal end-to-end MDM scaffold with Flask, SQLAlchemy, and Boots
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "alembic>=1.16,<2",
   "Flask>=3.1,<4",
+  "psycopg[binary]>=3.2,<4",
   "SQLAlchemy>=2.0,<3",
   "python-dotenv>=1.0,<2",
 ]
@@ -25,4 +27,3 @@ include = ["app*"]
 
 [tool.ruff]
 line-length = 100
-
