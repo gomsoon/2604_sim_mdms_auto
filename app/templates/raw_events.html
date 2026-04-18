@@ -3,8 +3,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h1 class="h3 mb-1">Raw Events</h1>
-    <p class="text-secondary mb-0">HES events and alarms are stored separately so VEE can use them later.</p>
+    <h1 class="h3 mb-1">{{ t("page.raw_events.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.raw_events.description") }}</p>
   </div>
 </div>
 
@@ -14,12 +14,12 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Source</th>
-            <th>Meter</th>
-            <th>Event Time</th>
-            <th>Event Code</th>
-            <th>Severity</th>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.source") }}</th>
+            <th>{{ t("table.meter") }}</th>
+            <th>{{ t("table.event_time") }}</th>
+            <th>{{ t("table.event_code") }}</th>
+            <th>{{ t("table.severity") }}</th>
           </tr>
         </thead>
         <tbody>
@@ -27,14 +27,14 @@
           <tr>
             <td>{{ row.id }}</td>
             <td>{{ row.source_system }}</td>
-            <td>{{ row.meter_identifier or "-" }}</td>
+            <td>{{ row.meter_identifier or t("common.none") }}</td>
             <td>{{ row.event_time|dt }}</td>
-            <td>{{ row.event_code or "-" }}</td>
-            <td>{{ row.severity or "-" }}</td>
+            <td>{{ row.event_code or t("common.none") }}</td>
+            <td>{{ t_or("severity." ~ row.severity, row.severity or t("common.none")) }}</td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="6" class="text-secondary">No raw events available.</td>
+            <td colspan="6" class="text-secondary">{{ t("page.raw_events.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -43,4 +43,3 @@
   </div>
 </div>
 {% endblock %}
-

@@ -1,0 +1,268 @@
+from __future__ import annotations
+
+from flask import Flask, g, request, url_for
+
+
+DEFAULT_LOCALE = "en"
+SUPPORTED_LOCALES = ("en", "ko")
+LOCALE_COOKIE_NAME = "mdms_locale"
+
+
+MESSAGES = {
+    "en": {
+        "app.title": "MDMS Minimal E2E",
+        "nav.dashboard": "Dashboard",
+        "nav.raw_reads": "Raw Reads",
+        "nav.raw_events": "Raw Events",
+        "nav.exceptions": "Exceptions",
+        "nav.master_data": "Master Data",
+        "nav.language": "Language",
+        "lang.en": "English",
+        "lang.ko": "Korean",
+        "dashboard.badge": "Minimal End-to-End",
+        "dashboard.hero_title": "HES raw ingestion, mapping, canonicalization, and exceptions in one place",
+        "dashboard.hero_body": (
+            "This first scaffold is focused on the shortest believable operator flow: "
+            "accept raw data, preserve it, map it to master data, and surface failures "
+            "without hiding lineage."
+        ),
+        "dashboard.quick_start": "Quick Start",
+        "dashboard.service_points": "Service Points",
+        "dashboard.devices": "Devices",
+        "dashboard.raw_reads": "Raw Reads",
+        "dashboard.exceptions": "Exceptions",
+        "dashboard.recent_raw_reads": "Recent Raw Reads",
+        "dashboard.recent_exceptions": "Recent Exceptions",
+        "dashboard.view_all": "View all",
+        "dashboard.view_queue": "View queue",
+        "dashboard.no_raw_reads": "No raw reads loaded yet.",
+        "dashboard.no_exceptions": "No exceptions recorded.",
+        "page.raw_reads.title": "Raw Reads",
+        "page.raw_reads.description": "Original meter reads are preserved before business-level processing.",
+        "page.raw_events.title": "Raw Events",
+        "page.raw_events.description": "HES events and alarms are stored separately so VEE can use them later.",
+        "page.exceptions.title": "Exception Queue",
+        "page.exceptions.description": "Mapping, validation, and duplicate issues are surfaced here for operator follow-up.",
+        "page.master_data.title": "Master Data",
+        "page.master_data.description": "Minimal device, service point, and measuring-component mappings used by the canonical flow.",
+        "table.id": "ID",
+        "table.source": "Source",
+        "table.meter": "Meter",
+        "table.channel": "Channel",
+        "table.measured_at": "Measured At",
+        "table.value": "Value",
+        "table.status": "Status",
+        "table.duplicate": "Duplicate",
+        "table.event_time": "Event Time",
+        "table.event_code": "Event Code",
+        "table.severity": "Severity",
+        "table.type": "Type",
+        "table.code": "Code",
+        "table.message": "Message",
+        "table.component_id": "Component ID",
+        "table.device_id": "Device ID",
+        "table.external_channel": "External Channel",
+        "table.service_point": "Service Point",
+        "table.uom": "UOM",
+        "common.none": "-",
+        "common.yes": "yes",
+        "common.no": "no",
+        "common.status.active": "active",
+        "common.status.installed": "installed",
+        "common.status.open": "open",
+        "exception_type.validation": "validation",
+        "exception_type.duplicate": "duplicate",
+        "exception_type.mapping": "mapping",
+        "severity.high": "high",
+        "severity.medium": "medium",
+        "severity.low": "low",
+        "canonical_status.mapped": "mapped",
+        "canonical_status.duplicate": "duplicate",
+        "canonical_status.exception": "exception",
+        "page.raw_reads.empty": "No raw reads available.",
+        "page.raw_events.empty": "No raw events available.",
+        "page.exceptions.empty": "No exception records available.",
+        "page.master_data.empty": "No master data loaded yet.",
+        "api.errors.json_payload_required": "JSON payload is required.",
+        "api.errors.ingest_request_failed": "The ingest request could not be processed.",
+        "ingest.error.missing_required_fields": "Required raw read fields are missing.",
+        "ingest.error.duplicate_raw_read": "Duplicate raw read detected for the same source, meter, channel, and timestamp.",
+        "ingest.error.measuring_component_not_found": "No active measuring component matched the incoming raw read.",
+        "ingest.error.invalid_event_payload": "Raw event is missing event_code or event_time.",
+    },
+    "ko": {
+        "app.title": "MDMS 최소 E2E",
+        "nav.dashboard": "대시보드",
+        "nav.raw_reads": "원시 검침",
+        "nav.raw_events": "원시 이벤트",
+        "nav.exceptions": "오류 큐",
+        "nav.master_data": "마스터 데이터",
+        "nav.language": "언어",
+        "lang.en": "영문",
+        "lang.ko": "한글",
+        "dashboard.badge": "최소 End-to-End",
+        "dashboard.hero_title": "HES 원시 수집, 매핑, 표준화, 예외 처리를 한 곳에서 확인합니다",
+        "dashboard.hero_body": (
+            "현재 스캐폴드는 가장 짧고 믿을 수 있는 운영 흐름에 집중합니다. "
+            "원시 데이터를 수용하고 보존한 뒤, 마스터 데이터에 매핑하고, "
+            "lineage를 잃지 않으면서 실패를 드러냅니다."
+        ),
+        "dashboard.quick_start": "빠른 시작",
+        "dashboard.service_points": "서비스 포인트",
+        "dashboard.devices": "계량기",
+        "dashboard.raw_reads": "원시 검침",
+        "dashboard.exceptions": "오류",
+        "dashboard.recent_raw_reads": "최근 원시 검침",
+        "dashboard.recent_exceptions": "최근 오류",
+        "dashboard.view_all": "전체 보기",
+        "dashboard.view_queue": "큐 보기",
+        "dashboard.no_raw_reads": "적재된 원시 검침이 없습니다.",
+        "dashboard.no_exceptions": "기록된 오류가 없습니다.",
+        "page.raw_reads.title": "원시 검침",
+        "page.raw_reads.description": "원시 검침 데이터는 업무 처리 전에 먼저 보존됩니다.",
+        "page.raw_events.title": "원시 이벤트",
+        "page.raw_events.description": "HES 이벤트와 알람은 이후 VEE 활용을 위해 별도로 보관됩니다.",
+        "page.exceptions.title": "오류 큐",
+        "page.exceptions.description": "매핑, 검증, 중복 관련 문제를 운영자가 후속 처리할 수 있도록 보여줍니다.",
+        "page.master_data.title": "마스터 데이터",
+        "page.master_data.description": "표준화 흐름에서 사용하는 최소 장치, 서비스 포인트, 채널 매핑입니다.",
+        "table.id": "ID",
+        "table.source": "출처",
+        "table.meter": "계량기",
+        "table.channel": "채널",
+        "table.measured_at": "검침 시각",
+        "table.value": "값",
+        "table.status": "상태",
+        "table.duplicate": "중복",
+        "table.event_time": "이벤트 시각",
+        "table.event_code": "이벤트 코드",
+        "table.severity": "심각도",
+        "table.type": "유형",
+        "table.code": "코드",
+        "table.message": "메시지",
+        "table.component_id": "컴포넌트 ID",
+        "table.device_id": "장치 ID",
+        "table.external_channel": "외부 채널",
+        "table.service_point": "서비스 포인트",
+        "table.uom": "단위",
+        "common.none": "-",
+        "common.yes": "예",
+        "common.no": "아니오",
+        "common.status.active": "활성",
+        "common.status.installed": "설치됨",
+        "common.status.open": "대기",
+        "exception_type.validation": "검증",
+        "exception_type.duplicate": "중복",
+        "exception_type.mapping": "매핑",
+        "severity.high": "높음",
+        "severity.medium": "보통",
+        "severity.low": "낮음",
+        "canonical_status.mapped": "매핑 완료",
+        "canonical_status.duplicate": "중복",
+        "canonical_status.exception": "예외",
+        "page.raw_reads.empty": "원시 검침 데이터가 없습니다.",
+        "page.raw_events.empty": "원시 이벤트가 없습니다.",
+        "page.exceptions.empty": "오류 기록이 없습니다.",
+        "page.master_data.empty": "적재된 마스터 데이터가 없습니다.",
+        "api.errors.json_payload_required": "JSON 페이로드가 필요합니다.",
+        "api.errors.ingest_request_failed": "적재 요청을 처리할 수 없습니다.",
+        "ingest.error.missing_required_fields": "필수 원시 검침 항목이 누락되었습니다.",
+        "ingest.error.duplicate_raw_read": "같은 출처, 계량기, 채널, 시각 조합의 중복 원시 검침이 감지되었습니다.",
+        "ingest.error.measuring_component_not_found": "수신한 원시 검침과 일치하는 활성 측정 컴포넌트를 찾지 못했습니다.",
+        "ingest.error.invalid_event_payload": "원시 이벤트에 event_code 또는 event_time이 없습니다.",
+    },
+}
+
+
+def normalize_locale(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    compact = value.strip().replace("_", "-")
+    if not compact:
+        return None
+
+    primary = compact.split("-", maxsplit=1)[0].lower()
+    if primary in SUPPORTED_LOCALES:
+        return primary
+
+    return None
+
+
+def detect_locale() -> str:
+    explicit = normalize_locale(request.args.get("lang"))
+    if explicit:
+        return explicit
+
+    cookie_locale = normalize_locale(request.cookies.get(LOCALE_COOKIE_NAME))
+    if cookie_locale:
+        return cookie_locale
+
+    for accepted, _quality in request.accept_languages:
+        accepted_locale = normalize_locale(accepted)
+        if accepted_locale:
+            return accepted_locale
+
+    return DEFAULT_LOCALE
+
+
+def get_locale() -> str:
+    return getattr(g, "locale", DEFAULT_LOCALE)
+
+
+def translate(key: str, locale: str | None = None, **kwargs) -> str:
+    target_locale = normalize_locale(locale) or get_locale()
+    template = MESSAGES.get(target_locale, {}).get(key)
+    if template is None:
+        template = MESSAGES[DEFAULT_LOCALE].get(key, key)
+    return template.format(**kwargs)
+
+
+def translate_or(key: str, fallback: str, locale: str | None = None, **kwargs) -> str:
+    localized = translate(key, locale=locale, **kwargs)
+    if localized == key:
+        return fallback
+    return localized
+
+
+def translate_ingest_error(code: str, fallback_message: str | None = None) -> str:
+    key = f"ingest.error.{code}"
+    return translate_or(key, fallback_message or code)
+
+
+def localized_url(target_locale: str) -> str:
+    normalized_locale = normalize_locale(target_locale) or DEFAULT_LOCALE
+    if request.endpoint is None:
+        return request.path
+
+    values = dict(request.view_args or {})
+    values.update(request.args.to_dict(flat=True))
+    values["lang"] = normalized_locale
+    return url_for(request.endpoint, **values)
+
+
+def register_i18n(app: Flask) -> None:
+    @app.before_request
+    def assign_locale() -> None:
+        g.locale = detect_locale()
+
+    @app.after_request
+    def persist_locale(response):
+        if "lang" in request.args:
+            response.set_cookie(
+                LOCALE_COOKIE_NAME,
+                normalize_locale(request.args.get("lang")) or DEFAULT_LOCALE,
+                samesite="Lax",
+            )
+        return response
+
+    @app.context_processor
+    def inject_i18n_helpers() -> dict[str, object]:
+        return {
+            "current_locale": get_locale(),
+            "supported_locales": SUPPORTED_LOCALES,
+            "localized_url": localized_url,
+            "t": translate,
+            "t_or": translate_or,
+            "t_ingest_error": translate_ingest_error,
+        }

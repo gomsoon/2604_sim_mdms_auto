@@ -15,7 +15,11 @@ load_dotenv()
 
 config = context.config
 
-if database_url := os.getenv("DATABASE_URL"):
+DEFAULT_ALEMBIC_URL = "postgresql+psycopg://mdms_app:change-me@127.0.0.1:5432/mdms_dev"
+
+configured_url = config.get_main_option("sqlalchemy.url")
+database_url = os.getenv("DATABASE_URL")
+if database_url and configured_url in ("", DEFAULT_ALEMBIC_URL):
     config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:

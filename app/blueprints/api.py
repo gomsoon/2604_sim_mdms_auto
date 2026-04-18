@@ -4,11 +4,24 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import select
 
 from app.db import check_database_connection, get_session
+from app.i18n import get_locale, translate
 from app.models import HesEventRaw, HesReadRaw, IngestErrorLog
 from app.services.ingestion import ingest_events, ingest_reads
 
 
 bp = Blueprint("api", __name__)
+
+
+def error_response(error_code: str, status_code: int, *, details: str | None = None):
+    payload = {
+        "error_code": error_code,
+        "message": translate(f"api.errors.{error_code}"),
+        "locale": get_locale(),
+    }
+    if details:
+        payload["details"] = details
+
+    return jsonify(payload), status_code
 
 
 @bp.get("/health")
@@ -35,7 +48,7 @@ def health_check():
 def ingest_reads_endpoint():
     payload = request.get_json(silent=True)
     if not payload:
-        return jsonify({"error": "JSON payload is required."}), 400
+        return error_response("json_payload_required", 400)
 
     session = get_session()
     try:
@@ -43,7 +56,7 @@ def ingest_reads_endpoint():
         session.commit()
     except Exception as exc:
         session.rollback()
-        return jsonify({"error": str(exc)}), 400
+        return error_response("ingest_request_failed", 400, details=str(exc))
 
     return jsonify(summary), 201
 
@@ -52,7 +65,7 @@ def ingest_reads_endpoint():
 def ingest_events_endpoint():
     payload = request.get_json(silent=True)
     if not payload:
-        return jsonify({"error": "JSON payload is required."}), 400
+        return error_response("json_payload_required", 400)
 
     session = get_session()
     try:
@@ -60,7 +73,7 @@ def ingest_events_endpoint():
         session.commit()
     except Exception as exc:
         session.rollback()
-        return jsonify({"error": str(exc)}), 400
+        return error_response("ingest_request_failed", 400, details=str(exc))
 
     return jsonify(summary), 201
 

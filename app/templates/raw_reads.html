@@ -3,8 +3,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h1 class="h3 mb-1">Raw Reads</h1>
-    <p class="text-secondary mb-0">Original meter reads are preserved before business-level processing.</p>
+    <h1 class="h3 mb-1">{{ t("page.raw_reads.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.raw_reads.description") }}</p>
   </div>
 </div>
 
@@ -14,14 +14,14 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Source</th>
-            <th>Meter</th>
-            <th>Channel</th>
-            <th>Measured At</th>
-            <th>Value</th>
-            <th>Status</th>
-            <th>Duplicate</th>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.source") }}</th>
+            <th>{{ t("table.meter") }}</th>
+            <th>{{ t("table.channel") }}</th>
+            <th>{{ t("table.measured_at") }}</th>
+            <th>{{ t("table.value") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.duplicate") }}</th>
           </tr>
         </thead>
         <tbody>
@@ -29,16 +29,16 @@
           <tr>
             <td>{{ row.id }}</td>
             <td>{{ row.source_system }}</td>
-            <td>{{ row.meter_identifier or "-" }}</td>
-            <td>{{ row.channel_identifier or "-" }}</td>
+            <td>{{ row.meter_identifier or t("common.none") }}</td>
+            <td>{{ row.channel_identifier or t("common.none") }}</td>
             <td>{{ row.measured_at|dt }}</td>
-            <td>{{ row.reading_value if row.reading_value is not none else "-" }}</td>
-            <td>{{ row.canonical_status }}</td>
-            <td>{{ "yes" if row.is_duplicate else "no" }}</td>
+            <td>{{ row.reading_value if row.reading_value is not none else t("common.none") }}</td>
+            <td>{{ t_or("canonical_status." ~ row.canonical_status, row.canonical_status) }}</td>
+            <td>{{ t("common.yes") if row.is_duplicate else t("common.no") }}</td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="8" class="text-secondary">No raw reads available.</td>
+            <td colspan="8" class="text-secondary">{{ t("page.raw_reads.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -47,4 +47,3 @@
   </div>
 </div>
 {% endblock %}
-

@@ -9,6 +9,7 @@ from app.blueprints.api import bp as api_bp
 from app.blueprints.web import bp as web_bp
 from app.config import Config, get_database_url, get_secret_key
 from app.db import get_session, init_app as init_db
+from app.i18n import register_i18n
 from app.migrations import upgrade_db
 from app.services.seeds import seed_demo_environment
 
@@ -24,6 +25,7 @@ def create_app() -> Flask:
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
 
     init_db(app)
+    register_i18n(app)
     app.register_blueprint(web_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
 

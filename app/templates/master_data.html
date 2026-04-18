@@ -3,8 +3,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h1 class="h3 mb-1">Master Data</h1>
-    <p class="text-secondary mb-0">Minimal device, service point, and measuring-component mappings used by the canonical flow.</p>
+    <h1 class="h3 mb-1">{{ t("page.master_data.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.master_data.description") }}</p>
   </div>
 </div>
 
@@ -14,13 +14,13 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th>Component ID</th>
-            <th>Source</th>
-            <th>Device ID</th>
-            <th>External Channel</th>
-            <th>Service Point</th>
-            <th>UOM</th>
-            <th>Status</th>
+            <th>{{ t("table.component_id") }}</th>
+            <th>{{ t("table.source") }}</th>
+            <th>{{ t("table.device_id") }}</th>
+            <th>{{ t("table.external_channel") }}</th>
+            <th>{{ t("table.service_point") }}</th>
+            <th>{{ t("table.uom") }}</th>
+            <th>{{ t("table.status") }}</th>
           </tr>
         </thead>
         <tbody>
@@ -32,11 +32,11 @@
             <td>{{ row.external_channel_id }}</td>
             <td>{{ row.service_point.external_id }}</td>
             <td>{{ row.unit_of_measure }}</td>
-            <td>{{ row.status }}</td>
+            <td>{{ t_or("common.status." ~ row.status, row.status) }}</td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="text-secondary">No master data loaded yet.</td>
+            <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -45,4 +45,3 @@
   </div>
 </div>
 {% endblock %}
-

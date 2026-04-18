@@ -3,8 +3,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h1 class="h3 mb-1">Exception Queue</h1>
-    <p class="text-secondary mb-0">Mapping, validation, and duplicate issues are surfaced here for operator follow-up.</p>
+    <h1 class="h3 mb-1">{{ t("page.exceptions.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.exceptions.description") }}</p>
   </div>
 </div>
 
@@ -14,25 +14,25 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Type</th>
-            <th>Code</th>
-            <th>Status</th>
-            <th>Message</th>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.type") }}</th>
+            <th>{{ t("table.code") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.message") }}</th>
           </tr>
         </thead>
         <tbody>
           {% for row in rows %}
           <tr>
             <td>{{ row.id }}</td>
-            <td>{{ row.exception_type }}</td>
+            <td>{{ t_or("exception_type." ~ row.exception_type, row.exception_type) }}</td>
             <td>{{ row.exception_code }}</td>
-            <td>{{ row.status }}</td>
-            <td>{{ row.message }}</td>
+            <td>{{ t_or("common.status." ~ row.status, row.status) }}</td>
+            <td>{{ t_ingest_error(row.exception_code, row.message) }}</td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="5" class="text-secondary">No exception records available.</td>
+            <td colspan="5" class="text-secondary">{{ t("page.exceptions.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -41,4 +41,3 @@
   </div>
 </div>
 {% endblock %}
-
