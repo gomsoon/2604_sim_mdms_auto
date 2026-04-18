@@ -1,5 +1,12 @@
 # Minimal E2E Plan
 
+This document is the stage-specific implementation plan for the minimal delivery. Broader engineering rules are defined in the following companion documents:
+
+- [requirements.md](/home/tprover/2604_sim_mdms_auto/docs/requirements.md)
+- [architecture.md](/home/tprover/2604_sim_mdms_auto/docs/architecture.md)
+- [development-guide.md](/home/tprover/2604_sim_mdms_auto/docs/development-guide.md)
+- [testing-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/testing-strategy.md)
+
 ## Why start here
 
 The first delivery target is not a full MDM product. It is the smallest believable operator flow that proves the following:
@@ -94,4 +101,3 @@ flowchart LR
 - Canonical records are created only after duplicate and mapping checks.
 - Exceptions are treated as first-class operational data.
 - The codebase already separates web, API, and service logic so background processing can be introduced without rewriting the Flask surface.
-
