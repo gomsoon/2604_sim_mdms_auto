@@ -99,3 +99,7 @@ A code change is not complete unless:
 - Regression testing was executed.
 - The testing evidence matches the scope of the change.
 
+## Related documents
+
+- [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+- [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)

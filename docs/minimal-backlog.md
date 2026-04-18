@@ -151,8 +151,7 @@ Before feature development continues, the current scaffold should be structurall
 
 ## Suggested next documentation focus
 
-- HES raw payload contract
-- PostgreSQL environment setup and local runbook
-- Persistent naming and migration strategy
+- [hes-ingest-contract.md](/home/tprover/2604_sim_mdms_auto/docs/hes-ingest-contract.md)
+- [postgresql-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/postgresql-runbook.md)
+- [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
 - i18n strategy for English and Korean operator surfaces
-

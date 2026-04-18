@@ -28,6 +28,8 @@ This document compares the current scaffold in the repository with the agreed ta
 
 - `app/config.py` still defaults `DATABASE_URL` to SQLite
 - Existing setup instructions assume a SQLite-first local flow
+- Project dependencies do not yet include a PostgreSQL driver
+- Migration workflow is not yet defined in the repository
 
 #### Target
 
@@ -42,6 +44,8 @@ This document compares the current scaffold in the repository with the agreed ta
 #### Required action
 
 - Refactor configuration defaults and setup flow toward PostgreSQL
+- Add PostgreSQL driver dependency
+- Define migration tooling and workflow
 - Add PostgreSQL development run instructions and environment examples
 
 ### Gap 2. Persistent model naming
@@ -120,4 +124,3 @@ This document compares the current scaffold in the repository with the agreed ta
 
 - The current scaffold is still useful because it already demonstrates basic layering and a minimal flow
 - The next step is not to discard it, but to refactor it into alignment before further feature growth
-
