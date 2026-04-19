@@ -5,12 +5,22 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Device, InstallationHistory, MeasuringComponent, ServicePoint
+from app.models import (
+    AdapterDefinition,
+    AdapterInstance,
+    AdapterRun,
+    AdapterWatermark,
+    Device,
+    InstallationHistory,
+    MeasuringComponent,
+    ServicePoint,
+)
 from app.services.ingestion import ingest_events, ingest_reads
 
 
 def seed_demo_environment(session: Session) -> dict:
     created = seed_master_data(session)
+    adapter_runtime_created = seed_adapter_runtime(session)
     read_summary = ingest_reads(
         session,
         {
@@ -67,6 +77,7 @@ def seed_demo_environment(session: Session) -> dict:
 
     return {
         "master_data_created": created,
+        "adapter_runtime_created": adapter_runtime_created,
         "read_summary": read_summary,
         "event_summary": event_summary,
     }
@@ -119,3 +130,74 @@ def seed_master_data(session: Session) -> bool:
 
     return True
 
+
+def seed_adapter_runtime(session: Session) -> bool:
+    existing_instance = session.scalar(
+        select(AdapterInstance.id)
+        .where(AdapterInstance.instance_code == "demo_hes_poll_primary")
+        .limit(1)
+    )
+    if existing_instance is not None:
+        return False
+
+    definition = AdapterDefinition(
+        adapter_code="company_hes_poll_v1",
+        display_name="Company HES Poll",
+        delivery_mode="poll",
+        source_family="hes",
+        record_type="hes_read_raw",
+        adapter_profile_key="common_raw_v1",
+        implementation_key="company_hes_poll_v1",
+        status="active",
+        description="Demo polling adapter definition for the minimal operator flow.",
+    )
+    session.add(definition)
+    session.flush()
+
+    instance = AdapterInstance(
+        adapter_definition_id=definition.id,
+        instance_code="demo_hes_poll_primary",
+        display_name="Demo HES Poll Primary",
+        source_system="HES",
+        admin_state="enabled",
+        status_reason="demo_seed",
+        poll_interval_minutes=5,
+        batch_size=500,
+        next_run_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        last_success_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+        last_heartbeat_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        landing_enabled=False,
+        connection_config_masked={"host": "hes-db.internal", "database": "hes"},
+        secret_ref="env://MDMS_HES_PRIMARY",
+    )
+    session.add(instance)
+    session.flush()
+
+    run = AdapterRun(
+        adapter_instance_id=instance.id,
+        trigger_type="schedule",
+        run_status="completed",
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+        completed_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+        source_rows_fetched=3,
+        ingest_batches_created=1,
+        ingest_records_created=3,
+        watermark_before="2026-04-17T23:45:00+09:00",
+        watermark_after="2026-04-18T00:15:00+09:00",
+        details={"record_type": "hes_read_raw"},
+    )
+    session.add(run)
+
+    watermark = AdapterWatermark(
+        adapter_instance_id=instance.id,
+        record_type="hes_read_raw",
+        cursor_type="timestamp",
+        cursor_value="2026-04-18T00:15:00+09:00",
+        last_source_timestamp=datetime.now(timezone.utc) - timedelta(minutes=2),
+        last_polled_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+        details={"column": "measured_at"},
+    )
+    session.add(watermark)
+
+    return True

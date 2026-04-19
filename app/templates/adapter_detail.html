@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.adapter_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.adapter_detail.description") }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.adapters', lang=current_locale) }}">{{ t("dashboard.view_all") }}</a>
+    {% if detail.snapshot.instance.admin_state == 'paused' %}
+    <form method="post" action="{{ url_for('web.enable_adapter_view', adapter_instance_id=detail.snapshot.instance.id, lang=current_locale) }}">
+      <input type="hidden" name="next" value="{{ url_for('web.adapter_detail', adapter_instance_id=detail.snapshot.instance.id, lang=current_locale) }}">
+      <button class="btn btn-outline-success" type="submit">{{ t("button.enable") }}</button>
+    </form>
+    {% elif detail.snapshot.instance.admin_state == 'enabled' %}
+    <form method="post" action="{{ url_for('web.pause_adapter_view', adapter_instance_id=detail.snapshot.instance.id, lang=current_locale) }}">
+      <input type="hidden" name="next" value="{{ url_for('web.adapter_detail', adapter_instance_id=detail.snapshot.instance.id, lang=current_locale) }}">
+      <button class="btn btn-outline-warning" type="submit">{{ t("button.pause") }}</button>
+    </form>
+    {% endif %}
+    {% if detail.snapshot.instance.admin_state != 'retired' %}
+    <form method="post" action="{{ url_for('web.run_adapter_once_view', adapter_instance_id=detail.snapshot.instance.id, lang=current_locale) }}">
+      <input type="hidden" name="next" value="{{ url_for('web.adapter_detail', adapter_instance_id=detail.snapshot.instance.id, lang=current_locale) }}">
+      <button class="btn btn-primary" type="submit">{{ t("button.run_once") }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.adapter_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.name") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.display_name }}</dd>
+          <dt class="col-sm-4">{{ t("table.instance_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.instance_code }}</dd>
+          <dt class="col-sm-4">{{ t("table.source") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.source_system }}</dd>
+          <dt class="col-sm-4">{{ t("table.mode") }}</dt>
+          <dd class="col-sm-8">{{ t_or("adapter.delivery_mode." ~ detail.snapshot.instance.adapter_definition.delivery_mode, detail.snapshot.instance.adapter_definition.delivery_mode) }}</dd>
+          <dt class="col-sm-4">{{ t("table.definition") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.adapter_definition.display_name }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("adapter_status." ~ detail.snapshot.effective_status, detail.snapshot.effective_status) }}</dd>
+          <dt class="col-sm-4">{{ t("field.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("adapter_admin_state." ~ detail.snapshot.instance.admin_state, detail.snapshot.instance.admin_state) }}</dd>
+          <dt class="col-sm-4">{{ t("table.last_success") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.last_success_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.last_failure") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.last_failure_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.next_run") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.next_run_at|dt }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.adapter_detail.configuration") }}</h2>
+        <dl class="row mb-3">
+          <dt class="col-sm-4">{{ t("table.secret_ref") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.secret_ref or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.error_summary") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.last_error_message or t("common.none") }}</dd>
+        </dl>
+        <h3 class="h6 mb-2">{{ t("table.details") }}</h3>
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ detail.snapshot.instance.connection_config_masked | tojson(indent=2) }}</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.adapter_detail.recent_runs") }}</h2>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.id") }}</th>
+                <th>{{ t("table.trigger_type") }}</th>
+                <th>{{ t("table.status") }}</th>
+                <th>{{ t("table.created_at") }}</th>
+                <th>{{ t("table.completed_at") }}</th>
+                <th>{{ t("table.ingest_records_created") }}</th>
+                <th>{{ t("table.ingest_batches_created") }}</th>
+                <th>{{ t("table.error_summary") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.recent_runs %}
+              <tr>
+                <td>{{ row.id }}</td>
+                <td>{{ t_or("adapter.trigger." ~ row.trigger_type, row.trigger_type) }}</td>
+                <td>{{ t_or("adapter_run_status." ~ row.run_status, row.run_status) }}</td>
+                <td>{{ row.requested_at|dt if row.requested_at else row.created_at|dt }}</td>
+                <td>{{ row.completed_at|dt }}</td>
+                <td>{{ row.ingest_records_created if row.ingest_records_created is not none else t("common.none") }}</td>
+                <td>{{ row.ingest_batches_created if row.ingest_batches_created is not none else t("common.none") }}</td>
+                <td>{{ row.error_summary or t("common.none") }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="8" class="text-secondary">{{ t("page.adapters.empty") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.adapter_detail.watermarks") }}</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.record_type") }}</th>
+                <th>{{ t("table.cursor_type") }}</th>
+                <th>{{ t("table.cursor_value") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.watermarks %}
+              <tr>
+                <td>{{ t_or("record_type." ~ row.record_type, row.record_type) }}</td>
+                <td>{{ row.cursor_type }}</td>
+                <td>{{ row.cursor_value or t("common.none") }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="3" class="text-secondary">{{ t("common.none") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

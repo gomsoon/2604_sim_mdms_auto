@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload
 
 from app.db import get_session
 from app.i18n import (
+    translate_adapter_error,
     get_locale,
     translate,
     translate_finalization_result,
@@ -15,12 +16,20 @@ from app.i18n import (
     translate_visibility_error,
 )
 from app.models import (
+    AdapterInstance,
     Device,
     HesEventRaw,
     HesReadRaw,
     MeasuringComponent,
     ServicePoint,
     InstallationHistory,
+)
+from app.services.adapters import (
+    AdapterValidationError,
+    get_adapter_instance_detail,
+    list_adapter_instances,
+    queue_adapter_run_once,
+    update_adapter_admin_state,
 )
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.exception_queue import (
@@ -104,6 +113,13 @@ def exceptions():
 
 def _exception_redirect(exception_id: int) -> str:
     return url_for("web.exception_detail", exception_id=exception_id, lang=get_locale())
+
+
+def _safe_next_url(default_url: str) -> str:
+    next_url = request.form.get("next")
+    if next_url and next_url.startswith("/"):
+        return next_url
+    return default_url
 
 
 def _canonical_filters_to_query_args(filters) -> dict[str, str]:
@@ -232,6 +248,80 @@ def final_measurements():
 
     rows = list_final_measurements(session, filters)
     return render_template("final_measurements.html", rows=rows, filters=filters)
+
+
+def _adapter_redirect(adapter_instance_id: int) -> str:
+    return url_for("web.adapter_detail", adapter_instance_id=adapter_instance_id, lang=get_locale())
+
+
+@bp.get("/adapters")
+def adapters():
+    session = get_session()
+    rows = list_adapter_instances(session)
+    return render_template("adapters.html", rows=rows)
+
+
+@bp.get("/adapters/<int:adapter_instance_id>")
+def adapter_detail(adapter_instance_id: int):
+    session = get_session()
+    detail = get_adapter_instance_detail(session, adapter_instance_id)
+    if detail is None:
+        abort(404)
+    return render_template("adapter_detail.html", detail=detail)
+
+
+@bp.post("/adapters/<int:adapter_instance_id>/enable")
+def enable_adapter_view(adapter_instance_id: int):
+    session = get_session()
+    instance = session.get(AdapterInstance, adapter_instance_id)
+    if instance is None:
+        abort(404)
+
+    try:
+        update_adapter_admin_state(session, instance, "enabled")
+        session.commit()
+        flash(translate("adapter.flash.enabled"), "success")
+    except AdapterValidationError as exc:
+        session.rollback()
+        flash(translate_adapter_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_adapter_redirect(adapter_instance_id)))
+
+
+@bp.post("/adapters/<int:adapter_instance_id>/pause")
+def pause_adapter_view(adapter_instance_id: int):
+    session = get_session()
+    instance = session.get(AdapterInstance, adapter_instance_id)
+    if instance is None:
+        abort(404)
+
+    try:
+        update_adapter_admin_state(session, instance, "paused")
+        session.commit()
+        flash(translate("adapter.flash.paused"), "success")
+    except AdapterValidationError as exc:
+        session.rollback()
+        flash(translate_adapter_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_adapter_redirect(adapter_instance_id)))
+
+
+@bp.post("/adapters/<int:adapter_instance_id>/run-once")
+def run_adapter_once_view(adapter_instance_id: int):
+    session = get_session()
+    instance = session.get(AdapterInstance, adapter_instance_id)
+    if instance is None:
+        abort(404)
+
+    try:
+        queue_adapter_run_once(session, instance)
+        session.commit()
+        flash(translate("adapter.flash.run_queued"), "success")
+    except AdapterValidationError as exc:
+        session.rollback()
+        flash(translate_adapter_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_adapter_redirect(adapter_instance_id)))
 
 
 @bp.get("/master-data")

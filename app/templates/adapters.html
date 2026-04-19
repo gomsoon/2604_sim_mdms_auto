@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.adapters.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.adapters.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.name") }}</th>
+            <th>{{ t("table.source") }}</th>
+            <th>{{ t("table.mode") }}</th>
+            <th>{{ t("table.definition") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.latest_run_status") }}</th>
+            <th>{{ t("table.last_success") }}</th>
+            <th>{{ t("table.next_run") }}</th>
+            <th>{{ t("table.actions") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ row.instance.display_name }}</div>
+              <div class="small text-secondary">{{ row.instance.instance_code }}</div>
+            </td>
+            <td>{{ row.instance.source_system }}</td>
+            <td>{{ t_or("adapter.delivery_mode." ~ row.instance.adapter_definition.delivery_mode, row.instance.adapter_definition.delivery_mode) }}</td>
+            <td>{{ row.instance.adapter_definition.display_name }}</td>
+            <td>
+              <span class="badge text-bg-{{ 'success' if row.effective_status == 'ready' else 'primary' if row.effective_status == 'running' else 'warning' if row.effective_status == 'paused' else 'danger' if row.effective_status == 'error' else 'secondary' }}">
+                {{ t_or("adapter_status." ~ row.effective_status, row.effective_status) }}
+              </span>
+            </td>
+            <td>
+              {% if row.latest_run %}
+              {{ t_or("adapter_run_status." ~ row.latest_run.run_status, row.latest_run.run_status) }}
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>{{ row.instance.last_success_at|dt }}</td>
+            <td>{{ row.instance.next_run_at|dt }}</td>
+            <td>
+              <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.adapter_detail', adapter_instance_id=row.instance.id, lang=current_locale) }}">
+                  {{ t("button.view") }}
+                </a>
+                {% if row.instance.admin_state == 'paused' %}
+                <form method="post" action="{{ url_for('web.enable_adapter_view', adapter_instance_id=row.instance.id, lang=current_locale) }}">
+                  <input type="hidden" name="next" value="{{ url_for('web.adapters', lang=current_locale) }}">
+                  <button class="btn btn-sm btn-outline-success" type="submit">{{ t("button.enable") }}</button>
+                </form>
+                {% elif row.instance.admin_state == 'enabled' %}
+                <form method="post" action="{{ url_for('web.pause_adapter_view', adapter_instance_id=row.instance.id, lang=current_locale) }}">
+                  <input type="hidden" name="next" value="{{ url_for('web.adapters', lang=current_locale) }}">
+                  <button class="btn btn-sm btn-outline-warning" type="submit">{{ t("button.pause") }}</button>
+                </form>
+                {% endif %}
+                {% if row.instance.admin_state != 'retired' %}
+                <form method="post" action="{{ url_for('web.run_adapter_once_view', adapter_instance_id=row.instance.id, lang=current_locale) }}">
+                  <input type="hidden" name="next" value="{{ url_for('web.adapters', lang=current_locale) }}">
+                  <button class="btn btn-sm btn-primary" type="submit">{{ t("button.run_once") }}</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="text-secondary">{{ t("page.adapters.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
