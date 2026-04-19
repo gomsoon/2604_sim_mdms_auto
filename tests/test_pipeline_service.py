@@ -76,3 +76,61 @@ def test_ingest_events_creates_raw_ingest_pipeline_run_and_watermark(session):
     assert runs[0].details["record_type"] == "hes_event_raw"
     assert len(watermarks) == 1
     assert watermarks[0].record_type == "hes_event_raw"
+
+
+def test_ingest_reads_updates_existing_watermark_across_multiple_batches(session):
+    seed_master_data(session)
+    session.commit()
+
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "pipeline-read-batch-1",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:15:00+09:00",
+                    "value": 10.5,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "pipeline-read-batch-2",
+            "received_at": "2026-04-19T09:05:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:30:00+09:00",
+                    "value": 11.1,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+
+    watermarks = session.scalars(
+        select(ProcessingWatermark)
+        .where(ProcessingWatermark.source_system == "HES")
+        .where(ProcessingWatermark.record_type == "hes_read_raw")
+        .order_by(ProcessingWatermark.pipeline_name.asc())
+    ).all()
+
+    assert len(watermarks) == 2
+    assert watermarks[0].details["batch_id"] == "pipeline-read-batch-2"
+    assert watermarks[1].details["batch_id"] == "pipeline-read-batch-2"

@@ -62,6 +62,8 @@ def finalize_canonical_measurements(
     *,
     batch_id: str | None = None,
     meter_id: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     limit: int = 100,
     trigger_type: str = "manual",
 ) -> FinalizationSummary:
@@ -84,6 +86,10 @@ def finalize_canonical_measurements(
         statement = statement.where(IngestBatch.batch_id == batch_id)
     if meter_id:
         statement = statement.where(HesReadRaw.meter_identifier == meter_id)
+    if date_from:
+        statement = statement.where(CanonicalMeasurement.measured_at >= date_from)
+    if date_to:
+        statement = statement.where(CanonicalMeasurement.measured_at <= date_to)
 
     statement = statement.order_by(CanonicalMeasurement.id.asc()).limit(limit)
     rows = session.execute(statement).scalars().unique().all()
@@ -96,6 +102,8 @@ def finalize_canonical_measurements(
         details={
             "batch_id": batch_id,
             "meter_id": meter_id,
+            "date_from": date_from.isoformat() if date_from else None,
+            "date_to": date_to.isoformat() if date_to else None,
             "limit": limit,
         },
     )

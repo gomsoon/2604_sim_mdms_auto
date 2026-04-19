@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session
 from app.models import IngestBatch, PipelineRun, ProcessingWatermark, ReprocessRequest
 
 
+def _normalize_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def start_pipeline_run(
     session: Session,
     *,
@@ -69,6 +75,7 @@ def upsert_processing_watermark(
     last_processed_at: datetime,
     details: dict[str, Any] | None = None,
 ) -> ProcessingWatermark:
+    normalized_last_processed_at = _normalize_utc(last_processed_at)
     watermark = session.scalar(
         select(ProcessingWatermark)
         .where(ProcessingWatermark.pipeline_name == pipeline_name)
@@ -82,15 +89,16 @@ def upsert_processing_watermark(
             pipeline_name=pipeline_name,
             source_system=source_system,
             record_type=record_type,
-            last_processed_at=last_processed_at,
+            last_processed_at=normalized_last_processed_at,
             details=details or {},
         )
         session.add(watermark)
         session.flush()
         return watermark
 
-    if last_processed_at >= watermark.last_processed_at:
-        watermark.last_processed_at = last_processed_at
+    current_last_processed_at = _normalize_utc(watermark.last_processed_at)
+    if normalized_last_processed_at >= current_last_processed_at:
+        watermark.last_processed_at = normalized_last_processed_at
         watermark.details = details or watermark.details
         session.flush()
 

@@ -31,6 +31,14 @@
       <div class="col-12 d-flex gap-2">
         <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
         <a class="btn btn-outline-secondary" href="{{ url_for('web.canonical_measurements', lang=current_locale) }}">{{ t("button.reset") }}</a>
+        <button
+          class="btn btn-success"
+          type="submit"
+          formmethod="post"
+          formaction="{{ url_for('web.promote_canonical_measurements', lang=current_locale) }}"
+        >
+          {{ t("button.promote_final") }}
+        </button>
       </div>
     </form>
   </div>

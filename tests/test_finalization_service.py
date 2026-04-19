@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 
 from app.models import CanonicalMeasurement, FinalMeasurement, PipelineRun, ProcessingWatermark
 from app.services.finalization import finalize_canonical_measurements
+from app.services.ingestion import ingest_reads
 from app.services.seeds import seed_demo_environment
 
 
@@ -80,3 +81,58 @@ def test_finalize_canonical_measurements_skips_non_well_formed_rows(session):
     assert pipeline_run is not None
     assert pipeline_run.status == "failed"
     assert pipeline_run.result_code == "finalization_completed_with_skips"
+
+
+def test_finalize_canonical_measurements_respects_exact_date_boundaries(session):
+    seed_demo_environment(session)
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "demo-read-batch-2",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:15:00+09:00",
+                    "value": 18.4,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+
+    canonical_rows = session.scalars(
+        select(CanonicalMeasurement).order_by(CanonicalMeasurement.id.asc())
+    ).all()
+    first_row, second_row = canonical_rows
+
+    summary = finalize_canonical_measurements(
+        session,
+        meter_id="MTR-1001",
+        date_from=first_row.measured_at,
+        date_to=first_row.measured_at,
+    )
+    session.commit()
+
+    first_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.canonical_measurement_id == first_row.id)
+        .limit(1)
+    )
+    second_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.canonical_measurement_id == second_row.id)
+        .limit(1)
+    )
+
+    assert summary.candidates == 1
+    assert summary.finalized == 1
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 0
+    assert first_final is not None
+    assert second_final is None

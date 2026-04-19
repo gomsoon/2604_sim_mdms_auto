@@ -149,6 +149,7 @@ MESSAGES = {
         "button.filter": "Filter",
         "button.reset": "Reset",
         "button.view": "View",
+        "button.promote_final": "Promote to Final",
         "button.reprocess": "Reprocess",
         "button.open_master_data": "Open Master Data",
         "common.none": "-",
@@ -239,6 +240,10 @@ MESSAGES = {
         "master_data.error.overlapping_open_installation": "Only one open installation is allowed per device.",
         "visibility.error.invalid_date_filter": "Date filters must use ISO date or datetime format.",
         "visibility.error.invalid_date_range": "The start date must be earlier than or equal to the end date.",
+        "finalization.result.finalization_completed": "Finalization completed. Candidates: {candidates}, finalized: {finalized}, already finalized: {skipped_existing}.",
+        "finalization.result.finalization_completed_with_skips": "Finalization completed with skips. Candidates: {candidates}, finalized: {finalized}, already finalized: {skipped_existing}, not well formed: {skipped_not_well_formed}.",
+        "finalization.result.finalization_noop": "No new final measurements were created. Candidates: {candidates}, already finalized: {skipped_existing}.",
+        "finalization.error.unexpected": "Finalization could not be completed.",
         "reprocess.error.unsupported_exception_code": "This exception type cannot be reprocessed yet.",
         "reprocess.error.missing_raw_record": "The exception does not have a linked raw read.",
         "reprocess.error.processing_in_progress": "A reprocess request is already in progress.",
@@ -390,6 +395,7 @@ MESSAGES = {
         "button.filter": "조회",
         "button.reset": "초기화",
         "button.view": "상세",
+        "button.promote_final": "최종화 실행",
         "button.reprocess": "재처리",
         "button.open_master_data": "마스터 데이터 열기",
         "common.none": "-",
@@ -480,6 +486,10 @@ MESSAGES = {
         "master_data.error.overlapping_open_installation": "장치당 열려 있는 설치 이력은 하나만 허용됩니다.",
         "visibility.error.invalid_date_filter": "날짜 필터는 ISO 날짜 또는 날짜시간 형식을 사용해야 합니다.",
         "visibility.error.invalid_date_range": "시작일은 종료일보다 늦을 수 없습니다.",
+        "finalization.result.finalization_completed": "최종 계측 승격이 완료되었습니다. 대상: {candidates}, 최종화: {finalized}, 이미 최종화됨: {skipped_existing}.",
+        "finalization.result.finalization_completed_with_skips": "최종 계측 승격이 일부 건너뛰기와 함께 완료되었습니다. 대상: {candidates}, 최종화: {finalized}, 이미 최종화됨: {skipped_existing}, 정합성 미충족: {skipped_not_well_formed}.",
+        "finalization.result.finalization_noop": "새로 최종화된 계측은 없습니다. 대상: {candidates}, 이미 최종화됨: {skipped_existing}.",
+        "finalization.error.unexpected": "최종 계측 승격을 완료하지 못했습니다.",
         "reprocess.error.unsupported_exception_code": "아직 이 오류 유형은 재처리할 수 없습니다.",
         "reprocess.error.missing_raw_record": "이 오류와 연결된 원시 검침이 없습니다.",
         "reprocess.error.processing_in_progress": "이미 재처리가 진행 중입니다.",
@@ -570,6 +580,15 @@ def translate_reprocess_result(code: str | None, fallback_message: str | None = 
         return fallback_message or ""
     key = f"reprocess.result.{code}"
     return translate_or(key, fallback_message or code)
+
+
+def translate_finalization_result(
+    code: str | None, fallback_message: str | None = None, **kwargs
+) -> str:
+    if not code:
+        return fallback_message or ""
+    key = f"finalization.result.{code}"
+    return translate_or(key, fallback_message or code, **kwargs)
 
 
 def localized_url(target_locale: str) -> str:

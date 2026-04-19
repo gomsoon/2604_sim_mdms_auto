@@ -8,6 +8,7 @@ from app.db import get_session
 from app.i18n import (
     get_locale,
     translate,
+    translate_finalization_result,
     translate_master_data_error,
     translate_reprocess_error,
     translate_reprocess_result,
@@ -31,6 +32,7 @@ from app.services.exception_queue import (
     list_exception_queue,
     reprocess_exception,
 )
+from app.services.finalization import FinalizationSummary, finalize_canonical_measurements
 from app.services.installations import (
     InstallationValidationError,
     create_installation_history,
@@ -104,6 +106,27 @@ def _exception_redirect(exception_id: int) -> str:
     return url_for("web.exception_detail", exception_id=exception_id, lang=get_locale())
 
 
+def _canonical_filters_to_query_args(filters) -> dict[str, str]:
+    values = {"lang": get_locale()}
+    if filters.batch_id:
+        values["batch_id"] = filters.batch_id
+    if filters.meter_id:
+        values["meter_id"] = filters.meter_id
+    if filters.date_from:
+        values["date_from"] = filters.date_from.date().isoformat()
+    if filters.date_to:
+        values["date_to"] = filters.date_to.date().isoformat()
+    return values
+
+
+def _finalization_result_code(summary: FinalizationSummary) -> str:
+    if summary.skipped_not_well_formed > 0:
+        return "finalization_completed_with_skips"
+    if summary.finalized > 0:
+        return "finalization_completed"
+    return "finalization_noop"
+
+
 @bp.get("/exceptions/<int:exception_id>")
 def exception_detail(exception_id: int):
     session = get_session()
@@ -157,6 +180,45 @@ def canonical_measurements():
 
     rows = list_canonical_measurements(session, filters)
     return render_template("canonical_measurements.html", rows=rows, filters=filters)
+
+
+@bp.post("/canonical-measurements/promote-final")
+def promote_canonical_measurements():
+    session = get_session()
+    try:
+        filters = build_canonical_filters(request.form)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        return redirect(url_for("web.canonical_measurements", lang=get_locale()))
+
+    try:
+        summary = finalize_canonical_measurements(
+            session,
+            batch_id=filters.batch_id,
+            meter_id=filters.meter_id,
+            date_from=filters.date_from,
+            date_to=filters.date_to,
+            trigger_type="operator",
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        flash(translate("finalization.error.unexpected"), "danger")
+        return redirect(url_for("web.canonical_measurements", **_canonical_filters_to_query_args(filters)))
+
+    result_code = _finalization_result_code(summary)
+    category = "danger" if result_code == "finalization_completed_with_skips" else "success"
+    flash(
+        translate_finalization_result(
+            result_code,
+            candidates=summary.candidates,
+            finalized=summary.finalized,
+            skipped_existing=summary.skipped_existing,
+            skipped_not_well_formed=summary.skipped_not_well_formed,
+        ),
+        category,
+    )
+    return redirect(url_for("web.canonical_measurements", **_canonical_filters_to_query_args(filters)))
 
 
 @bp.get("/final-measurements")
