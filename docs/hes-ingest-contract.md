@@ -41,8 +41,22 @@ The following fields apply to both read and event ingestion.
 | `message_id` | Conditional | Required for message-oriented delivery unless `batch_id` is present |
 | `received_at` | No | Upstream-provided receipt timestamp; if omitted, the API records the server ingest time separately |
 | `locale` | No | `en` or `ko`; defaults to `en` if omitted |
+| `adapter_key` | No | Ingest adapter profile; defaults to `common_raw_v1` |
 
 At least one of `batch_id` or `message_id` must be present.
+
+## Adapter profile baseline
+
+The minimal stage uses a lightweight adapter registry before records enter the common raw layer.
+
+- `common_raw_v1`
+  - default profile
+  - use when the source can already express the common raw contract directly or with minor field aliases
+- `legacy_hes_v1`
+  - example source-specific profile
+  - use when a source emits older field names that must be normalized before persistence
+
+Adapter profiles should transform source-specific field names into the common raw contract shape while preserving the original payload in raw storage.
 
 ## Raw read ingest endpoint
 
@@ -59,6 +73,7 @@ Content-Type: application/json
 {
   "contract_version": "v1",
   "source_system": "HES",
+  "adapter_key": "common_raw_v1",
   "batch_id": "batch-20260418-001",
   "received_at": "2026-04-18T09:00:00+09:00",
   "locale": "en",
@@ -114,6 +129,7 @@ Content-Type: application/json
 {
   "contract_version": "v1",
   "source_system": "HES",
+  "adapter_key": "legacy_hes_v1",
   "batch_id": "event-batch-20260418-001",
   "received_at": "2026-04-18T09:05:00+09:00",
   "locale": "ko",
@@ -153,6 +169,7 @@ Content-Type: application/json
 - `source_system` must be present
 - At least one of `batch_id` or `message_id` must be present
 - `locale`, if present, must be `en` or `ko`
+- `adapter_key`, if present, must resolve to a supported adapter profile
 
 ### Read validation
 
@@ -202,4 +219,3 @@ Error responses should expose:
 - Whether `unit_of_measure` should be strictly required for raw reads
 - Whether `message_id` should become mandatory for non-batch delivery
 - How ingest idempotency is enforced at the database level
-

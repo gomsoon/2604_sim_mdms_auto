@@ -158,6 +158,7 @@ Downstream systems should consume standardized business outputs, not source-spec
 
 Recommended path:
 
+- integration adapter normalizes field aliases if needed
 - direct ingest into the common raw layer
 
 Why:
@@ -169,6 +170,7 @@ Why:
 
 Recommended path:
 
+- integration adapter normalizes field aliases if needed
 - direct ingest into the common raw layer
 
 Why:
@@ -185,6 +187,21 @@ Recommended path:
 Why:
 
 - this preserves source fidelity and allows controlled normalization before business logic depends on the data
+
+## Integration adapter note
+
+Before data reaches the common raw layer, the integration layer may apply a lightweight ingest adapter profile.
+
+Purpose:
+
+- map source-specific field names to the common raw contract
+- preserve the original payload while normalizing only the fields needed for raw persistence
+- avoid polluting downstream raw, canonical, and processing logic with source-specific branching
+
+Recommended rule:
+
+- use an adapter profile when the source can still go directly to common raw after field normalization
+- use a landing layer when field normalization alone is not enough to make the source safe for common raw ingest
 
 ## Architectural rule for vendor variance
 
@@ -251,4 +268,3 @@ For the current phase, the recommended model is:
 - [hes-schema-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/hes-schema-checklist.md)
 - [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
 - [architecture.md](/home/tprover/2604_sim_mdms_auto/docs/architecture.md)
-

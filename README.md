@@ -57,7 +57,9 @@ If the current environment blocks browser launch, the functional suite is skippe
 
 ```json
 {
+  "contract_version": "v1",
   "source_system": "HES",
+  "adapter_key": "common_raw_v1",
   "batch_id": "batch-20260418-001",
   "received_at": "2026-04-18T09:00:00+09:00",
   "reads": [
@@ -79,6 +81,7 @@ If the current environment blocks browser launch, the functional suite is skippe
 - The runtime baseline now targets PostgreSQL and expects a valid `DATABASE_URL`.
 - Migration setup is now aligned around Alembic instead of unmanaged schema creation.
 - Persistent naming is aligned with the backlog baseline such as `ingest_batch`, `hes_read_raw`, `hes_event_raw`, and `ingest_error_log`.
+- Ingest now uses adapter profiles such as `common_raw_v1` and `legacy_hes_v1` to normalize source-specific field names before common raw persistence.
 - This stage stops at raw ingestion, master-data mapping, canonicalization, and exception visibility.
 
 Additional context lives in [docs/minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md).

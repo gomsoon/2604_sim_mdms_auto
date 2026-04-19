@@ -61,6 +61,20 @@ def test_ingest_reads_rejects_invalid_locale_in_korean_request_context(client):
     }
 
 
+def test_ingest_reads_rejects_unsupported_adapter_key(client):
+    payload = _base_read_payload() | {"adapter_key": "unknown_v1"}
+
+    response = client.post("/api/v1/ingest/reads", json=payload)
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "unsupported_adapter_key",
+        "message": "Adapter key is not supported for this ingest request.",
+        "locale": "en",
+        "details": "Adapter key 'unknown_v1' is not supported for raw reads.",
+    }
+
+
 def test_ingest_reads_rejects_duplicate_envelope_idempotently(client, session):
     seed_master_data(session)
     session.commit()
@@ -176,3 +190,30 @@ def test_ingest_events_records_invalid_event_timestamp_as_exception(client, sess
     assert error is not None
     assert raw_event is not None
     assert raw_event.event_time is None
+
+
+def test_ingest_events_accepts_legacy_adapter_mapping(client, session):
+    payload = _base_event_payload() | {
+        "adapter_key": "legacy_hes_v1",
+        "batch_id": "contract-event-legacy-adapter",
+        "events": [
+            {
+                "mtr_no": "MTR-1001",
+                "event_time": "2026-04-19T00:00:00+09:00",
+                "event_id": "POWER_FAIL",
+                "severity": "high",
+                "origin": "meter",
+            }
+        ],
+    }
+
+    response = client.post("/api/v1/ingest/events", json=payload)
+
+    raw_event = session.scalar(select(HesEventRaw).order_by(HesEventRaw.id.desc()).limit(1))
+    assert response.status_code == 201
+    assert response.get_json()["raw_events_received"] == 1
+    assert response.get_json()["exceptions"] == 0
+    assert raw_event is not None
+    assert raw_event.meter_identifier == "MTR-1001"
+    assert raw_event.event_code == "POWER_FAIL"
+    assert raw_event.payload["event_id"] == "POWER_FAIL"

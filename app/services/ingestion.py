@@ -16,6 +16,7 @@ from app.models import (
     IngestErrorLog,
     MeasuringComponent,
 )
+from app.services.ingest_adapters import adapt_event_records, adapt_read_records
 from app.services.ingest_contract import coerce_numeric, parse_datetime
 from app.services.pipeline import (
     complete_pipeline_run,
@@ -34,6 +35,17 @@ class ParsedRawReadPayload:
     quality_code: str | None
     status_code: str | None
     unit_of_measure: str | None
+    exception_code: str | None = None
+    exception_type: str | None = None
+    exception_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedRawEventPayload:
+    meter_identifier: str | None
+    event_time: datetime | None
+    event_code: str | None
+    severity: str | None
     exception_code: str | None = None
     exception_type: str | None = None
     exception_message: str | None = None
@@ -109,6 +121,49 @@ def apply_parsed_hes_read_payload(hes_read_raw: HesReadRaw, parsed: ParsedRawRea
     hes_read_raw.unit_of_measure = parsed.unit_of_measure
 
 
+def parse_hes_event_payload(item: dict[str, Any]) -> ParsedRawEventPayload:
+    event_timestamp = item.get("event_ts", item.get("event_time"))
+    event_time = None
+    try:
+        event_time = parse_datetime(event_timestamp, require_timezone=True)
+    except ValueError:
+        event_time = None
+
+    parsed = ParsedRawEventPayload(
+        meter_identifier=item.get("meter_id"),
+        event_time=event_time,
+        event_code=item.get("event_code"),
+        severity=item.get("severity"),
+    )
+
+    if event_timestamp not in (None, "") and event_time is None:
+        return replace(
+            parsed,
+            exception_code="invalid_timestamp",
+            exception_type="validation",
+            exception_message="Event timestamp must use ISO 8601 format with timezone information.",
+        )
+
+    if not parsed.event_code or not parsed.event_time:
+        return replace(
+            parsed,
+            exception_code="invalid_event_payload",
+            exception_type="validation",
+            exception_message="Raw event is missing event_code or event_time.",
+        )
+
+    return parsed
+
+
+def apply_parsed_hes_event_payload(
+    hes_event_raw: HesEventRaw, parsed: ParsedRawEventPayload
+) -> None:
+    hes_event_raw.meter_identifier = parsed.meter_identifier
+    hes_event_raw.event_time = parsed.event_time
+    hes_event_raw.event_code = parsed.event_code
+    hes_event_raw.severity = parsed.severity
+
+
 def find_duplicate_hes_read_raw(session: Session, hes_read_raw: HesReadRaw) -> HesReadRaw | None:
     return session.scalar(
         select(HesReadRaw)
@@ -129,7 +184,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     source_system = str(payload.get("source_system", "HES")).strip() or "HES"
     batch_reference = str(payload.get("batch_id") or payload.get("message_id") or now.isoformat())
     received_at = parse_datetime(payload.get("received_at")) or now
-    reads = payload.get("reads") or []
+    adapter_key, reads = adapt_read_records(payload)
 
     batch = IngestBatch(
         source_system=source_system,
@@ -150,6 +205,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
             "batch_id": batch.batch_id,
             "record_type": batch.record_type,
             "source_system": source_system,
+            "adapter_key": adapter_key,
         },
     )
     canonical_run = start_pipeline_run(
@@ -161,6 +217,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
             "batch_id": batch.batch_id,
             "record_type": batch.record_type,
             "source_system": source_system,
+            "adapter_key": adapter_key,
         },
     )
 
@@ -175,7 +232,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     mapping_errors = 0
 
     for item in reads:
-        parsed = parse_hes_read_payload(item)
+        parsed = parse_hes_read_payload(item.normalized_payload)
 
         hes_read_raw = HesReadRaw(
             ingest_batch_id=batch.id,
@@ -188,7 +245,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
             status_code=parsed.status_code,
             unit_of_measure=parsed.unit_of_measure,
             received_at=received_at,
-            payload=item,
+            payload=item.original_payload,
         )
         session.add(hes_read_raw)
         session.flush()
@@ -202,7 +259,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
                 exception_type=str(parsed.exception_type),
                 exception_code=parsed.exception_code,
                 message=str(parsed.exception_message),
-                details={"hes_read_raw_id": hes_read_raw.id, "payload": item},
+                details={"hes_read_raw_id": hes_read_raw.id, "payload": item.original_payload},
                 hes_read_raw=hes_read_raw,
             )
             summary["exceptions"] += 1
@@ -253,6 +310,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         "batch_id": batch.batch_id,
         "record_type": batch.record_type,
         "source_system": source_system,
+        "adapter_key": adapter_key,
         **summary,
         "validation_errors": validation_errors,
     }
@@ -260,6 +318,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         "batch_id": batch.batch_id,
         "record_type": batch.record_type,
         "source_system": source_system,
+        "adapter_key": adapter_key,
         "raw_reads_received": summary["raw_reads_received"],
         "canonical_created": summary["canonical_created"],
         "duplicates": summary["duplicates"],
@@ -298,7 +357,11 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         source_system=source_system,
         record_type=batch.record_type,
         last_processed_at=received_at,
-        details={"batch_id": batch.batch_id, "ingest_batch_id": batch.id},
+        details={
+            "batch_id": batch.batch_id,
+            "ingest_batch_id": batch.id,
+            "adapter_key": adapter_key,
+        },
     )
     upsert_processing_watermark(
         session,
@@ -306,7 +369,11 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         source_system=source_system,
         record_type=batch.record_type,
         last_processed_at=received_at,
-        details={"batch_id": batch.batch_id, "ingest_batch_id": batch.id},
+        details={
+            "batch_id": batch.batch_id,
+            "ingest_batch_id": batch.id,
+            "adapter_key": adapter_key,
+        },
     )
 
     return summary
@@ -317,7 +384,7 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     source_system = str(payload.get("source_system", "HES")).strip() or "HES"
     batch_reference = str(payload.get("batch_id") or payload.get("message_id") or now.isoformat())
     received_at = parse_datetime(payload.get("received_at")) or now
-    events = payload.get("events") or []
+    adapter_key, events = adapt_event_records(payload)
 
     batch = IngestBatch(
         source_system=source_system,
@@ -338,6 +405,7 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
             "batch_id": batch.batch_id,
             "record_type": batch.record_type,
             "source_system": source_system,
+            "adapter_key": adapter_key,
         },
     )
 
@@ -349,47 +417,29 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     validation_errors = 0
 
     for item in events:
-        event_time = None
-        event_timestamp = item.get("event_ts", item.get("event_time"))
-        try:
-            event_time = parse_datetime(event_timestamp, require_timezone=True)
-        except ValueError:
-            event_time = None
+        parsed = parse_hes_event_payload(item.normalized_payload)
 
         hes_event_raw = HesEventRaw(
             ingest_batch_id=batch.id,
             source_system=source_system,
-            meter_identifier=item.get("meter_id"),
-            event_time=event_time,
-            event_code=item.get("event_code"),
-            severity=item.get("severity"),
-            payload=item,
+            meter_identifier=parsed.meter_identifier,
+            event_time=parsed.event_time,
+            event_code=parsed.event_code,
+            severity=parsed.severity,
+            payload=item.original_payload,
         )
         session.add(hes_event_raw)
         session.flush()
 
         summary["raw_events_received"] += 1
 
-        if event_timestamp not in (None, "") and event_time is None:
+        if parsed.exception_code is not None:
             record_exception(
                 session,
-                exception_type="validation",
-                exception_code="invalid_timestamp",
-                message="Event timestamp must use ISO 8601 format with timezone information.",
-                details={"hes_event_raw_id": hes_event_raw.id, "payload": item},
-                hes_event_raw=hes_event_raw,
-            )
-            summary["exceptions"] += 1
-            validation_errors += 1
-            continue
-
-        if not hes_event_raw.event_code or not hes_event_raw.event_time:
-            record_exception(
-                session,
-                exception_type="validation",
-                exception_code="invalid_event_payload",
-                message="Raw event is missing event_code or event_time.",
-                details={"hes_event_raw_id": hes_event_raw.id, "payload": item},
+                exception_type=str(parsed.exception_type),
+                exception_code=parsed.exception_code,
+                message=str(parsed.exception_message),
+                details={"hes_event_raw_id": hes_event_raw.id, "payload": item.original_payload},
                 hes_event_raw=hes_event_raw,
             )
             summary["exceptions"] += 1
@@ -399,6 +449,7 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         "batch_id": batch.batch_id,
         "record_type": batch.record_type,
         "source_system": source_system,
+        "adapter_key": adapter_key,
         **summary,
         "validation_errors": validation_errors,
     }
@@ -420,7 +471,11 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         source_system=source_system,
         record_type=batch.record_type,
         last_processed_at=received_at,
-        details={"batch_id": batch.batch_id, "ingest_batch_id": batch.id},
+        details={
+            "batch_id": batch.batch_id,
+            "ingest_batch_id": batch.id,
+            "adapter_key": adapter_key,
+        },
     )
 
     return summary

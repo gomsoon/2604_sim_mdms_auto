@@ -122,3 +122,45 @@ def test_ingest_reads_marks_second_identical_read_as_duplicate(session):
     assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 1
     assert duplicate_error is not None
     assert duplicate_error.hes_read_raw_id == rows[1].id
+
+
+def test_ingest_reads_supports_legacy_adapter_mapping_and_preserves_original_payload(session):
+    seed_master_data(session)
+    session.commit()
+
+    summary = ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "adapter_key": "legacy_hes_v1",
+            "batch_id": "boundary-legacy-adapter-read",
+            "received_at": "2026-04-18T09:00:00+09:00",
+            "reads": [
+                {
+                    "mtr_no": "MTR-1001",
+                    "chn_no": "CH-01",
+                    "read_time": "2026-04-18T00:45:00+09:00",
+                    "read_value": "3.75",
+                    "quality": "OK",
+                    "status": "ACTUAL",
+                    "uom": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+
+    row = session.scalar(select(HesReadRaw).order_by(HesReadRaw.id.desc()).limit(1))
+
+    assert summary["raw_reads_received"] == 1
+    assert summary["canonical_created"] == 1
+    assert summary["exceptions"] == 0
+    assert row is not None
+    assert row.meter_identifier == "MTR-1001"
+    assert row.channel_identifier == "CH-01"
+    assert row.reading_value == 3.75
+    assert row.unit_of_measure == "kWh"
+    assert row.payload["mtr_no"] == "MTR-1001"
+    assert row.payload["read_value"] == "3.75"
+    assert row.canonical_status == "mapped"
+    assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 1
