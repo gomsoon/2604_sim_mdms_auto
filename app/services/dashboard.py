@@ -12,6 +12,7 @@ from app.models import (
     HesReadRaw,
     IngestErrorLog,
     MeasuringComponent,
+    PipelineRun,
     ServicePoint,
 )
 
@@ -48,36 +49,55 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         "exceptions": _count(session, select(func.count()).select_from(IngestErrorLog)),
     }
 
-    raw_read_pending = _count(
-        session,
-        select(func.count()).select_from(HesReadRaw).where(HesReadRaw.canonical_status == "pending"),
-    )
-    raw_read_mapped = _count(
-        session,
-        select(func.count()).select_from(HesReadRaw).where(HesReadRaw.canonical_status == "mapped"),
-    )
-    raw_read_failed = _count(
+    raw_ingest_waiting = _count(
         session,
         select(func.count())
-        .select_from(HesReadRaw)
-        .where(HesReadRaw.canonical_status.in_(("duplicate", "exception"))),
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "raw_ingest", PipelineRun.status == "waiting"),
+    )
+    raw_ingest_processing = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "raw_ingest", PipelineRun.status == "processing"),
+    )
+    raw_ingest_completed = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "raw_ingest", PipelineRun.status == "completed"),
+    )
+    raw_ingest_failed = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "raw_ingest", PipelineRun.status == "failed"),
     )
 
-    raw_read_validation_errors = _count(
+    canonical_waiting = _count(
         session,
         select(func.count())
-        .select_from(IngestErrorLog)
-        .where(IngestErrorLog.exception_code == "missing_required_fields"),
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "canonical", PipelineRun.status == "waiting"),
     )
-    invalid_event_errors = _count(
+    canonical_processing = _count(
         session,
         select(func.count())
-        .select_from(IngestErrorLog)
-        .where(IngestErrorLog.exception_code == "invalid_event_payload"),
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "canonical", PipelineRun.status == "processing"),
     )
-
-    total_raw_events = stats["raw_events"]
-    valid_raw_events = max(total_raw_events - invalid_event_errors, 0)
+    canonical_completed = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "canonical", PipelineRun.status == "completed"),
+    )
+    canonical_failed = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "canonical", PipelineRun.status == "failed"),
+    )
 
     queue_waiting = _count(
         session,
@@ -85,35 +105,37 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
     )
     queue_processing = _count(
         session,
-        select(func.count()).select_from(IngestErrorLog).where(IngestErrorLog.status == "processing"),
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "exception_reprocess", PipelineRun.status == "processing"),
     )
     queue_completed = _count(
         session,
         select(func.count())
-        .select_from(IngestErrorLog)
-        .where(IngestErrorLog.status.in_(("resolved", "completed", "closed"))),
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "exception_reprocess", PipelineRun.status == "completed"),
     )
     queue_failed = _count(
         session,
         select(func.count())
-        .select_from(IngestErrorLog)
-        .where(IngestErrorLog.status.in_(("failed", "rejected"))),
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "exception_reprocess", PipelineRun.status == "failed"),
     )
 
     stage_cards = [
         StageStatusCard(
             title_key="dashboard.stage.raw_ingest",
-            waiting=0,
-            processing=0,
-            completed=stats["raw_reads"] + valid_raw_events,
-            failed=raw_read_validation_errors + invalid_event_errors,
+            waiting=raw_ingest_waiting,
+            processing=raw_ingest_processing,
+            completed=raw_ingest_completed,
+            failed=raw_ingest_failed,
         ),
         StageStatusCard(
             title_key="dashboard.stage.canonical",
-            waiting=raw_read_pending,
-            processing=0,
-            completed=raw_read_mapped,
-            failed=raw_read_failed,
+            waiting=canonical_waiting,
+            processing=canonical_processing,
+            completed=canonical_completed,
+            failed=canonical_failed,
         ),
         StageStatusCard(
             title_key="dashboard.stage.errors",

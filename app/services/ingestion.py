@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.services.pipeline import (
     complete_pipeline_run,
+    fail_pipeline_run,
     start_pipeline_run,
     upsert_processing_watermark,
 )
@@ -83,6 +84,8 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         "duplicates": 0,
         "exceptions": 0,
     }
+    validation_errors = 0
+    mapping_errors = 0
 
     for item in reads:
         hes_read_raw = HesReadRaw(
@@ -121,6 +124,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
                 hes_read_raw=hes_read_raw,
             )
             summary["exceptions"] += 1
+            validation_errors += 1
             continue
 
         duplicate = session.scalar(
@@ -168,34 +172,55 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
                 hes_read_raw=hes_read_raw,
             )
             summary["exceptions"] += 1
+            mapping_errors += 1
             continue
 
         create_or_get_canonical_measurement(session, hes_read_raw, component)
         summary["canonical_created"] += 1
 
-    complete_pipeline_run(
-        raw_ingest_run,
-        result_code="ingest_completed",
-        details={
-            "batch_id": batch.batch_id,
-            "record_type": batch.record_type,
-            "source_system": source_system,
-            **summary,
-        },
-    )
-    complete_pipeline_run(
-        canonical_run,
-        result_code="canonical_completed",
-        details={
-            "batch_id": batch.batch_id,
-            "record_type": batch.record_type,
-            "source_system": source_system,
-            "raw_reads_received": summary["raw_reads_received"],
-            "canonical_created": summary["canonical_created"],
-            "duplicates": summary["duplicates"],
-            "exceptions": summary["exceptions"],
-        },
-    )
+    raw_ingest_details = {
+        "batch_id": batch.batch_id,
+        "record_type": batch.record_type,
+        "source_system": source_system,
+        **summary,
+        "validation_errors": validation_errors,
+    }
+    canonical_details = {
+        "batch_id": batch.batch_id,
+        "record_type": batch.record_type,
+        "source_system": source_system,
+        "raw_reads_received": summary["raw_reads_received"],
+        "canonical_created": summary["canonical_created"],
+        "duplicates": summary["duplicates"],
+        "mapping_errors": mapping_errors,
+        "exceptions": summary["exceptions"],
+    }
+
+    if validation_errors > 0:
+        fail_pipeline_run(
+            raw_ingest_run,
+            result_code="ingest_completed_with_validation_errors",
+            details=raw_ingest_details,
+        )
+    else:
+        complete_pipeline_run(
+            raw_ingest_run,
+            result_code="ingest_completed",
+            details=raw_ingest_details,
+        )
+
+    if mapping_errors > 0 or summary["duplicates"] > 0:
+        fail_pipeline_run(
+            canonical_run,
+            result_code="canonical_completed_with_exceptions",
+            details=canonical_details,
+        )
+    else:
+        complete_pipeline_run(
+            canonical_run,
+            result_code="canonical_completed",
+            details=canonical_details,
+        )
     upsert_processing_watermark(
         session,
         pipeline_name="raw_ingest",
@@ -250,6 +275,7 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         "raw_events_received": 0,
         "exceptions": 0,
     }
+    validation_errors = 0
 
     for item in events:
         hes_event_raw = HesEventRaw(
@@ -276,17 +302,27 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
                 hes_event_raw=hes_event_raw,
             )
             summary["exceptions"] += 1
+            validation_errors += 1
 
-    complete_pipeline_run(
-        raw_ingest_run,
-        result_code="ingest_completed",
-        details={
-            "batch_id": batch.batch_id,
-            "record_type": batch.record_type,
-            "source_system": source_system,
-            **summary,
-        },
-    )
+    raw_ingest_details = {
+        "batch_id": batch.batch_id,
+        "record_type": batch.record_type,
+        "source_system": source_system,
+        **summary,
+        "validation_errors": validation_errors,
+    }
+    if validation_errors > 0:
+        fail_pipeline_run(
+            raw_ingest_run,
+            result_code="ingest_completed_with_validation_errors",
+            details=raw_ingest_details,
+        )
+    else:
+        complete_pipeline_run(
+            raw_ingest_run,
+            result_code="ingest_completed",
+            details=raw_ingest_details,
+        )
     upsert_processing_watermark(
         session,
         pipeline_name="raw_ingest",
