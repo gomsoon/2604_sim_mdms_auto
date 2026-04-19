@@ -65,7 +65,7 @@ This kind of adapter is operational and lifecycle-oriented.
 
 ## Current implementation status
 
-At the current minimal stage, the project has implemented adapter profiles, but not runtime adapter management.
+At the current minimal stage, the project has implemented adapter profiles and part of the runtime adapter management baseline, but not runtime execution.
 
 Implemented now:
 
@@ -74,25 +74,33 @@ Implemented now:
 - normalization into the common raw ingest shape
 - original payload preservation
 - source-aware ingest and processing status through `pipeline_run` and dashboard cards
+- runtime adapter persistence through definition, instance, run, and watermark tables
+- runtime adapter registration from approved definitions
+- adapter instance lifecycle control such as `enable` and `pause`
+- operator-triggered `Run Once` queueing
+- adapter list and detail screens
+- adapter-specific recent run and watermark visibility
 
 Not implemented yet:
 
-- runtime adapter registration
-- adapter instance lifecycle control
-- start, stop, pause, resume, or run-once operations
-- adapter heartbeat or health status
+- code-backed runtime execution selected by `implementation_key`
+- a worker or scheduler that consumes queued adapter runs
+- upstream polling against a real HES source
+- upstream receive runtime handling
+- automatic heartbeat or health status updates
 - polling scheduler for source adapters
-- adapter-specific run history
-- frontend screens for adapter operations
+- automatic success and failure summary updates
+- automatic runtime lineage population into `ingest_batch`
 
 ## Current code interpretation
 
 The existing code should be interpreted like this:
 
 - `app/services/ingest_adapters.py` handles adapter profiles
+- `app/services/adapters.py` handles runtime adapter registration, lifecycle transitions, and run queueing
 - `app/services/ingestion.py` handles ingest processing after a payload has already arrived
-- the current UI and dashboard show ingest and processing states after entry into the system
-- the current system does not yet manage upstream adapter runtime lifecycle
+- the current UI now manages adapter instances as operational objects
+- the current system still does not execute upstream runtime adapter work
 
 This means the current implementation is suitable for:
 
@@ -105,6 +113,8 @@ It is not yet sufficient for:
 - production polling from multiple HES instances
 - operator control of upstream collection
 - long-running adapter health monitoring
+- watermark-driven incremental source fetching
+- runtime execution-to-ingest lineage closure
 
 ## Recommended architectural rule
 
@@ -137,6 +147,8 @@ The proposed minimal lifecycle model is defined in [adapter-runtime-lifecycle.md
 The recommended first operator control scope is defined in [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md).
 The recommended first polling implementation scope is defined in [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md).
 The recommended minimum persistent shape is defined in [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md).
+The current implementation gap is summarized in [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md).
+The recommended next implementation order is defined in [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md).
 
 ## Recommended persistence concepts
 
