@@ -32,6 +32,16 @@ Before `make init-db`, make sure local PostgreSQL is running and the application
 
 Then open `http://127.0.0.1:5000/`.
 
+## Test commands
+
+```bash
+./.venv/bin/pytest
+make test-functional
+```
+
+`make test-functional` runs a small Playwright smoke suite against a temporary local Flask server. The suite prefers the system Chrome executable and can also use `PLAYWRIGHT_CHROME_PATH` when Chrome is installed in a non-default path.
+If the current environment blocks browser launch, the functional suite is skipped instead of failing the whole regression run.
+
 ## Key routes
 
 - `/` dashboard
