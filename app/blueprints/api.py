@@ -12,6 +12,7 @@ from app.services.exception_queue import (
     get_exception_meter_id,
     list_exception_queue,
 )
+from app.services.ingest_contract import IngestContractError, validate_ingest_envelope
 from app.services.ingestion import ingest_events, ingest_reads
 from app.services.visibility import (
     VisibilityFilterError,
@@ -25,11 +26,18 @@ from app.services.visibility import (
 bp = Blueprint("api", __name__)
 
 
-def error_response(error_code: str, status_code: int, *, details: str | None = None):
+def error_response(
+    error_code: str,
+    status_code: int,
+    *,
+    details: str | None = None,
+    locale: str | None = None,
+):
+    response_locale = locale or get_locale()
     payload = {
         "error_code": error_code,
-        "message": translate(f"api.errors.{error_code}"),
-        "locale": get_locale(),
+        "message": translate(f"api.errors.{error_code}", locale=response_locale),
+        "locale": response_locale,
     }
     if details:
         payload["details"] = details
@@ -60,13 +68,22 @@ def health_check():
 @bp.post("/ingest/reads")
 def ingest_reads_endpoint():
     payload = request.get_json(silent=True)
-    if not payload:
+    if not payload or not isinstance(payload, dict):
         return error_response("json_payload_required", 400)
 
     session = get_session()
     try:
+        validate_ingest_envelope(session, payload, record_type="hes_read_raw")
         summary = ingest_reads(session, payload)
         session.commit()
+    except IngestContractError as exc:
+        session.rollback()
+        return error_response(
+            exc.error_code,
+            exc.status_code,
+            details=exc.fallback_message,
+            locale=exc.response_locale,
+        )
     except Exception as exc:
         session.rollback()
         return error_response("ingest_request_failed", 400, details=str(exc))
@@ -77,13 +94,22 @@ def ingest_reads_endpoint():
 @bp.post("/ingest/events")
 def ingest_events_endpoint():
     payload = request.get_json(silent=True)
-    if not payload:
+    if not payload or not isinstance(payload, dict):
         return error_response("json_payload_required", 400)
 
     session = get_session()
     try:
+        validate_ingest_envelope(session, payload, record_type="hes_event_raw")
         summary = ingest_events(session, payload)
         session.commit()
+    except IngestContractError as exc:
+        session.rollback()
+        return error_response(
+            exc.error_code,
+            exc.status_code,
+            details=exc.fallback_message,
+            locale=exc.response_locale,
+        )
     except Exception as exc:
         session.rollback()
         return error_response("ingest_request_failed", 400, details=str(exc))

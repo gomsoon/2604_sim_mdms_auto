@@ -15,26 +15,13 @@ from app.models import (
     IngestErrorLog,
     MeasuringComponent,
 )
+from app.services.ingest_contract import coerce_numeric, parse_datetime
 from app.services.pipeline import (
     complete_pipeline_run,
     fail_pipeline_run,
     start_pipeline_run,
     upsert_processing_watermark,
 )
-
-
-def parse_datetime(value: Any) -> datetime | None:
-    if value in (None, ""):
-        return None
-
-    if isinstance(value, datetime):
-        return value
-
-    text = str(value).strip()
-    if text.endswith("Z"):
-        text = f"{text[:-1]}+00:00"
-
-    return datetime.fromisoformat(text)
 
 
 def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
@@ -88,16 +75,31 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     mapping_errors = 0
 
     for item in reads:
+        measured_at = None
+        reading_value = item.get("value")
+        measurement_value = item.get("measurement_ts", item.get("measured_at"))
+        unit_of_measure = item.get("unit_of_measure", item.get("unit"))
+
+        try:
+            measured_at = parse_datetime(measurement_value, require_timezone=True)
+        except ValueError:
+            measured_at = None
+
+        try:
+            reading_value = coerce_numeric(item.get("value"))
+        except (TypeError, ValueError):
+            reading_value = None
+
         hes_read_raw = HesReadRaw(
             ingest_batch_id=batch.id,
             source_system=source_system,
             meter_identifier=item.get("meter_id"),
             channel_identifier=item.get("channel_id"),
-            measured_at=parse_datetime(item.get("measured_at")),
-            reading_value=item.get("value"),
+            measured_at=measured_at,
+            reading_value=reading_value,
             quality_code=item.get("quality_code"),
             status_code=item.get("status_code"),
-            unit_of_measure=item.get("unit"),
+            unit_of_measure=unit_of_measure,
             received_at=received_at,
             payload=item,
         )
@@ -105,6 +107,34 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         session.flush()
 
         summary["raw_reads_received"] += 1
+
+        if measurement_value not in (None, "") and measured_at is None:
+            hes_read_raw.canonical_status = "exception"
+            record_exception(
+                session,
+                exception_type="validation",
+                exception_code="invalid_timestamp",
+                message="Measurement timestamp must use ISO 8601 format with timezone information.",
+                details={"hes_read_raw_id": hes_read_raw.id, "payload": item},
+                hes_read_raw=hes_read_raw,
+            )
+            summary["exceptions"] += 1
+            validation_errors += 1
+            continue
+
+        if item.get("value") not in (None, "") and reading_value is None:
+            hes_read_raw.canonical_status = "exception"
+            record_exception(
+                session,
+                exception_type="validation",
+                exception_code="invalid_numeric_value",
+                message="Measurement value must be numeric.",
+                details={"hes_read_raw_id": hes_read_raw.id, "payload": item},
+                hes_read_raw=hes_read_raw,
+            )
+            summary["exceptions"] += 1
+            validation_errors += 1
+            continue
 
         if not all(
             [
@@ -278,11 +308,18 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     validation_errors = 0
 
     for item in events:
+        event_time = None
+        event_timestamp = item.get("event_ts", item.get("event_time"))
+        try:
+            event_time = parse_datetime(event_timestamp, require_timezone=True)
+        except ValueError:
+            event_time = None
+
         hes_event_raw = HesEventRaw(
             ingest_batch_id=batch.id,
             source_system=source_system,
             meter_identifier=item.get("meter_id"),
-            event_time=parse_datetime(item.get("event_time")),
+            event_time=event_time,
             event_code=item.get("event_code"),
             severity=item.get("severity"),
             payload=item,
@@ -291,6 +328,19 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         session.flush()
 
         summary["raw_events_received"] += 1
+
+        if event_timestamp not in (None, "") and event_time is None:
+            record_exception(
+                session,
+                exception_type="validation",
+                exception_code="invalid_timestamp",
+                message="Event timestamp must use ISO 8601 format with timezone information.",
+                details={"hes_event_raw_id": hes_event_raw.id, "payload": item},
+                hes_event_raw=hes_event_raw,
+            )
+            summary["exceptions"] += 1
+            validation_errors += 1
+            continue
 
         if not hes_event_raw.event_code or not hes_event_raw.event_time:
             record_exception(
