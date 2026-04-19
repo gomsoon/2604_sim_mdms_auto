@@ -37,7 +37,10 @@ Purpose:
 Typical responsibilities:
 
 - HES connectors
+- adapter runtime lifecycle control
+- adapter health and heartbeat tracking
 - source-specific parsing
+- adapter profile normalization before common raw entry
 - optional landing-table loading
 - source authentication and connectivity handling
 - upstream delivery trace capture
@@ -207,7 +210,7 @@ The system should be designed so that:
 
 At the present stage, the current system can be read like this:
 
-- integration layer: ingest APIs and future HES adapters
+- integration layer: ingest APIs and lightweight adapter profiles now, with future runtime HES adapters later
 - data layer: `ingest_batch`, `hes_read_raw`, `hes_event_raw`, `canonical_measurement`, `ingest_error_log`, and master data tables
 - processing layer: raw ingest validation, duplicate detection, mapping, canonical conversion, and dashboard status derivation
 - presentation layer: Flask blueprints, Jinja screens, localized UI, and query endpoints
@@ -231,5 +234,6 @@ That is why the layered view should be treated as a control document, not just a
 
 - [architecture.md](/home/tprover/2604_sim_mdms_auto/docs/architecture.md)
 - [data-layer-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/data-layer-architecture.md)
+- [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
 - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 - [core-stability-goals.md](/home/tprover/2604_sim_mdms_auto/docs/core-stability-goals.md)

@@ -37,6 +37,27 @@ Confirm that the service and PostgreSQL environment are available before ingest 
 - The operator knows whether the environment is ready for ingest
 - Basic environment failures can be diagnosed before data is loaded
 
+## Workflow 1A. Monitor or control runtime adapters
+
+### Goal
+
+Confirm that each runtime adapter is in an expected operational state before relying on upstream collection.
+
+### Typical steps
+
+1. Open the adapter operations screen
+2. Confirm whether each adapter is `ready`, `running`, `paused`, or `error`
+3. Review the latest success or failure summary
+4. Pause an unstable adapter when needed
+5. Run an adapter once manually when validation is needed
+6. Review recent adapter runs when troubleshooting is required
+
+### Expected operator outcome
+
+- The operator can distinguish configuration intent from runtime behavior
+- The operator can stop scheduled collection safely without deleting the adapter instance
+- The operator can validate one adapter without changing the whole system state
+
 ## Workflow 2. Register or confirm master data
 
 ### Goal
@@ -164,6 +185,7 @@ If the system cannot answer these clearly, mapping quality will remain weak.
 Minimal-stage screens should help operators complete the workflows above with as little ambiguity as possible.
 
 - Dashboard for current ingest and canonical status
+- Future adapter operations view for runtime integration control
 - Dashboard cards at the top showing `waiting`, `processing`, `completed`, and `failed` counts by major stage
 - Raw read visibility
 - Raw event visibility

@@ -18,16 +18,20 @@ This directory captures the working engineering baseline for the `Minimal End-to
 12. [hes-schema-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/hes-schema-checklist.md)
 13. [provisional-raw-schema.md](/home/tprover/2604_sim_mdms_auto/docs/provisional-raw-schema.md)
 14. [data-layer-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/data-layer-architecture.md)
-15. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
-16. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
-17. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
-18. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
-19. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
-20. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
-21. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
-22. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
-23. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
-24. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+15. [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+16. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
+17. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+18. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
+19. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+20. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
+21. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
+22. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
+23. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
+24. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+25. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+26. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+27. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+28. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
 
 ## Intent
 
@@ -47,6 +51,10 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `hes-schema-checklist.md` defines what to inspect in the real HES schema before raw table design starts.
 - `provisional-raw-schema.md` defines the pre-HES-review raw schema we can use to keep moving now.
 - `data-layer-architecture.md` defines when to use landing tables and how data should converge into the common raw and final layers.
+- `integration-adapter-management.md` defines how to distinguish field-normalization adapter profiles from runtime adapters that connect to external HES systems.
+- `adapter-runtime-lifecycle.md` defines the proposed minimal state model for runtime adapters and the operator-facing status view.
+- `adapter-operations-ui.md` defines the recommended first operator actions and screen scope for runtime adapters.
+- `polling-adapter-baseline.md` defines the first practical polling-adapter implementation target and boundaries.
 - `pipeline-orchestration.md` defines how data should move upward between layers and how administrators should see status on the dashboard.
 - `persistence-renaming-plan.md` defines the naming-alignment refactor sequence.
 - `i18n-strategy.md` defines the English and Korean support baseline.

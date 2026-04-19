@@ -192,6 +192,32 @@ Close the gap between proof-of-concept and a stable minimal baseline.
 - [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
 - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 
+### Stage 7. Integration runtime baseline
+
+#### Goal
+
+Introduce the first production-like runtime adapter control model without overbuilding a full connector platform.
+
+#### Key tasks
+
+- add runtime adapter lifecycle concepts
+- add operator-facing adapter operations visibility
+- define the first polling adapter baseline
+- keep adapter implementations code-backed while making adapter instances operationally manageable
+
+#### Test gate
+
+- operators can inspect adapter runtime state
+- operators can enable, pause, and run once against an adapter instance
+- first polling adapter execution is visible and auditable
+
+#### Related documents
+
+- [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+- [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
+- [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+- [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

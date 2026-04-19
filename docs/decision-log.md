@@ -91,6 +91,15 @@ This document records current architectural and process decisions so that the te
   - [core-stability-goals.md](/home/tprover/2604_sim_mdms_auto/docs/core-stability-goals.md)
   - [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
 
+### D-010. Adapter profiles and runtime adapters are separate concepts
+
+- Status: locked
+- Summary: The project must distinguish between lightweight adapter profiles used for field normalization and runtime adapters used for source connectivity, polling, receive handling, and operational control
+- Why: This avoids mixing payload mapping concerns with lifecycle and connectivity management, and gives the integration layer a cleaner long-term shape
+- Related docs:
+  - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+  - [architecture.md](/home/tprover/2604_sim_mdms_auto/docs/architecture.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape
@@ -137,6 +146,34 @@ This document records current architectural and process decisions so that the te
 - Current direction: Keep the model lightweight and schedule-first, and defer exact tooling until implementation work begins
 - Related docs:
   - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+
+### O-007. What is the minimum runtime adapter management model after the current minimal stage
+
+- Status: open
+- Why it matters: The project now has adapter profiles, but production-like HES integration will need operational objects such as adapter instances, run history, and lifecycle control
+- Current direction: Keep runtime adapter implementations code-backed for now, but move toward operator-managed adapter instances with `admin_state`, adapter run history, and a derived operator-facing status model
+- Related docs:
+  - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+  - [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
+  - [layered-architecture-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/layered-architecture-baseline.md)
+
+### O-008. What exact runtime adapter actions should the first operator UI allow
+
+- Status: open
+- Why it matters: Too little control makes runtime adapters hard to operate, but too much control too early increases safety and audit risk
+- Current direction: Start with `Enable`, `Pause`, `Run Once`, and `View Runs`, and defer more destructive or code-like actions
+- Related docs:
+  - [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+  - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+
+### O-009. What should the first polling adapter implementation include and exclude
+
+- Status: open
+- Why it matters: The project needs a production-like runtime adapter path, but the first polling implementation must remain intentionally narrow
+- Current direction: Start with one company-HES polling adapter for raw reads, explicit source watermarking, schedule plus `Run Once`, and operator visibility before broader connector expansion
+- Related docs:
+  - [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
+  - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
 
 ## Deferred decisions
 
