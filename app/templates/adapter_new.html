@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.adapter_new.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.adapter_new.description") }}</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('web.adapters', lang=current_locale) }}">
+    {{ t("page.adapters.title") }}
+  </a>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    {% if definitions %}
+    <form method="post" action="{{ url_for('web.create_adapter_view', lang=current_locale) }}" class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label" for="adapter_definition_id">{{ t("field.adapter_definition") }}</label>
+        <select class="form-select" id="adapter_definition_id" name="adapter_definition_id" required>
+          <option value="">{{ t("page.adapter_new.select_definition") }}</option>
+          {% for row in definitions %}
+          <option value="{{ row.id }}" {% if form_data.adapter_definition_id == row.id|string %}selected{% endif %}>
+            {{ row.display_name }} ({{ row.adapter_code }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="source_system">{{ t("field.source_system") }}</label>
+        <input class="form-control" id="source_system" name="source_system" required value="{{ form_data.source_system }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="instance_code">{{ t("field.instance_code") }}</label>
+        <input class="form-control" id="instance_code" name="instance_code" required value="{{ form_data.instance_code }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="display_name">{{ t("field.name") }}</label>
+        <input class="form-control" id="display_name" name="display_name" required value="{{ form_data.display_name }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="poll_interval_minutes">{{ t("field.poll_interval_minutes") }}</label>
+        <input class="form-control" id="poll_interval_minutes" name="poll_interval_minutes" type="number" min="1" step="1" value="{{ form_data.poll_interval_minutes }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="batch_size">{{ t("field.batch_size") }}</label>
+        <input class="form-control" id="batch_size" name="batch_size" type="number" min="1" step="1" value="{{ form_data.batch_size }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="secret_ref">{{ t("field.secret_ref") }}</label>
+        <input class="form-control" id="secret_ref" name="secret_ref" value="{{ form_data.secret_ref }}">
+      </div>
+      <div class="col-md-6 d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" id="landing_enabled" name="landing_enabled" type="checkbox" {% if form_data.landing_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="landing_enabled">{{ t("field.landing_enabled") }}</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="connection_config_masked">{{ t("field.connection_config_masked") }}</label>
+        <textarea class="form-control" id="connection_config_masked" name="connection_config_masked" rows="6" spellcheck="false">{{ form_data.connection_config_masked }}</textarea>
+        <div class="form-text">{{ t("page.adapter_new.masked_config_help") }}</div>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.adapters', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+    {% else %}
+    <p class="text-secondary mb-0">{{ t("page.adapter_new.no_definitions") }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

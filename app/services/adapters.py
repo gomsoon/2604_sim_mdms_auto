@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import json
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import AdapterInstance, AdapterRun, AdapterWatermark
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun, AdapterWatermark
 
 
 @dataclass(slots=True)
@@ -31,6 +32,71 @@ class AdapterInstanceDetail:
     snapshot: AdapterInstanceSnapshot
     recent_runs: list[AdapterRun]
     watermarks: list[AdapterWatermark]
+
+
+def list_active_adapter_definitions(session: Session) -> list[AdapterDefinition]:
+    return session.scalars(
+        select(AdapterDefinition)
+        .where(AdapterDefinition.status == "active")
+        .order_by(AdapterDefinition.display_name.asc(), AdapterDefinition.id.asc())
+    ).all()
+
+
+def _normalize_required_text(value: str | None, error_code: str, fallback_message: str) -> str:
+    normalized = (value or "").strip()
+    if not normalized:
+        raise AdapterValidationError(error_code, fallback_message)
+    return normalized
+
+
+def _parse_definition_id(raw_value: str | None) -> int:
+    normalized = (raw_value or "").strip()
+    if not normalized:
+        raise AdapterValidationError(
+            "missing_adapter_definition_id",
+            "Adapter definition selection is required.",
+        )
+    try:
+        return int(normalized)
+    except ValueError as exc:
+        raise AdapterValidationError(
+            "invalid_adapter_definition_id",
+            "Adapter definition selection is invalid.",
+        ) from exc
+
+
+def _parse_optional_positive_int(
+    raw_value: str | None, *, error_code: str, fallback_message: str
+) -> int | None:
+    normalized = (raw_value or "").strip()
+    if not normalized:
+        return None
+    try:
+        parsed = int(normalized)
+    except ValueError as exc:
+        raise AdapterValidationError(error_code, fallback_message) from exc
+    if parsed <= 0:
+        raise AdapterValidationError(error_code, fallback_message)
+    return parsed
+
+
+def _parse_masked_config(raw_value: str | None) -> dict | None:
+    normalized = (raw_value or "").strip()
+    if not normalized:
+        return None
+    try:
+        parsed = json.loads(normalized)
+    except json.JSONDecodeError as exc:
+        raise AdapterValidationError(
+            "invalid_connection_config_masked",
+            "Masked connection configuration must be valid JSON.",
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise AdapterValidationError(
+            "invalid_connection_config_masked",
+            "Masked connection configuration must be a JSON object.",
+        )
+    return parsed
 
 
 def _load_latest_runs(
@@ -119,6 +185,101 @@ def get_adapter_instance_detail(
         recent_runs=recent_runs,
         watermarks=sorted(instance.adapter_watermarks, key=lambda row: row.id, reverse=True),
     )
+
+
+def create_adapter_instance(
+    session: Session,
+    *,
+    adapter_definition_id: str | None,
+    instance_code: str | None,
+    display_name: str | None,
+    source_system: str | None,
+    poll_interval_minutes: str | None,
+    batch_size: str | None,
+    landing_enabled: bool,
+    secret_ref: str | None,
+    connection_config_masked: str | None,
+) -> AdapterInstance:
+    definition_id = _parse_definition_id(adapter_definition_id)
+    definition = session.get(AdapterDefinition, definition_id)
+    if definition is None:
+        raise AdapterValidationError(
+            "adapter_definition_not_found",
+            "The selected adapter definition does not exist.",
+        )
+    if definition.status != "active":
+        raise AdapterValidationError(
+            "adapter_definition_inactive",
+            "The selected adapter definition is not active.",
+        )
+
+    normalized_instance_code = _normalize_required_text(
+        instance_code,
+        "missing_instance_code",
+        "Adapter instance code is required.",
+    )
+    duplicate = session.scalar(
+        select(AdapterInstance.id)
+        .where(AdapterInstance.instance_code == normalized_instance_code)
+        .limit(1)
+    )
+    if duplicate is not None:
+        raise AdapterValidationError(
+            "duplicate_instance_code",
+            "An adapter instance with the same code already exists.",
+        )
+
+    normalized_display_name = _normalize_required_text(
+        display_name,
+        "missing_display_name",
+        "Adapter display name is required.",
+    )
+    normalized_source_system = _normalize_required_text(
+        source_system,
+        "missing_source_system",
+        "Source system is required.",
+    )
+    parsed_poll_interval = _parse_optional_positive_int(
+        poll_interval_minutes,
+        error_code="invalid_poll_interval_minutes",
+        fallback_message="Poll interval must be a positive integer.",
+    )
+    if definition.delivery_mode == "poll" and parsed_poll_interval is None:
+        raise AdapterValidationError(
+            "missing_poll_interval_minutes",
+            "Poll interval is required for polling adapter definitions.",
+        )
+    parsed_batch_size = _parse_optional_positive_int(
+        batch_size,
+        error_code="invalid_batch_size",
+        fallback_message="Batch size must be a positive integer.",
+    )
+    parsed_masked_config = _parse_masked_config(connection_config_masked)
+    normalized_secret_ref = (secret_ref or "").strip() or None
+
+    next_run_at = None
+    if definition.delivery_mode == "poll" and parsed_poll_interval is not None:
+        next_run_at = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(
+            minutes=parsed_poll_interval
+        )
+
+    instance = AdapterInstance(
+        adapter_definition_id=definition.id,
+        instance_code=normalized_instance_code,
+        display_name=normalized_display_name,
+        source_system=normalized_source_system,
+        admin_state="enabled",
+        status_reason="operator_created",
+        poll_interval_minutes=parsed_poll_interval,
+        batch_size=parsed_batch_size,
+        next_run_at=next_run_at,
+        landing_enabled=landing_enabled,
+        connection_config_masked=parsed_masked_config,
+        secret_ref=normalized_secret_ref,
+    )
+    session.add(instance)
+    session.flush()
+    return instance
 
 
 def update_adapter_admin_state(

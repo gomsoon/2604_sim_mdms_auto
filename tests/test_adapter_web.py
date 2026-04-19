@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.models import AdapterInstance, AdapterRun
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun
 from app.services.seeds import seed_demo_environment
 
 
@@ -66,3 +66,83 @@ def test_run_adapter_once_via_web_creates_waiting_run_in_korean(client, session)
     assert "수동 어댑터 실행 요청이 대기열에 등록되었습니다." in text
     assert "대기" in text
     assert session.scalar(select(func.count()).select_from(AdapterRun)) == 2
+
+
+def test_new_adapter_page_renders_active_definition(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/adapters/new?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "어댑터 인스턴스 등록" in text
+    assert "Company HES Poll" in text
+
+
+def test_create_adapter_via_web_creates_runtime_instance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    definition = session.scalar(select(AdapterDefinition).limit(1))
+    assert definition is not None
+
+    response = client.post(
+        "/adapters",
+        data={
+            "adapter_definition_id": str(definition.id),
+            "instance_code": "company_hes_poll_web",
+            "display_name": "Company HES Poll Web",
+            "source_system": "HES",
+            "poll_interval_minutes": "15",
+            "batch_size": "300",
+            "secret_ref": "env://WEB",
+            "connection_config_masked": '{"host": "hes-web.internal"}',
+            "landing_enabled": "on",
+        },
+        follow_redirects=True,
+    )
+
+    instance = session.scalar(
+        select(AdapterInstance).where(AdapterInstance.instance_code == "company_hes_poll_web").limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "Adapter instance created successfully." in response.get_data(as_text=True)
+    assert instance is not None
+    assert instance.landing_enabled is True
+    assert instance.poll_interval_minutes == 15
+
+
+def test_create_adapter_via_web_rejects_invalid_json_in_korean(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    client.get("/adapters/new?lang=ko")
+
+    definition = session.scalar(select(AdapterDefinition).limit(1))
+    assert definition is not None
+
+    response = client.post(
+        "/adapters",
+        data={
+            "adapter_definition_id": str(definition.id),
+            "instance_code": "company_hes_poll_bad_json",
+            "display_name": "Bad JSON",
+            "source_system": "HES",
+            "poll_interval_minutes": "10",
+            "batch_size": "100",
+            "secret_ref": "",
+            "connection_config_masked": "not-json",
+        },
+        follow_redirects=True,
+    )
+
+    instance = session.scalar(
+        select(AdapterInstance)
+        .where(AdapterInstance.instance_code == "company_hes_poll_bad_json")
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "마스킹된 연결 설정은 유효한 JSON 객체여야 합니다." in response.get_data(as_text=True)
+    assert instance is None

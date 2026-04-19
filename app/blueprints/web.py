@@ -26,8 +26,10 @@ from app.models import (
 )
 from app.services.adapters import (
     AdapterValidationError,
+    create_adapter_instance,
     get_adapter_instance_detail,
     list_adapter_instances,
+    list_active_adapter_definitions,
     queue_adapter_run_once,
     update_adapter_admin_state,
 )
@@ -254,11 +256,75 @@ def _adapter_redirect(adapter_instance_id: int) -> str:
     return url_for("web.adapter_detail", adapter_instance_id=adapter_instance_id, lang=get_locale())
 
 
+def _adapter_form_defaults() -> dict[str, str]:
+    return {
+        "adapter_definition_id": "",
+        "instance_code": "",
+        "display_name": "",
+        "source_system": "",
+        "poll_interval_minutes": "",
+        "batch_size": "",
+        "secret_ref": "",
+        "connection_config_masked": "",
+        "landing_enabled": "",
+    }
+
+
+def _adapter_form_values() -> dict[str, str]:
+    values = _adapter_form_defaults()
+    for key in values:
+        values[key] = request.form.get(key, "")
+    return values
+
+
 @bp.get("/adapters")
 def adapters():
     session = get_session()
     rows = list_adapter_instances(session)
     return render_template("adapters.html", rows=rows)
+
+
+@bp.get("/adapters/new")
+def new_adapter():
+    session = get_session()
+    definitions = list_active_adapter_definitions(session)
+    return render_template(
+        "adapter_new.html",
+        definitions=definitions,
+        form_data=_adapter_form_defaults(),
+    )
+
+
+@bp.post("/adapters")
+def create_adapter_view():
+    session = get_session()
+    definitions = list_active_adapter_definitions(session)
+    form_data = _adapter_form_values()
+
+    try:
+        instance = create_adapter_instance(
+            session,
+            adapter_definition_id=form_data["adapter_definition_id"],
+            instance_code=form_data["instance_code"],
+            display_name=form_data["display_name"],
+            source_system=form_data["source_system"],
+            poll_interval_minutes=form_data["poll_interval_minutes"],
+            batch_size=form_data["batch_size"],
+            landing_enabled=request.form.get("landing_enabled") == "on",
+            secret_ref=form_data["secret_ref"],
+            connection_config_masked=form_data["connection_config_masked"],
+        )
+        session.commit()
+        flash(translate("adapter.flash.created"), "success")
+        return redirect(_adapter_redirect(instance.id))
+    except AdapterValidationError as exc:
+        session.rollback()
+        flash(translate_adapter_error(exc.error_code, exc.fallback_message), "danger")
+        return render_template(
+            "adapter_new.html",
+            definitions=definitions,
+            form_data=form_data,
+        )
 
 
 @bp.get("/adapters/<int:adapter_instance_id>")

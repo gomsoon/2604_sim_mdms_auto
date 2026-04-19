@@ -6,6 +6,9 @@
     <h1 class="h3 mb-1">{{ t("page.adapters.title") }}</h1>
     <p class="text-secondary mb-0">{{ t("page.adapters.description") }}</p>
   </div>
+  <a class="btn btn-primary" href="{{ url_for('web.new_adapter', lang=current_locale) }}">
+    {{ t("button.register_adapter") }}
+  </a>
 </div>
 
 <div class="card shadow-sm">
