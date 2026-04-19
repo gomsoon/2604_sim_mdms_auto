@@ -22,8 +22,10 @@
         <div id="mainNav" class="collapse navbar-collapse">
           <ul class="navbar-nav ms-auto gap-lg-2">
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.dashboard') }}">{{ t("nav.dashboard") }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.ingest_batches') }}">{{ t("nav.ingest_batches") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.raw_reads') }}">{{ t("nav.raw_reads") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.raw_events') }}">{{ t("nav.raw_events") }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.canonical_measurements') }}">{{ t("nav.canonical_measurements") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.exceptions') }}">{{ t("nav.exceptions") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.master_data') }}">{{ t("nav.master_data") }}</a></li>
             <li class="nav-item d-flex align-items-center ms-lg-2">

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.canonical_measurements.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.canonical_measurements.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.batch_id") }}</label>
+        <input class="form-control" name="batch_id" value="{{ filters.batch_id or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.meter_id") }}</label>
+        <input class="form-control" name="meter_id" value="{{ filters.meter_id or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.canonical_measurements', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.batch_id") }}</th>
+            <th>{{ t("table.source") }}</th>
+            <th>{{ t("table.meter") }}</th>
+            <th>{{ t("table.channel") }}</th>
+            <th>{{ t("table.measured_at") }}</th>
+            <th>{{ t("table.value") }}</th>
+            <th>{{ t("table.uom") }}</th>
+            <th>{{ t("table.status") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.hes_read_raw.ingest_batch.batch_id }}</td>
+            <td>{{ row.hes_read_raw.source_system }}</td>
+            <td>{{ row.hes_read_raw.meter_identifier or t("common.none") }}</td>
+            <td>{{ row.hes_read_raw.channel_identifier or t("common.none") }}</td>
+            <td>{{ row.measured_at|dt }}</td>
+            <td>{{ row.value }}</td>
+            <td>{{ row.unit_of_measure }}</td>
+            <td>{{ t_or("canonical_status." ~ row.hes_read_raw.canonical_status, row.hes_read_raw.canonical_status) }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="text-secondary">{{ t("page.canonical_measurements.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

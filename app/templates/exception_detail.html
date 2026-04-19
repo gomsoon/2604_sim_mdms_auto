@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.exception_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.exception_detail.description") }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.master_data', lang=current_locale) }}">
+      {{ t("button.open_master_data") }}
+    </a>
+    {% if detail.can_reprocess %}
+    <form method="post" action="{{ url_for('web.reprocess_exception_view', exception_id=detail.error_log.id, lang=current_locale) }}">
+      <button class="btn btn-primary" type="submit">{{ t("button.reprocess") }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.exception_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.error_log.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.type") }}</dt>
+          <dd class="col-sm-8">{{ t_or("exception_type." ~ detail.error_log.exception_type, detail.error_log.exception_type) }}</dd>
+          <dt class="col-sm-4">{{ t("table.code") }}</dt>
+          <dd class="col-sm-8">{{ detail.error_log.exception_code }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("common.status." ~ detail.error_log.status, detail.error_log.status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.message") }}</dt>
+          <dd class="col-sm-8">{{ t_ingest_error(detail.error_log.exception_code, detail.error_log.message) }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.exception_detail.raw_context") }}</h2>
+        {% if detail.error_log.hes_read_raw %}
+        {% set raw = detail.error_log.hes_read_raw %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.batch_id") }}</dt>
+          <dd class="col-sm-8">{{ raw.ingest_batch.batch_id }}</dd>
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ raw.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.source") }}</dt>
+          <dd class="col-sm-8">{{ raw.source_system }}</dd>
+          <dt class="col-sm-4">{{ t("table.meter") }}</dt>
+          <dd class="col-sm-8">{{ raw.meter_identifier or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.channel") }}</dt>
+          <dd class="col-sm-8">{{ raw.channel_identifier or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.measured_at") }}</dt>
+          <dd class="col-sm-8">{{ raw.measured_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.value") }}</dt>
+          <dd class="col-sm-8">{{ raw.reading_value if raw.reading_value is not none else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("canonical_status." ~ raw.canonical_status, raw.canonical_status) }}</dd>
+        </dl>
+        {% else %}
+        <p class="text-secondary mb-0">{{ t("page.exception_detail.no_raw_context") }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if detail.error_log.hes_read_raw %}
+{% set raw = detail.error_log.hes_read_raw %}
+<div class="row g-4 mb-4">
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.exception_detail.candidate_devices") }}</h2>
+        {% for row in detail.candidate_devices %}
+        <div class="border rounded p-3 mb-3">
+          <div class="fw-semibold">{{ row.external_meter_id }}</div>
+          <div class="small text-secondary">{{ row.serial_number or t("common.none") }}</div>
+          <div class="small text-secondary">
+            {{ row.service_point.external_id if row.service_point else t("common.none") }}
+          </div>
+        </div>
+        {% else %}
+        <p class="text-secondary mb-0">{{ t("page.exception_detail.no_devices") }}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.exception_detail.candidate_components") }}</h2>
+        {% for row in detail.candidate_components %}
+        <div class="border rounded p-3 mb-3">
+          <div class="fw-semibold">{{ row.external_channel_id }}</div>
+          <div class="small text-secondary">{{ row.device.external_meter_id }}</div>
+          <div class="small text-secondary">{{ row.service_point.external_id }}</div>
+        </div>
+        {% else %}
+        <p class="text-secondary mb-0">{{ t("page.exception_detail.no_components") }}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.exception_detail.exact_matches") }}</h2>
+        {% for row in detail.exact_component_matches %}
+        <div class="border rounded p-3 mb-3">
+          <div class="fw-semibold">{{ row.external_channel_id }}</div>
+          <div class="small text-secondary">{{ row.device.external_meter_id }}</div>
+          <div class="small text-secondary">{{ row.service_point.external_id }}</div>
+        </div>
+        {% else %}
+        <p class="text-secondary mb-0">{{ t("page.exception_detail.no_exact_matches") }}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("field.payload") }}</h2>
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ raw.payload | tojson(indent=2) }}</code></pre>
+  </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.exception_detail.reprocess_history") }}</h2>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.result") }}</th>
+            <th>{{ t("table.created_at") }}</th>
+            <th>{{ t("table.completed_at") }}</th>
+            <th>{{ t("table.message") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.reprocess_requests %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ t_or("common.status." ~ row.status, row.status) }}</td>
+            <td>{{ t_or("reprocess.result." ~ row.result_code, row.result_code or t("common.none")) }}</td>
+            <td>{{ row.created_at|dt }}</td>
+            <td>{{ row.completed_at|dt }}</td>
+            <td>{{ t_reprocess_result(row.result_code, row.result_message or t("common.none")) }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-secondary">{{ t("page.exception_detail.no_reprocess_history") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

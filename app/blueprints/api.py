@@ -4,9 +4,16 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import select
 
 from app.db import check_database_connection, get_session
-from app.i18n import get_locale, translate
+from app.i18n import get_locale, translate, translate_visibility_error
 from app.models import HesEventRaw, HesReadRaw, IngestErrorLog
 from app.services.ingestion import ingest_events, ingest_reads
+from app.services.visibility import (
+    VisibilityFilterError,
+    build_canonical_filters,
+    build_ingest_batch_filters,
+    list_canonical_measurements,
+    list_ingest_batches,
+)
 
 
 bp = Blueprint("api", __name__)
@@ -132,6 +139,77 @@ def list_exceptions():
                 "code": row.exception_code,
                 "status": row.status,
                 "message": row.message,
+            }
+            for row in rows
+        ]
+    )
+
+
+@bp.get("/ingest-batches")
+def list_ingest_batches_endpoint():
+    session = get_session()
+    try:
+        filters = build_ingest_batch_filters(request.args)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_ingest_batches(session, filters)
+    return jsonify(
+        [
+            {
+                "id": row.id,
+                "source_system": row.source_system,
+                "batch_id": row.batch_id,
+                "record_type": row.record_type,
+                "received_at": row.received_at.isoformat(),
+                "raw_reads": len(row.hes_read_rows),
+                "raw_events": len(row.hes_event_rows),
+            }
+            for row in rows
+        ]
+    )
+
+
+@bp.get("/canonical-measurements")
+def list_canonical_measurements_endpoint():
+    session = get_session()
+    try:
+        filters = build_canonical_filters(request.args)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_canonical_measurements(session, filters)
+    return jsonify(
+        [
+            {
+                "id": row.id,
+                "batch_id": row.hes_read_raw.ingest_batch.batch_id,
+                "source_system": row.hes_read_raw.source_system,
+                "meter_id": row.hes_read_raw.meter_identifier,
+                "channel_id": row.hes_read_raw.channel_identifier,
+                "measured_at": row.measured_at.isoformat(),
+                "value": row.value,
+                "unit_of_measure": row.unit_of_measure,
+                "service_point_id": row.service_point_id,
+                "device_id": row.device_id,
             }
             for row in rows
         ]

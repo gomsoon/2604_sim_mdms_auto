@@ -30,3 +30,4 @@ def test_alembic_upgrade_creates_expected_tables(tmp_path: Path):
     assert "hes_event_raw" in tables
     assert "canonical_measurement" in tables
     assert "ingest_error_log" in tables
+    assert "reprocess_request" in tables

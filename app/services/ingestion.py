@@ -123,17 +123,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
             summary["duplicates"] += 1
             continue
 
-        component = session.scalar(
-            select(MeasuringComponent)
-            .join(Device)
-            .where(
-                MeasuringComponent.source_system == hes_read_raw.source_system,
-                Device.external_meter_id == hes_read_raw.meter_identifier,
-                MeasuringComponent.external_channel_id == hes_read_raw.channel_identifier,
-                MeasuringComponent.status == "active",
-            )
-            .limit(1)
-        )
+        component = find_measuring_component(session, hes_read_raw)
 
         if component is None:
             hes_read_raw.canonical_status = "exception"
@@ -152,19 +142,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
             summary["exceptions"] += 1
             continue
 
-        canonical = CanonicalMeasurement(
-            hes_read_raw_id=hes_read_raw.id,
-            measuring_component_id=component.id,
-            device_id=component.device_id,
-            service_point_id=component.service_point_id,
-            measured_at=hes_read_raw.measured_at,
-            value=float(hes_read_raw.reading_value),
-            quality_code=hes_read_raw.quality_code,
-            status_code=hes_read_raw.status_code,
-            unit_of_measure=hes_read_raw.unit_of_measure or component.unit_of_measure,
-        )
-        session.add(canonical)
-        hes_read_raw.canonical_status = "mapped"
+        create_or_get_canonical_measurement(session, hes_read_raw, component)
         summary["canonical_created"] += 1
 
     return summary
@@ -241,3 +219,44 @@ def record_exception(
         hes_event_raw_id=hes_event_raw.id if hes_event_raw else None,
     )
     session.add(exception)
+
+
+def find_measuring_component(
+    session: Session, hes_read_raw: HesReadRaw
+) -> MeasuringComponent | None:
+    return session.scalar(
+        select(MeasuringComponent)
+        .join(Device)
+        .where(
+            MeasuringComponent.source_system == hes_read_raw.source_system,
+            Device.external_meter_id == hes_read_raw.meter_identifier,
+            MeasuringComponent.external_channel_id == hes_read_raw.channel_identifier,
+            MeasuringComponent.status == "active",
+        )
+        .limit(1)
+    )
+
+
+def create_or_get_canonical_measurement(
+    session: Session,
+    hes_read_raw: HesReadRaw,
+    component: MeasuringComponent,
+) -> CanonicalMeasurement:
+    if hes_read_raw.canonical_measurement is not None:
+        hes_read_raw.canonical_status = "mapped"
+        return hes_read_raw.canonical_measurement
+
+    canonical = CanonicalMeasurement(
+        hes_read_raw=hes_read_raw,
+        measuring_component_id=component.id,
+        device_id=component.device_id,
+        service_point_id=component.service_point_id,
+        measured_at=hes_read_raw.measured_at,
+        value=float(hes_read_raw.reading_value),
+        quality_code=hes_read_raw.quality_code,
+        status_code=hes_read_raw.status_code,
+        unit_of_measure=hes_read_raw.unit_of_measure or component.unit_of_measure,
+    )
+    session.add(canonical)
+    hes_read_raw.canonical_status = "mapped"
+    return canonical

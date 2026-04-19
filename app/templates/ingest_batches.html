@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.ingest_batches.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.ingest_batches.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.batch_id") }}</label>
+        <input class="form-control" name="batch_id" value="{{ filters.batch_id or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.source_system") }}</label>
+        <input class="form-control" name="source_system" value="{{ filters.source_system or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.record_type") }}</label>
+        <select class="form-select" name="record_type">
+          <option value="">{{ t("common.none") }}</option>
+          {% for value in ["hes_read_raw", "hes_event_raw"] %}
+          <option value="{{ value }}" {% if filters.record_type == value %}selected{% endif %}>{{ t_or("record_type." ~ value, value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.ingest_batches', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.batch_id") }}</th>
+            <th>{{ t("table.source") }}</th>
+            <th>{{ t("table.record_type") }}</th>
+            <th>{{ t("table.received_at") }}</th>
+            <th>{{ t("table.raw_reads_count") }}</th>
+            <th>{{ t("table.raw_events_count") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.batch_id }}</td>
+            <td>{{ row.source_system }}</td>
+            <td>{{ t_or("record_type." ~ row.record_type, row.record_type) }}</td>
+            <td>{{ row.received_at|dt }}</td>
+            <td>{{ row.hes_read_rows|length }}</td>
+            <td>{{ row.hes_event_rows|length }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-secondary">{{ t("page.ingest_batches.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

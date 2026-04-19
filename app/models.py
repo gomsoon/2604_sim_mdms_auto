@@ -121,6 +121,10 @@ class HesReadRaw(TimestampMixin, Base):
         back_populates="hes_read_raw", uselist=False
     )
     duplicate_of: Mapped["HesReadRaw | None"] = relationship(remote_side=[id])
+    error_logs: Mapped[list["IngestErrorLog"]] = relationship(back_populates="hes_read_raw")
+    reprocess_requests: Mapped[list["ReprocessRequest"]] = relationship(
+        back_populates="hes_read_raw"
+    )
 
 
 class HesEventRaw(TimestampMixin, Base):
@@ -136,6 +140,7 @@ class HesEventRaw(TimestampMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     ingest_batch: Mapped[IngestBatch] = relationship(back_populates="hes_event_rows")
+    error_logs: Mapped[list["IngestErrorLog"]] = relationship(back_populates="hes_event_raw")
 
 
 class CanonicalMeasurement(TimestampMixin, Base):
@@ -173,3 +178,26 @@ class IngestErrorLog(TimestampMixin, Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     hes_read_raw_id: Mapped[int | None] = mapped_column(ForeignKey("hes_read_raw.id"))
     hes_event_raw_id: Mapped[int | None] = mapped_column(ForeignKey("hes_event_raw.id"))
+    hes_read_raw: Mapped[HesReadRaw | None] = relationship(back_populates="error_logs")
+    hes_event_raw: Mapped[HesEventRaw | None] = relationship(back_populates="error_logs")
+    reprocess_requests: Mapped[list["ReprocessRequest"]] = relationship(
+        back_populates="ingest_error_log"
+    )
+
+
+class ReprocessRequest(TimestampMixin, Base):
+    __tablename__ = "reprocess_request"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ingest_error_log_id: Mapped[int] = mapped_column(
+        ForeignKey("ingest_error_log.id"), nullable=False, index=True
+    )
+    hes_read_raw_id: Mapped[int] = mapped_column(ForeignKey("hes_read_raw.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="processing")
+    result_code: Mapped[str | None] = mapped_column(String(80))
+    result_message: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    ingest_error_log: Mapped[IngestErrorLog] = relationship(back_populates="reprocess_requests")
+    hes_read_raw: Mapped[HesReadRaw] = relationship(back_populates="reprocess_requests")

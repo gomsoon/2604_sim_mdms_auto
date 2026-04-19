@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from sqlalchemy import select
 
 from app.db import get_session
-from app.i18n import get_locale, translate, translate_master_data_error
+from app.i18n import (
+    get_locale,
+    translate,
+    translate_master_data_error,
+    translate_reprocess_error,
+    translate_reprocess_result,
+    translate_visibility_error,
+)
 from app.models import (
     Device,
     HesEventRaw,
@@ -14,6 +21,11 @@ from app.models import (
     ServicePoint,
 )
 from app.services.dashboard import build_dashboard_snapshot
+from app.services.exception_queue import (
+    ExceptionReprocessError,
+    get_exception_detail_context,
+    reprocess_exception,
+)
 from app.services.master_data import (
     MasterDataValidationError,
     create_device,
@@ -22,6 +34,13 @@ from app.services.master_data import (
     update_device,
     update_measuring_component,
     update_service_point,
+)
+from app.services.visibility import (
+    VisibilityFilterError,
+    build_canonical_filters,
+    build_ingest_batch_filters,
+    list_canonical_measurements,
+    list_ingest_batches,
 )
 
 
@@ -62,6 +81,65 @@ def exceptions():
         select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(100)
     ).all()
     return render_template("exceptions.html", rows=rows)
+
+
+def _exception_redirect(exception_id: int) -> str:
+    return url_for("web.exception_detail", exception_id=exception_id, lang=get_locale())
+
+
+@bp.get("/exceptions/<int:exception_id>")
+def exception_detail(exception_id: int):
+    session = get_session()
+    detail = get_exception_detail_context(session, exception_id)
+    if detail is None:
+        abort(404)
+
+    return render_template("exception_detail.html", detail=detail)
+
+
+@bp.post("/exceptions/<int:exception_id>/reprocess")
+def reprocess_exception_view(exception_id: int):
+    session = get_session()
+    detail = get_exception_detail_context(session, exception_id)
+    if detail is None:
+        abort(404)
+
+    try:
+        result = reprocess_exception(session, detail.error_log)
+        session.commit()
+        category = "success" if result.status == "completed" else "danger"
+        flash(translate_reprocess_result(result.result_code, result.result_message), category)
+    except ExceptionReprocessError as exc:
+        session.rollback()
+        flash(translate_reprocess_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_exception_redirect(exception_id))
+
+
+@bp.get("/ingest-batches")
+def ingest_batches():
+    session = get_session()
+    try:
+        filters = build_ingest_batch_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_ingest_batch_filters({})
+
+    rows = list_ingest_batches(session, filters)
+    return render_template("ingest_batches.html", rows=rows, filters=filters)
+
+
+@bp.get("/canonical-measurements")
+def canonical_measurements():
+    session = get_session()
+    try:
+        filters = build_canonical_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_canonical_filters({})
+
+    rows = list_canonical_measurements(session, filters)
+    return render_template("canonical_measurements.html", rows=rows, filters=filters)
 
 
 @bp.get("/master-data")

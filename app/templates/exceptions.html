@@ -19,6 +19,7 @@
             <th>{{ t("table.code") }}</th>
             <th>{{ t("table.status") }}</th>
             <th>{{ t("table.message") }}</th>
+            <th>{{ t("table.actions") }}</th>
           </tr>
         </thead>
         <tbody>
@@ -29,10 +30,15 @@
             <td>{{ row.exception_code }}</td>
             <td>{{ t_or("common.status." ~ row.status, row.status) }}</td>
             <td>{{ t_ingest_error(row.exception_code, row.message) }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.exception_detail', exception_id=row.id, lang=current_locale) }}">
+                {{ t("button.view") }}
+              </a>
+            </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="5" class="text-secondary">{{ t("page.exceptions.empty") }}</td>
+            <td colspan="6" class="text-secondary">{{ t("page.exceptions.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>
