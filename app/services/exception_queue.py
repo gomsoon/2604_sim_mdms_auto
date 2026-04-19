@@ -16,6 +16,7 @@ from app.models import (
     ReprocessRequest,
 )
 from app.services.ingestion import create_or_get_canonical_measurement, find_measuring_component
+from app.services.pipeline import complete_pipeline_run, fail_pipeline_run, start_pipeline_run
 
 
 REPROCESSABLE_EXCEPTION_CODES = frozenset({"measuring_component_not_found"})
@@ -245,6 +246,19 @@ def reprocess_exception(
     session.add(request)
     session.flush()
 
+    pipeline_run = start_pipeline_run(
+        session,
+        pipeline_name="exception_reprocess",
+        trigger_type="reprocess",
+        reprocess_request=request,
+        details={
+            "exception_id": error_log.id,
+            "exception_code": error_log.exception_code,
+            "meter_identifier": raw_row.meter_identifier,
+            "channel_identifier": raw_row.channel_identifier,
+        },
+    )
+
     error_log.status = "processing"
 
     if raw_row.canonical_measurement is not None:
@@ -258,6 +272,14 @@ def reprocess_exception(
             **request.details,
             "canonical_measurement_id": raw_row.canonical_measurement.id,
         }
+        complete_pipeline_run(
+            pipeline_run,
+            result_code="already_mapped",
+            details={
+                **pipeline_run.details,
+                "canonical_measurement_id": raw_row.canonical_measurement.id,
+            },
+        )
         return request
 
     component = find_measuring_component(session, raw_row)
@@ -268,6 +290,14 @@ def reprocess_exception(
         request.result_code = "measuring_component_not_found"
         request.result_message = "No active measuring component matched the raw read."
         request.completed_at = datetime.now(timezone.utc)
+        fail_pipeline_run(
+            pipeline_run,
+            result_code="measuring_component_not_found",
+            details={
+                **pipeline_run.details,
+                "status": "failed",
+            },
+        )
         return request
 
     canonical = create_or_get_canonical_measurement(session, raw_row, component)
@@ -283,4 +313,13 @@ def reprocess_exception(
         "canonical_measurement_id": canonical.id,
         "measuring_component_id": component.id,
     }
+    complete_pipeline_run(
+        pipeline_run,
+        result_code="canonical_created",
+        details={
+            **pipeline_run.details,
+            "canonical_measurement_id": canonical.id,
+            "measuring_component_id": component.id,
+        },
+    )
     return request

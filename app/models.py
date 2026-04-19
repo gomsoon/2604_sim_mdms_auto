@@ -3,7 +3,18 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -30,6 +41,7 @@ class IngestBatch(TimestampMixin, Base):
 
     hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="ingest_batch")
     hes_event_rows: Mapped[list["HesEventRaw"]] = relationship(back_populates="ingest_batch")
+    pipeline_runs: Mapped[list["PipelineRun"]] = relationship(back_populates="ingest_batch")
 
 
 class ServicePoint(TimestampMixin, Base):
@@ -205,3 +217,41 @@ class ReprocessRequest(TimestampMixin, Base):
 
     ingest_error_log: Mapped[IngestErrorLog] = relationship(back_populates="reprocess_requests")
     hes_read_raw: Mapped[HesReadRaw] = relationship(back_populates="reprocess_requests")
+    pipeline_runs: Mapped[list["PipelineRun"]] = relationship(back_populates="reprocess_request")
+
+
+class PipelineRun(TimestampMixin, Base):
+    __tablename__ = "pipeline_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pipeline_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    trigger_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="processing")
+    ingest_batch_id: Mapped[int | None] = mapped_column(ForeignKey("ingest_batch.id"))
+    reprocess_request_id: Mapped[int | None] = mapped_column(ForeignKey("reprocess_request.id"))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_code: Mapped[str | None] = mapped_column(String(80))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    ingest_batch: Mapped[IngestBatch | None] = relationship(back_populates="pipeline_runs")
+    reprocess_request: Mapped[ReprocessRequest | None] = relationship(back_populates="pipeline_runs")
+
+
+class ProcessingWatermark(TimestampMixin, Base):
+    __tablename__ = "processing_watermark"
+    __table_args__ = (
+        UniqueConstraint(
+            "pipeline_name",
+            "source_system",
+            "record_type",
+            name="uq_processing_watermark_scope",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pipeline_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    source_system: Mapped[str | None] = mapped_column(String(50), index=True)
+    record_type: Mapped[str | None] = mapped_column(String(30), index=True)
+    last_processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

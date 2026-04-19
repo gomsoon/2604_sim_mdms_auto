@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import func, select
 
-from app.models import CanonicalMeasurement, HesReadRaw, IngestErrorLog, ReprocessRequest
+from app.models import CanonicalMeasurement, HesReadRaw, IngestErrorLog, PipelineRun, ReprocessRequest
 from app.services.exception_queue import (
     ExceptionQueueFilters,
     ExceptionReprocessError,
@@ -101,6 +101,15 @@ def test_reprocess_exception_marks_attempt_failed_when_mapping_is_still_missing(
     assert raw_row is not None
     assert raw_row.canonical_status == "exception"
     assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 1
+    run = session.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.reprocess_request_id == request.id)
+        .limit(1)
+    )
+    assert run is not None
+    assert run.pipeline_name == "exception_reprocess"
+    assert run.status == "failed"
+    assert run.result_code == "measuring_component_not_found"
 
 
 def test_reprocess_exception_creates_canonical_after_master_data_is_added(session):
@@ -153,3 +162,12 @@ def test_reprocess_exception_creates_canonical_after_master_data_is_added(sessio
     assert raw_row.canonical_measurement is not None
     assert raw_row.canonical_measurement.device_id == device.id
     assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 2
+    run = session.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.reprocess_request_id == request.id)
+        .limit(1)
+    )
+    assert run is not None
+    assert run.pipeline_name == "exception_reprocess"
+    assert run.status == "completed"
+    assert run.result_code == "canonical_created"
