@@ -68,6 +68,22 @@ An optional source-specific layer used when incoming HES data cannot be mapped s
 
 The earliest vendor-neutral raw layer in the MDM, intended to unify raw reads and events across compatible HES sources.
 
+### adapter_definition
+
+The persistent definition of a runtime adapter type or family, including delivery mode, supported record type, and implementation identity.
+
+### adapter_instance
+
+The persistent operational configuration of one real adapter connection or source endpoint managed by operators.
+
+### adapter_run
+
+The persistent execution record for one runtime adapter attempt, such as a scheduled poll or manual run.
+
+### adapter_watermark
+
+The persistent incremental cursor or resume point used by a runtime adapter to continue polling safely.
+
 ## Processing terms
 
 ### lineage

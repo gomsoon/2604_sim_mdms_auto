@@ -90,6 +90,8 @@ The first version does not need:
 
 The exact schema can still be decided later, but the first polling baseline likely needs:
 
+The fuller baseline persistence proposal is defined in [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md).
+
 ### Adapter definition
 
 Represents the polling adapter type.
@@ -287,5 +289,6 @@ This is enough to prove runtime adapter management without overbuilding.
 - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
 - [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
 - [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+- [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
 - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 - [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)

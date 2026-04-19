@@ -128,6 +128,8 @@ Using `ready` in the UI avoids that confusion.
 
 The exact schema can still be decided later, but the following fields are recommended for `adapter_instance`.
 
+The fuller persistence proposal is defined in [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md).
+
 Useful baseline fields:
 
 - adapter definition reference
@@ -287,6 +289,7 @@ This is the smallest model that still supports:
 ## Relationship to other documents
 
 - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+- [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
 - [layered-architecture-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/layered-architecture-baseline.md)
 - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
