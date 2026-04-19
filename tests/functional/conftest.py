@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import threading
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import Browser, Error as PlaywrightError, Page, sync_playwright
@@ -12,6 +14,17 @@ from app import create_app
 from app.db import get_session
 from app.migrations import upgrade_db
 from app.services.seeds import seed_demo_environment
+TESTS_DIR = Path(__file__).resolve().parent.parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+from postgresql_support import (  # noqa: E402
+    build_schema_name,
+    build_schema_url,
+    create_schema,
+    drop_schema,
+    resolve_test_database_url,
+)
 
 
 def _resolve_chrome_executable() -> str | None:
@@ -28,17 +41,20 @@ def _resolve_chrome_executable() -> str | None:
 
 
 @pytest.fixture(scope="session")
-def functional_app(tmp_path_factory: pytest.TempPathFactory):
-    work_dir = tmp_path_factory.mktemp("functional")
-    database_path = work_dir / "functional.db"
+def functional_app():
+    test_database_url = resolve_test_database_url()
+    schema_name = build_schema_name(prefix="functional")
+    schema_url = build_schema_url(test_database_url, schema_name)
+    create_schema(test_database_url, schema_name)
 
     monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database_path}")
+    monkeypatch.setenv("TEST_DATABASE_URL", test_database_url)
+    monkeypatch.setenv("DATABASE_URL", schema_url)
     monkeypatch.setenv("SECRET_KEY", "functional-secret")
 
     app = create_app()
     app.config.update(TESTING=True)
-    upgrade_db(app.config["DATABASE_URL"])
+    upgrade_db(schema_url)
 
     session = get_session()
     try:
@@ -52,6 +68,7 @@ def functional_app(tmp_path_factory: pytest.TempPathFactory):
         yield app
     finally:
         session.remove()
+        drop_schema(test_database_url, schema_name)
         monkeypatch.undo()
 
 

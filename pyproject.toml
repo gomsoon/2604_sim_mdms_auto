@@ -19,12 +19,24 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8,<9",
+  "pytest-cov>=6,<7",
   "playwright>=1.58,<2",
   "ruff>=0.11,<0.12",
 ]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --cov=app --cov-branch --cov-report=term-missing:skip-covered"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 [tool.ruff]
 line-length = 100

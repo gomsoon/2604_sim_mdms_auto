@@ -11,13 +11,16 @@ ALEMBIC_INI_PATH = ROOT_DIR / "alembic.ini"
 MIGRATIONS_PATH = ROOT_DIR / "migrations"
 
 
+def _escape_config_value(value: str) -> str:
+    return value.replace("%", "%%")
+
+
 def build_alembic_config(database_url: str) -> AlembicConfig:
     config = AlembicConfig(str(ALEMBIC_INI_PATH))
     config.set_main_option("script_location", str(MIGRATIONS_PATH))
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option("sqlalchemy.url", _escape_config_value(database_url))
     return config
 
 
 def upgrade_db(database_url: str, revision: str = "head") -> None:
     command.upgrade(build_alembic_config(database_url), revision)
-

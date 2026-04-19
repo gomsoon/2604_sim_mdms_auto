@@ -31,6 +31,8 @@ Before `make init-db`, make sure local PostgreSQL is running and the application
 
 - role: `mdms_app`
 - database: `mdms_dev`
+- test database: `mdms_test`
+- app timezone: `Asia/Seoul`
 - host: `127.0.0.1`
 - port: `5432`
 
@@ -39,9 +41,13 @@ Then open `http://127.0.0.1:5000/`.
 ## Test commands
 
 ```bash
-./.venv/bin/pytest
+make test
 make test-functional
 ```
+
+`make test` now runs `pytest` with branch coverage enabled for the `app` package and enforces a minimum `80%` branch coverage baseline. The test fixtures use PostgreSQL and isolate each test in its own schema under `TEST_DATABASE_URL`.
+
+Date-only operator filters use `APP_TIMEZONE` to interpret local business days before converting them to UTC for storage/query comparisons.
 
 `make test-functional` runs a small Playwright smoke suite against a temporary local Flask server. The suite prefers the system Chrome executable and can also use `PLAYWRIGHT_CHROME_PATH` when Chrome is installed in a non-default path.
 If the current environment blocks browser launch, the functional suite is skipped instead of failing the whole regression run.

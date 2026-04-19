@@ -21,6 +21,12 @@ This document defines the minimum testing expectations for all code changes in t
 - Whenever code changes, regression testing must be executed.
 - The regression scope should match the impact of the change, but it must include at least the directly affected area plus known adjacent flows.
 
+### Branch coverage is part of the baseline
+
+- The repository should measure branch coverage, not line coverage only.
+- The current baseline should enforce a minimum `80%` branch coverage threshold for the application package.
+- Thresholds should continue to increase gradually toward higher confidence instead of jumping unrealistically to `100%` all at once.
+
 ## Test layers
 
 ### Unit testing
@@ -80,6 +86,7 @@ As the repository grows, tests should evolve toward a structure like the followi
 ## Tooling expectations
 
 - `pytest` is the baseline test runner for unit and integration tests.
+- `pytest-cov` should be used to collect branch coverage for the application package.
 - `Playwright` should be evaluated for functional browser-driven testing.
 - Test data should be deterministic and easy to understand.
 

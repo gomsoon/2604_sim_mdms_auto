@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from app.services.seeds import seed_demo_environment
@@ -27,6 +29,15 @@ def test_build_canonical_filters_rejects_reversed_date_range():
         build_canonical_filters({"date_from": "2026-04-19", "date_to": "2026-04-18"})
 
     assert exc_info.value.error_code == "invalid_date_range"
+
+
+def test_build_canonical_filters_uses_app_timezone_for_date_only_inputs(monkeypatch):
+    monkeypatch.setenv("APP_TIMEZONE", "Asia/Seoul")
+
+    filters = build_canonical_filters({"date_from": "2026-04-18", "date_to": "2026-04-18"})
+
+    assert filters.date_from == datetime(2026, 4, 17, 15, 0, tzinfo=timezone.utc)
+    assert filters.date_to == datetime(2026, 4, 18, 14, 59, 59, 999999, tzinfo=timezone.utc)
 
 
 def test_list_ingest_batches_filters_by_batch_and_record_type(session):

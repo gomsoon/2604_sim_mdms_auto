@@ -17,6 +17,10 @@ _engine: Engine | None = None
 def init_app(app: Flask) -> None:
     global _engine
 
+    SessionLocal.remove()
+    if _engine is not None:
+        _engine.dispose()
+
     _engine = create_engine(app.config["DATABASE_URL"], future=True, pool_pre_ping=True)
     SessionLocal.configure(bind=_engine)
 
@@ -39,4 +43,3 @@ def get_session():
 def check_database_connection() -> None:
     with get_engine().connect() as connection:
         connection.execute(text("SELECT 1"))
-

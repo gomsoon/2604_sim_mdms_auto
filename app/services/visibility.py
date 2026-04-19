@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.config import get_app_timezone_name
 from app.models import CanonicalMeasurement, FinalMeasurement, HesReadRaw, IngestBatch
 
 
@@ -60,7 +62,10 @@ def _parse_filter_datetime(value: str | None, *, end_of_day: bool = False) -> da
         if len(normalized) == 10:
             date_value = datetime.fromisoformat(normalized).date()
             boundary_time = time.max if end_of_day else time.min
-            return datetime.combine(date_value, boundary_time, tzinfo=timezone.utc)
+            local_tz = _get_filter_timezone()
+            return datetime.combine(date_value, boundary_time, tzinfo=local_tz).astimezone(
+                timezone.utc
+            )
 
         parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
@@ -70,6 +75,13 @@ def _parse_filter_datetime(value: str | None, *, end_of_day: bool = False) -> da
         raise VisibilityFilterError(
             "invalid_date_filter", "Date filters must use ISO date or datetime format."
         ) from exc
+
+
+def _get_filter_timezone():
+    try:
+        return ZoneInfo(get_app_timezone_name())
+    except ZoneInfoNotFoundError:
+        return timezone.utc
 
 
 def build_ingest_batch_filters(args) -> IngestBatchFilters:
