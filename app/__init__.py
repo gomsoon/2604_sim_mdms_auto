@@ -11,6 +11,7 @@ from app.config import Config, get_database_url, get_secret_key
 from app.db import get_session, init_app as init_db
 from app.i18n import register_i18n
 from app.migrations import upgrade_db
+from app.services.adapter_execution import process_waiting_adapter_runs
 from app.services.finalization import finalize_canonical_measurements
 from app.services.seeds import seed_demo_environment
 
@@ -83,6 +84,25 @@ def register_commands(app: Flask) -> None:
             f"finalized={summary.finalized}, "
             f"skipped_existing={summary.skipped_existing}, "
             f"skipped_not_well_formed={summary.skipped_not_well_formed}"
+        )
+
+    @app.cli.command("process-adapter-runs")
+    @click.option("--limit", default=1, type=int)
+    @click.option("--run-id", default=None, type=int)
+    def process_adapter_runs_command(limit: int, run_id: int | None) -> None:
+        session = get_session()
+        try:
+            summary = process_waiting_adapter_runs(session, limit=limit, run_id=run_id)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+        click.echo(
+            "Adapter run processing completed: "
+            f"processed={summary.processed}, "
+            f"completed={summary.completed}, "
+            f"failed={summary.failed}"
         )
 
 

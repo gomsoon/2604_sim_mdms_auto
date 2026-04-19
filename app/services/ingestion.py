@@ -179,7 +179,13 @@ def find_duplicate_hes_read_raw(session: Session, hes_read_raw: HesReadRaw) -> H
     )
 
 
-def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
+def ingest_reads(
+    session: Session,
+    payload: dict[str, Any],
+    *,
+    adapter_instance_id: int | None = None,
+    adapter_run_id: int | None = None,
+) -> dict[str, int]:
     now = datetime.now(timezone.utc)
     source_system = str(payload.get("source_system", "HES")).strip() or "HES"
     batch_reference = str(payload.get("batch_id") or payload.get("message_id") or now.isoformat())
@@ -192,6 +198,8 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         record_type="hes_read_raw",
         received_at=received_at,
         payload=payload,
+        adapter_instance_id=adapter_instance_id,
+        adapter_run_id=adapter_run_id,
     )
     session.add(batch)
     session.flush()
@@ -379,7 +387,13 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     return summary
 
 
-def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
+def ingest_events(
+    session: Session,
+    payload: dict[str, Any],
+    *,
+    adapter_instance_id: int | None = None,
+    adapter_run_id: int | None = None,
+) -> dict[str, int]:
     now = datetime.now(timezone.utc)
     source_system = str(payload.get("source_system", "HES")).strip() or "HES"
     batch_reference = str(payload.get("batch_id") or payload.get("message_id") or now.isoformat())
@@ -392,6 +406,8 @@ def ingest_events(session: Session, payload: dict[str, Any]) -> dict[str, int]:
         record_type="hes_event_raw",
         received_at=received_at,
         payload=payload,
+        adapter_instance_id=adapter_instance_id,
+        adapter_run_id=adapter_run_id,
     )
     session.add(batch)
     session.flush()

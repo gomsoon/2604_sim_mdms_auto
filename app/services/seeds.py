@@ -167,7 +167,30 @@ def seed_adapter_runtime(session: Session) -> bool:
         last_success_at=datetime.now(timezone.utc) - timedelta(minutes=2),
         last_heartbeat_at=datetime.now(timezone.utc) - timedelta(minutes=1),
         landing_enabled=False,
-        connection_config_masked={"host": "hes-db.internal", "database": "hes"},
+        connection_config_masked={
+            "host": "hes-db.internal",
+            "database": "hes",
+            "sample_reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T00:45:00+09:00",
+                    "value": 5.25,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T01:00:00+09:00",
+                    "value": 6.1,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                },
+            ],
+        },
         secret_ref="env://MDMS_HES_PRIMARY",
     )
     session.add(instance)

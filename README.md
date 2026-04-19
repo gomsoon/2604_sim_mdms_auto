@@ -22,6 +22,8 @@ make init-db
 make seed-demo
 # optional: operator UI can also trigger finalization from /canonical-measurements
 ./.venv/bin/flask --app wsgi:app promote-final
+# optional: queued adapter runs can be consumed by the lightweight worker command
+./.venv/bin/flask --app wsgi:app process-adapter-runs --limit 1
 make run
 ```
 
@@ -51,6 +53,7 @@ If the current environment blocks browser launch, the functional suite is skippe
 - `/raw-events` raw event list
 - `/canonical-measurements` canonical measurement list
 - `/final-measurements` final measurement list
+- `/adapters` runtime adapter list
 - `/exceptions` open exception queue
 - `/master-data` minimal master data view
 - `/api/v1/health` health check
