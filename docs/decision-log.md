@@ -82,6 +82,15 @@ This document records current architectural and process decisions so that the te
   - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
   - [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
 
+### D-009. Well-formed remains a semantic checkpoint in the minimal stage
+
+- Status: locked
+- Summary: In the minimal stage, `well_formed` is treated as an explicit semantic validation step before promotion to `final_measurement`, not as its own persistent table
+- Why: This keeps stage meaning explicit without introducing an extra table before VEE and later business rules are ready
+- Related docs:
+  - [core-stability-goals.md](/home/tprover/2604_sim_mdms_auto/docs/core-stability-goals.md)
+  - [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

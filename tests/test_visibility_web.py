@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.services.finalization import finalize_canonical_measurements
 from app.services.seeds import seed_demo_environment
 
 
@@ -65,3 +66,41 @@ def test_canonical_measurements_api_returns_filtered_measurement(client, session
     assert row["unit_of_measure"] == "kWh"
     assert row["service_point_id"] == 1
     assert row["device_id"] == 1
+
+
+def test_final_measurements_page_filters_by_batch_and_meter(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    response = client.get("/final-measurements?lang=ko&batch_id=demo-read-batch&meter_id=MTR-1001")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "최종 계측" in text
+    assert "demo-read-batch" in text
+    assert "MTR-1001" in text
+    assert "최종화" in text
+
+
+def test_final_measurements_api_returns_filtered_measurement(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    response = client.get("/api/v1/final-measurements?batch_id=demo-read-batch&meter_id=MTR-1001")
+
+    assert response.status_code == 200
+    assert len(response.get_json()) == 1
+
+    row = response.get_json()[0]
+
+    assert row["batch_id"] == "demo-read-batch"
+    assert row["source_system"] == "HES"
+    assert row["meter_id"] == "MTR-1001"
+    assert row["channel_id"] == "CH-01"
+    assert row["value"] == 14.2
+    assert row["unit_of_measure"] == "kWh"
+    assert row["final_status"] == "finalized"

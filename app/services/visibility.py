@@ -6,7 +6,7 @@ from datetime import datetime, time, timezone
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import CanonicalMeasurement, HesReadRaw, IngestBatch
+from app.models import CanonicalMeasurement, FinalMeasurement, HesReadRaw, IngestBatch
 
 
 @dataclass(slots=True)
@@ -29,6 +29,14 @@ class IngestBatchFilters:
 
 @dataclass(frozen=True, slots=True)
 class CanonicalMeasurementFilters:
+    batch_id: str | None = None
+    meter_id: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FinalMeasurementFilters:
     batch_id: str | None = None
     meter_id: str | None = None
     date_from: datetime | None = None
@@ -97,6 +105,22 @@ def build_canonical_filters(args) -> CanonicalMeasurementFilters:
     )
 
 
+def build_final_filters(args) -> FinalMeasurementFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    return FinalMeasurementFilters(
+        batch_id=_normalize_text(args.get("batch_id")),
+        meter_id=_normalize_text(args.get("meter_id")),
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
 def list_ingest_batches(
     session: Session, filters: IngestBatchFilters, *, limit: int = 100
 ) -> list[IngestBatch]:
@@ -146,4 +170,32 @@ def list_canonical_measurements(
         statement = statement.where(CanonicalMeasurement.measured_at <= filters.date_to)
 
     statement = statement.order_by(CanonicalMeasurement.id.desc()).limit(limit)
+    return session.execute(statement).scalars().unique().all()
+
+
+def list_final_measurements(
+    session: Session, filters: FinalMeasurementFilters, *, limit: int = 100
+) -> list[FinalMeasurement]:
+    statement: Select[tuple[FinalMeasurement]] = (
+        select(FinalMeasurement)
+        .join(FinalMeasurement.canonical_measurement)
+        .join(CanonicalMeasurement.hes_read_raw)
+        .join(HesReadRaw.ingest_batch)
+        .options(
+            selectinload(FinalMeasurement.canonical_measurement)
+            .selectinload(CanonicalMeasurement.hes_read_raw)
+            .selectinload(HesReadRaw.ingest_batch)
+        )
+    )
+
+    if filters.batch_id:
+        statement = statement.where(IngestBatch.batch_id == filters.batch_id)
+    if filters.meter_id:
+        statement = statement.where(HesReadRaw.meter_identifier == filters.meter_id)
+    if filters.date_from:
+        statement = statement.where(FinalMeasurement.measured_at >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(FinalMeasurement.measured_at <= filters.date_to)
+
+    statement = statement.order_by(FinalMeasurement.id.desc()).limit(limit)
     return session.execute(statement).scalars().unique().all()

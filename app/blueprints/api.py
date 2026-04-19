@@ -17,8 +17,10 @@ from app.services.ingestion import ingest_events, ingest_reads
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
+    build_final_filters,
     build_ingest_batch_filters,
     list_canonical_measurements,
+    list_final_measurements,
     list_ingest_batches,
 )
 
@@ -241,6 +243,45 @@ def list_canonical_measurements_endpoint():
                 "measured_at": row.measured_at.isoformat(),
                 "value": row.value,
                 "unit_of_measure": row.unit_of_measure,
+                "service_point_id": row.service_point_id,
+                "device_id": row.device_id,
+            }
+            for row in rows
+        ]
+    )
+
+
+@bp.get("/final-measurements")
+def list_final_measurements_endpoint():
+    session = get_session()
+    try:
+        filters = build_final_filters(request.args)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_final_measurements(session, filters)
+    return jsonify(
+        [
+            {
+                "id": row.id,
+                "batch_id": row.canonical_measurement.hes_read_raw.ingest_batch.batch_id,
+                "source_system": row.canonical_measurement.hes_read_raw.source_system,
+                "meter_id": row.canonical_measurement.hes_read_raw.meter_identifier,
+                "channel_id": row.canonical_measurement.hes_read_raw.channel_identifier,
+                "measured_at": row.measured_at.isoformat(),
+                "value": row.value,
+                "unit_of_measure": row.unit_of_measure,
+                "final_status": row.final_status,
+                "finalized_at": row.finalized_at.isoformat(),
                 "service_point_id": row.service_point_id,
                 "device_id": row.device_id,
             }

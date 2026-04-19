@@ -11,6 +11,7 @@ from app.config import Config, get_database_url, get_secret_key
 from app.db import get_session, init_app as init_db
 from app.i18n import register_i18n
 from app.migrations import upgrade_db
+from app.services.finalization import finalize_canonical_measurements
 from app.services.seeds import seed_demo_environment
 
 
@@ -56,6 +57,32 @@ def register_commands(app: Flask) -> None:
             f"master_data_created={summary['master_data_created']}, "
             f"raw_reads={summary['read_summary']['raw_reads_received']}, "
             f"raw_events={summary['event_summary']['raw_events_received']}"
+        )
+
+    @app.cli.command("promote-final")
+    @click.option("--batch-id", default=None)
+    @click.option("--meter-id", default=None)
+    @click.option("--limit", default=100, type=int)
+    def promote_final_command(batch_id: str | None, meter_id: str | None, limit: int) -> None:
+        session = get_session()
+        try:
+            summary = finalize_canonical_measurements(
+                session,
+                batch_id=batch_id,
+                meter_id=meter_id,
+                limit=limit,
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+        click.echo(
+            "Finalization completed: "
+            f"candidates={summary.candidates}, "
+            f"finalized={summary.finalized}, "
+            f"skipped_existing={summary.skipped_existing}, "
+            f"skipped_not_well_formed={summary.skipped_not_well_formed}"
         )
 
 

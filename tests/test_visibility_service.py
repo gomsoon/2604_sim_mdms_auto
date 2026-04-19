@@ -6,10 +6,13 @@ from app.services.seeds import seed_demo_environment
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
+    build_final_filters,
     build_ingest_batch_filters,
     list_canonical_measurements,
+    list_final_measurements,
     list_ingest_batches,
 )
+from app.services.finalization import finalize_canonical_measurements
 
 
 def test_build_ingest_batch_filters_rejects_invalid_date_format():
@@ -72,4 +75,35 @@ def test_list_canonical_measurements_filters_by_batch_and_meter_id(session):
     assert len(matched_rows) == 1
     assert matched_rows[0].hes_read_raw.ingest_batch.batch_id == "demo-read-batch"
     assert matched_rows[0].hes_read_raw.meter_identifier == "MTR-1001"
+    assert unmatched_rows == []
+
+
+def test_list_final_measurements_filters_by_batch_and_meter_id(session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    matched_rows = list_final_measurements(
+        session,
+        build_final_filters(
+            {
+                "batch_id": "demo-read-batch",
+                "meter_id": "MTR-1001",
+            }
+        ),
+    )
+    unmatched_rows = list_final_measurements(
+        session,
+        build_final_filters(
+            {
+                "batch_id": "demo-read-batch",
+                "meter_id": "MTR-4040",
+            }
+        ),
+    )
+
+    assert len(matched_rows) == 1
+    assert matched_rows[0].canonical_measurement.hes_read_raw.ingest_batch.batch_id == "demo-read-batch"
+    assert matched_rows[0].canonical_measurement.hes_read_raw.meter_identifier == "MTR-1001"
     assert unmatched_rows == []

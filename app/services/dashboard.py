@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     CanonicalMeasurement,
     Device,
+    FinalMeasurement,
     HesEventRaw,
     HesReadRaw,
     IngestErrorLog,
@@ -46,6 +47,7 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         "raw_reads": _count(session, select(func.count()).select_from(HesReadRaw)),
         "raw_events": _count(session, select(func.count()).select_from(HesEventRaw)),
         "canonical": _count(session, select(func.count()).select_from(CanonicalMeasurement)),
+        "final": _count(session, select(func.count()).select_from(FinalMeasurement)),
         "exceptions": _count(session, select(func.count()).select_from(IngestErrorLog)),
     }
 
@@ -122,6 +124,32 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         .where(PipelineRun.pipeline_name == "exception_reprocess", PipelineRun.status == "failed"),
     )
 
+    final_waiting = _count(
+        session,
+        select(func.count())
+        .select_from(CanonicalMeasurement)
+        .outerjoin(CanonicalMeasurement.final_measurement)
+        .where(FinalMeasurement.id.is_(None))
+    )
+    final_processing = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "finalization", PipelineRun.status == "processing"),
+    )
+    final_completed = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "finalization", PipelineRun.status == "completed"),
+    )
+    final_failed = _count(
+        session,
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "finalization", PipelineRun.status == "failed"),
+    )
+
     stage_cards = [
         StageStatusCard(
             title_key="dashboard.stage.raw_ingest",
@@ -143,6 +171,13 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
             processing=queue_processing,
             completed=queue_completed,
             failed=queue_failed,
+        ),
+        StageStatusCard(
+            title_key="dashboard.stage.final",
+            waiting=final_waiting,
+            processing=final_processing,
+            completed=final_completed,
+            failed=final_failed,
         ),
     ]
 

@@ -48,8 +48,10 @@ from app.services.master_data import (
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
+    build_final_filters,
     build_ingest_batch_filters,
     list_canonical_measurements,
+    list_final_measurements,
     list_ingest_batches,
 )
 
@@ -155,6 +157,19 @@ def canonical_measurements():
 
     rows = list_canonical_measurements(session, filters)
     return render_template("canonical_measurements.html", rows=rows, filters=filters)
+
+
+@bp.get("/final-measurements")
+def final_measurements():
+    session = get_session()
+    try:
+        filters = build_final_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_final_filters({})
+
+    rows = list_final_measurements(session, filters)
+    return render_template("final_measurements.html", rows=rows, filters=filters)
 
 
 @bp.get("/master-data")

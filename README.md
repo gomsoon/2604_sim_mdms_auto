@@ -20,6 +20,7 @@ cp .env.example .env
 make install
 make init-db
 make seed-demo
+./.venv/bin/flask --app wsgi:app promote-final
 make run
 ```
 
@@ -47,11 +48,15 @@ If the current environment blocks browser launch, the functional suite is skippe
 - `/` dashboard
 - `/raw-reads` raw read list
 - `/raw-events` raw event list
+- `/canonical-measurements` canonical measurement list
+- `/final-measurements` final measurement list
 - `/exceptions` open exception queue
 - `/master-data` minimal master data view
 - `/api/v1/health` health check
 - `/api/v1/ingest/reads` POST raw meter reads
 - `/api/v1/ingest/events` POST raw events
+- `/api/v1/canonical-measurements` canonical measurement list
+- `/api/v1/final-measurements` final measurement list
 
 ## Sample read ingest payload
 
@@ -82,7 +87,7 @@ If the current environment blocks browser launch, the functional suite is skippe
 - Migration setup is now aligned around Alembic instead of unmanaged schema creation.
 - Persistent naming is aligned with the backlog baseline such as `ingest_batch`, `hes_read_raw`, `hes_event_raw`, and `ingest_error_log`.
 - Ingest now uses adapter profiles such as `common_raw_v1` and `legacy_hes_v1` to normalize source-specific field names before common raw persistence.
-- This stage stops at raw ingestion, master-data mapping, canonicalization, and exception visibility.
+- This stage now includes explicit `canonical -> final_measurement` promotion as a separate processing step.
 
 Additional context lives in [docs/minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md).
 

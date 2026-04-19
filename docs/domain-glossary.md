@@ -86,6 +86,10 @@ The process of relating source identifiers such as meter or channel IDs to inter
 
 The process of converting source-specific raw data into the internal canonical representation.
 
+### well_formed
+
+A semantic checkpoint, not necessarily a separate table, meaning the canonical measurement has the minimum structural integrity required to be promoted into a final business state.
+
 ## Later-phase terms
 
 ### initial_measurement

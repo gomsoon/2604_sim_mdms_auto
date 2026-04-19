@@ -181,6 +181,34 @@ class CanonicalMeasurement(TimestampMixin, Base):
     measuring_component: Mapped[MeasuringComponent] = relationship(
         back_populates="canonical_measurements"
     )
+    final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="canonical_measurement", uselist=False
+    )
+
+
+class FinalMeasurement(TimestampMixin, Base):
+    __tablename__ = "final_measurement"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_measurement_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_measurement.id"), nullable=False, unique=True
+    )
+    measuring_component_id: Mapped[int] = mapped_column(
+        ForeignKey("measuring_component.id"), nullable=False
+    )
+    device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
+    service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    quality_code: Mapped[str | None] = mapped_column(String(40))
+    status_code: Mapped[str | None] = mapped_column(String(40))
+    unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False)
+    final_status: Mapped[str] = mapped_column(String(30), nullable=False, default="finalized")
+    finalized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    canonical_measurement: Mapped[CanonicalMeasurement] = relationship(
+        back_populates="final_measurement"
+    )
 
 
 class IngestErrorLog(TimestampMixin, Base):
