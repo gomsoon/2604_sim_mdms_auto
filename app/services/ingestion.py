@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -22,6 +23,105 @@ from app.services.pipeline import (
     start_pipeline_run,
     upsert_processing_watermark,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedRawReadPayload:
+    meter_identifier: str | None
+    channel_identifier: str | None
+    measured_at: datetime | None
+    reading_value: float | None
+    quality_code: str | None
+    status_code: str | None
+    unit_of_measure: str | None
+    exception_code: str | None = None
+    exception_type: str | None = None
+    exception_message: str | None = None
+
+
+def parse_hes_read_payload(item: dict[str, Any]) -> ParsedRawReadPayload:
+    measurement_value = item.get("measurement_ts", item.get("measured_at"))
+    measured_at = None
+    try:
+        measured_at = parse_datetime(measurement_value, require_timezone=True)
+    except ValueError:
+        measured_at = None
+
+    reading_value = item.get("value")
+    try:
+        reading_value = coerce_numeric(item.get("value"))
+    except (TypeError, ValueError):
+        reading_value = None
+
+    parsed = ParsedRawReadPayload(
+        meter_identifier=item.get("meter_id"),
+        channel_identifier=item.get("channel_id"),
+        measured_at=measured_at,
+        reading_value=reading_value,
+        quality_code=item.get("quality_code"),
+        status_code=item.get("status_code"),
+        unit_of_measure=item.get("unit_of_measure", item.get("unit")),
+    )
+
+    if measurement_value not in (None, "") and measured_at is None:
+        return replace(
+            parsed,
+            exception_code="invalid_timestamp",
+            exception_type="validation",
+            exception_message=(
+                "Measurement timestamp must use ISO 8601 format with timezone information."
+            ),
+        )
+
+    if item.get("value") not in (None, "") and reading_value is None:
+        return replace(
+            parsed,
+            exception_code="invalid_numeric_value",
+            exception_type="validation",
+            exception_message="Measurement value must be numeric.",
+        )
+
+    if not all(
+        [
+            parsed.meter_identifier,
+            parsed.channel_identifier,
+            parsed.measured_at,
+            parsed.reading_value is not None,
+        ]
+    ):
+        return replace(
+            parsed,
+            exception_code="missing_required_fields",
+            exception_type="validation",
+            exception_message="Required raw read fields are missing.",
+        )
+
+    return parsed
+
+
+def apply_parsed_hes_read_payload(hes_read_raw: HesReadRaw, parsed: ParsedRawReadPayload) -> None:
+    hes_read_raw.meter_identifier = parsed.meter_identifier
+    hes_read_raw.channel_identifier = parsed.channel_identifier
+    hes_read_raw.measured_at = parsed.measured_at
+    hes_read_raw.reading_value = parsed.reading_value
+    hes_read_raw.quality_code = parsed.quality_code
+    hes_read_raw.status_code = parsed.status_code
+    hes_read_raw.unit_of_measure = parsed.unit_of_measure
+
+
+def find_duplicate_hes_read_raw(session: Session, hes_read_raw: HesReadRaw) -> HesReadRaw | None:
+    return session.scalar(
+        select(HesReadRaw)
+        .where(
+            HesReadRaw.id != hes_read_raw.id,
+            HesReadRaw.source_system == hes_read_raw.source_system,
+            HesReadRaw.meter_identifier == hes_read_raw.meter_identifier,
+            HesReadRaw.channel_identifier == hes_read_raw.channel_identifier,
+            HesReadRaw.measured_at == hes_read_raw.measured_at,
+        )
+        .order_by(HesReadRaw.id.asc())
+        .limit(1)
+    )
 
 
 def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
@@ -75,31 +175,18 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
     mapping_errors = 0
 
     for item in reads:
-        measured_at = None
-        reading_value = item.get("value")
-        measurement_value = item.get("measurement_ts", item.get("measured_at"))
-        unit_of_measure = item.get("unit_of_measure", item.get("unit"))
-
-        try:
-            measured_at = parse_datetime(measurement_value, require_timezone=True)
-        except ValueError:
-            measured_at = None
-
-        try:
-            reading_value = coerce_numeric(item.get("value"))
-        except (TypeError, ValueError):
-            reading_value = None
+        parsed = parse_hes_read_payload(item)
 
         hes_read_raw = HesReadRaw(
             ingest_batch_id=batch.id,
             source_system=source_system,
-            meter_identifier=item.get("meter_id"),
-            channel_identifier=item.get("channel_id"),
-            measured_at=measured_at,
-            reading_value=reading_value,
-            quality_code=item.get("quality_code"),
-            status_code=item.get("status_code"),
-            unit_of_measure=unit_of_measure,
+            meter_identifier=parsed.meter_identifier,
+            channel_identifier=parsed.channel_identifier,
+            measured_at=parsed.measured_at,
+            reading_value=parsed.reading_value,
+            quality_code=parsed.quality_code,
+            status_code=parsed.status_code,
+            unit_of_measure=parsed.unit_of_measure,
             received_at=received_at,
             payload=item,
         )
@@ -108,13 +195,13 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
 
         summary["raw_reads_received"] += 1
 
-        if measurement_value not in (None, "") and measured_at is None:
+        if parsed.exception_code is not None:
             hes_read_raw.canonical_status = "exception"
             record_exception(
                 session,
-                exception_type="validation",
-                exception_code="invalid_timestamp",
-                message="Measurement timestamp must use ISO 8601 format with timezone information.",
+                exception_type=str(parsed.exception_type),
+                exception_code=parsed.exception_code,
+                message=str(parsed.exception_message),
                 details={"hes_read_raw_id": hes_read_raw.id, "payload": item},
                 hes_read_raw=hes_read_raw,
             )
@@ -122,53 +209,7 @@ def ingest_reads(session: Session, payload: dict[str, Any]) -> dict[str, int]:
             validation_errors += 1
             continue
 
-        if item.get("value") not in (None, "") and reading_value is None:
-            hes_read_raw.canonical_status = "exception"
-            record_exception(
-                session,
-                exception_type="validation",
-                exception_code="invalid_numeric_value",
-                message="Measurement value must be numeric.",
-                details={"hes_read_raw_id": hes_read_raw.id, "payload": item},
-                hes_read_raw=hes_read_raw,
-            )
-            summary["exceptions"] += 1
-            validation_errors += 1
-            continue
-
-        if not all(
-            [
-                hes_read_raw.meter_identifier,
-                hes_read_raw.channel_identifier,
-                hes_read_raw.measured_at,
-                hes_read_raw.reading_value is not None,
-            ]
-        ):
-            hes_read_raw.canonical_status = "exception"
-            record_exception(
-                session,
-                exception_type="validation",
-                exception_code="missing_required_fields",
-                message="Required raw read fields are missing.",
-                details={"hes_read_raw_id": hes_read_raw.id, "payload": item},
-                hes_read_raw=hes_read_raw,
-            )
-            summary["exceptions"] += 1
-            validation_errors += 1
-            continue
-
-        duplicate = session.scalar(
-            select(HesReadRaw)
-            .where(
-                HesReadRaw.id != hes_read_raw.id,
-                HesReadRaw.source_system == hes_read_raw.source_system,
-                HesReadRaw.meter_identifier == hes_read_raw.meter_identifier,
-                HesReadRaw.channel_identifier == hes_read_raw.channel_identifier,
-                HesReadRaw.measured_at == hes_read_raw.measured_at,
-            )
-            .order_by(HesReadRaw.id.asc())
-            .limit(1)
-        )
+        duplicate = find_duplicate_hes_read_raw(session, hes_read_raw)
 
         if duplicate is not None:
             hes_read_raw.is_duplicate = True

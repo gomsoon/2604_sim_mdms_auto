@@ -236,6 +236,10 @@ MESSAGES = {
         "reprocess.error.processing_in_progress": "A reprocess request is already in progress.",
         "reprocess.result.already_mapped": "The raw read was already mapped.",
         "reprocess.result.canonical_created": "Canonical measurement created successfully.",
+        "reprocess.result.missing_required_fields": "Reprocess finished, but required raw read fields are still missing.",
+        "reprocess.result.invalid_timestamp": "Reprocess finished, but the raw read timestamp is still invalid.",
+        "reprocess.result.invalid_numeric_value": "Reprocess finished, but the raw read value is still not numeric.",
+        "reprocess.result.duplicate_raw_read": "Reprocess finished, but the raw read is now identified as a duplicate.",
         "reprocess.result.measuring_component_not_found": "Reprocess finished, but the measuring component is still missing.",
     },
     "ko": {
@@ -465,6 +469,10 @@ MESSAGES = {
         "reprocess.error.processing_in_progress": "이미 재처리가 진행 중입니다.",
         "reprocess.result.already_mapped": "원시 검침은 이미 매핑되어 있습니다.",
         "reprocess.result.canonical_created": "표준 계측이 생성되었습니다.",
+        "reprocess.result.missing_required_fields": "재처리를 했지만 원시 검침의 필수 항목이 아직 부족합니다.",
+        "reprocess.result.invalid_timestamp": "재처리를 했지만 원시 검침 시각이 아직 올바르지 않습니다.",
+        "reprocess.result.invalid_numeric_value": "재처리를 했지만 원시 검침 값이 아직 숫자가 아닙니다.",
+        "reprocess.result.duplicate_raw_read": "재처리를 했지만 이 원시 검침은 이제 중복으로 판정됩니다.",
         "reprocess.result.measuring_component_not_found": "재처리를 했지만 아직 측정 컴포넌트를 찾지 못했습니다.",
     },
 }

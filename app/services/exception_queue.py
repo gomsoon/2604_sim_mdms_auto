@@ -15,11 +15,22 @@ from app.models import (
     MeasuringComponent,
     ReprocessRequest,
 )
-from app.services.ingestion import create_or_get_canonical_measurement, find_measuring_component
+from app.services.ingestion import (
+    apply_parsed_hes_read_payload,
+    create_or_get_canonical_measurement,
+    find_duplicate_hes_read_raw,
+    find_measuring_component,
+    parse_hes_read_payload,
+)
 from app.services.pipeline import complete_pipeline_run, fail_pipeline_run, start_pipeline_run
 
 
-REPROCESSABLE_EXCEPTION_CODES = frozenset({"measuring_component_not_found"})
+PAYLOAD_REPROCESSABLE_EXCEPTION_CODES = frozenset(
+    {"missing_required_fields", "invalid_timestamp", "invalid_numeric_value"}
+)
+REPROCESSABLE_EXCEPTION_CODES = frozenset(
+    {"measuring_component_not_found", *PAYLOAD_REPROCESSABLE_EXCEPTION_CODES}
+)
 
 
 @dataclass(slots=True)
@@ -47,6 +58,38 @@ class ExceptionQueueFilters:
     meter_id: str | None = None
     status: str | None = None
     exception_code: str | None = None
+
+
+def _mark_reprocess_failed(
+    request: ReprocessRequest,
+    error_log: IngestErrorLog,
+    raw_row: HesReadRaw,
+    pipeline_run,
+    *,
+    result_code: str,
+    result_message: str,
+    canonical_status: str,
+    details: dict | None = None,
+) -> ReprocessRequest:
+    now = datetime.now(timezone.utc)
+    error_log.status = "failed"
+    raw_row.canonical_status = canonical_status
+    request.status = "failed"
+    request.result_code = result_code
+    request.result_message = result_message
+    request.completed_at = now
+    if details:
+        request.details = {**request.details, **details}
+    fail_pipeline_run(
+        pipeline_run,
+        result_code=result_code,
+        details={
+            **pipeline_run.details,
+            "status": "failed",
+            **(details or {}),
+        },
+    )
+    return request
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -282,23 +325,52 @@ def reprocess_exception(
         )
         return request
 
+    if error_log.exception_code in PAYLOAD_REPROCESSABLE_EXCEPTION_CODES:
+        payload = raw_row.payload if isinstance(raw_row.payload, dict) else {}
+        parsed = parse_hes_read_payload(payload)
+        apply_parsed_hes_read_payload(raw_row, parsed)
+
+        if parsed.exception_code is not None:
+            return _mark_reprocess_failed(
+                request,
+                error_log,
+                raw_row,
+                pipeline_run,
+                result_code=parsed.exception_code,
+                result_message=str(parsed.exception_message),
+                canonical_status="exception",
+            )
+
+    raw_row.is_duplicate = False
+    raw_row.duplicate_of_id = None
+    duplicate = find_duplicate_hes_read_raw(session, raw_row)
+    if duplicate is not None:
+        raw_row.is_duplicate = True
+        raw_row.duplicate_of_id = duplicate.id
+        return _mark_reprocess_failed(
+            request,
+            error_log,
+            raw_row,
+            pipeline_run,
+            result_code="duplicate_raw_read",
+            result_message=(
+                "Duplicate raw read detected for the same source, meter, channel, and timestamp."
+            ),
+            canonical_status="duplicate",
+            details={"duplicate_of_id": duplicate.id},
+        )
+
     component = find_measuring_component(session, raw_row)
     if component is None:
-        error_log.status = "failed"
-        raw_row.canonical_status = "exception"
-        request.status = "failed"
-        request.result_code = "measuring_component_not_found"
-        request.result_message = "No active measuring component matched the raw read."
-        request.completed_at = datetime.now(timezone.utc)
-        fail_pipeline_run(
+        return _mark_reprocess_failed(
+            request,
+            error_log,
+            raw_row,
             pipeline_run,
             result_code="measuring_component_not_found",
-            details={
-                **pipeline_run.details,
-                "status": "failed",
-            },
+            result_message="No active measuring component matched the raw read.",
+            canonical_status="exception",
         )
-        return request
 
     canonical = create_or_get_canonical_measurement(session, raw_row, component)
     session.flush()
