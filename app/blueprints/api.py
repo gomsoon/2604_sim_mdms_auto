@@ -5,7 +5,13 @@ from sqlalchemy import select
 
 from app.db import check_database_connection, get_session
 from app.i18n import get_locale, translate, translate_visibility_error
-from app.models import HesEventRaw, HesReadRaw, IngestErrorLog
+from app.models import HesEventRaw, HesReadRaw
+from app.services.exception_queue import (
+    build_exception_filters,
+    get_exception_batch_id,
+    get_exception_meter_id,
+    list_exception_queue,
+)
 from app.services.ingestion import ingest_events, ingest_reads
 from app.services.visibility import (
     VisibilityFilterError,
@@ -128,9 +134,8 @@ def list_raw_events():
 @bp.get("/exceptions")
 def list_exceptions():
     session = get_session()
-    rows = session.scalars(
-        select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(100)
-    ).all()
+    filters = build_exception_filters(request.args)
+    rows = list_exception_queue(session, filters)
     return jsonify(
         [
             {
@@ -139,6 +144,8 @@ def list_exceptions():
                 "code": row.exception_code,
                 "status": row.status,
                 "message": row.message,
+                "batch_id": get_exception_batch_id(row),
+                "meter_id": get_exception_meter_id(row),
             }
             for row in rows
         ]

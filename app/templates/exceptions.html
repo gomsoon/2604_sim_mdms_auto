@@ -8,6 +8,39 @@
   </div>
 </div>
 
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.batch_id") }}</label>
+        <input class="form-control" name="batch_id" value="{{ filters.batch_id or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.meter_id") }}</label>
+        <input class="form-control" name="meter_id" value="{{ filters.meter_id or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.exception_code") }}</label>
+        <input class="form-control" name="exception_code" value="{{ filters.exception_code or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.status") }}</label>
+        <select class="form-select" name="status">
+          <option value="">{{ t("common.none") }}</option>
+          {% for value in ["open", "processing", "resolved", "failed"] %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ t_or("common.status." ~ value, value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.exceptions', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="card shadow-sm">
   <div class="card-body">
     <div class="table-responsive">
@@ -15,6 +48,8 @@
         <thead>
           <tr>
             <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.batch_id") }}</th>
+            <th>{{ t("table.meter") }}</th>
             <th>{{ t("table.type") }}</th>
             <th>{{ t("table.code") }}</th>
             <th>{{ t("table.status") }}</th>
@@ -26,6 +61,8 @@
           {% for row in rows %}
           <tr>
             <td>{{ row.id }}</td>
+            <td>{{ get_exception_batch_id(row) or t("common.none") }}</td>
+            <td>{{ get_exception_meter_id(row) or t("common.none") }}</td>
             <td>{{ t_or("exception_type." ~ row.exception_type, row.exception_type) }}</td>
             <td>{{ row.exception_code }}</td>
             <td>{{ t_or("common.status." ~ row.status, row.status) }}</td>
@@ -38,7 +75,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="6" class="text-secondary">{{ t("page.exceptions.empty") }}</td>
+            <td colspan="8" class="text-secondary">{{ t("page.exceptions.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

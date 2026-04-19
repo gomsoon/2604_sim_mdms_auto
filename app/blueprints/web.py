@@ -17,7 +17,6 @@ from app.models import (
     Device,
     HesEventRaw,
     HesReadRaw,
-    IngestErrorLog,
     MeasuringComponent,
     ServicePoint,
     InstallationHistory,
@@ -25,7 +24,11 @@ from app.models import (
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.exception_queue import (
     ExceptionReprocessError,
+    build_exception_filters,
+    get_exception_batch_id,
+    get_exception_meter_id,
     get_exception_detail_context,
+    list_exception_queue,
     reprocess_exception,
 )
 from app.services.installations import (
@@ -84,10 +87,15 @@ def raw_events():
 @bp.get("/exceptions")
 def exceptions():
     session = get_session()
-    rows = session.scalars(
-        select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(100)
-    ).all()
-    return render_template("exceptions.html", rows=rows)
+    filters = build_exception_filters(request.args)
+    rows = list_exception_queue(session, filters)
+    return render_template(
+        "exceptions.html",
+        rows=rows,
+        filters=filters,
+        get_exception_batch_id=get_exception_batch_id,
+        get_exception_meter_id=get_exception_meter_id,
+    )
 
 
 def _exception_redirect(exception_id: int) -> str:

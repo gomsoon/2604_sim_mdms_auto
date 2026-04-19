@@ -3,10 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import Select, or_, select
+from sqlalchemy.orm import Session, aliased, joinedload, selectinload
 
-from app.models import Device, HesReadRaw, IngestErrorLog, MeasuringComponent, ReprocessRequest
+from app.models import (
+    Device,
+    HesEventRaw,
+    HesReadRaw,
+    IngestBatch,
+    IngestErrorLog,
+    MeasuringComponent,
+    ReprocessRequest,
+)
 from app.services.ingestion import create_or_get_canonical_measurement, find_measuring_component
 
 
@@ -30,6 +38,87 @@ class ExceptionDetailContext:
     exact_component_matches: list[MeasuringComponent]
     reprocess_requests: list[ReprocessRequest]
     can_reprocess: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ExceptionQueueFilters:
+    batch_id: str | None = None
+    meter_id: str | None = None
+    status: str | None = None
+    exception_code: str | None = None
+
+
+def _normalize_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    stripped = str(value).strip()
+    return stripped or None
+
+
+def build_exception_filters(args) -> ExceptionQueueFilters:
+    return ExceptionQueueFilters(
+        batch_id=_normalize_text(args.get("batch_id")),
+        meter_id=_normalize_text(args.get("meter_id")),
+        status=_normalize_text(args.get("status")),
+        exception_code=_normalize_text(args.get("exception_code")),
+    )
+
+
+def get_exception_batch_id(error_log: IngestErrorLog) -> str | None:
+    if error_log.hes_read_raw is not None and error_log.hes_read_raw.ingest_batch is not None:
+        return error_log.hes_read_raw.ingest_batch.batch_id
+    if error_log.hes_event_raw is not None and error_log.hes_event_raw.ingest_batch is not None:
+        return error_log.hes_event_raw.ingest_batch.batch_id
+    return None
+
+
+def get_exception_meter_id(error_log: IngestErrorLog) -> str | None:
+    if error_log.hes_read_raw is not None:
+        return error_log.hes_read_raw.meter_identifier
+    if error_log.hes_event_raw is not None:
+        return error_log.hes_event_raw.meter_identifier
+    return None
+
+
+def list_exception_queue(
+    session: Session, filters: ExceptionQueueFilters, *, limit: int = 100
+) -> list[IngestErrorLog]:
+    read_raw = aliased(HesReadRaw)
+    event_raw = aliased(HesEventRaw)
+    read_batch = aliased(IngestBatch)
+    event_batch = aliased(IngestBatch)
+
+    statement: Select[tuple[IngestErrorLog]] = (
+        select(IngestErrorLog)
+        .outerjoin(read_raw, IngestErrorLog.hes_read_raw)
+        .outerjoin(read_batch, read_raw.ingest_batch)
+        .outerjoin(event_raw, IngestErrorLog.hes_event_raw)
+        .outerjoin(event_batch, event_raw.ingest_batch)
+        .options(
+            joinedload(IngestErrorLog.hes_read_raw).joinedload(HesReadRaw.ingest_batch),
+            joinedload(IngestErrorLog.hes_event_raw).joinedload(HesEventRaw.ingest_batch),
+        )
+    )
+
+    if filters.batch_id:
+        statement = statement.where(
+            or_(read_batch.batch_id == filters.batch_id, event_batch.batch_id == filters.batch_id)
+        )
+    if filters.meter_id:
+        statement = statement.where(
+            or_(
+                read_raw.meter_identifier == filters.meter_id,
+                event_raw.meter_identifier == filters.meter_id,
+            )
+        )
+    if filters.status:
+        statement = statement.where(IngestErrorLog.status == filters.status)
+    if filters.exception_code:
+        statement = statement.where(IngestErrorLog.exception_code == filters.exception_code)
+
+    statement = statement.order_by(IngestErrorLog.id.desc()).limit(limit)
+    return session.execute(statement).scalars().unique().all()
 
 
 def get_exception_detail_context(

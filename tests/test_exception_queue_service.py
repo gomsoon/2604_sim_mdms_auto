@@ -4,7 +4,13 @@ import pytest
 from sqlalchemy import func, select
 
 from app.models import CanonicalMeasurement, HesReadRaw, IngestErrorLog, ReprocessRequest
-from app.services.exception_queue import ExceptionReprocessError, reprocess_exception
+from app.services.exception_queue import (
+    ExceptionQueueFilters,
+    ExceptionReprocessError,
+    build_exception_filters,
+    list_exception_queue,
+    reprocess_exception,
+)
 from app.services.master_data import create_device, create_measuring_component, create_service_point
 from app.services.seeds import seed_demo_environment
 
@@ -18,6 +24,47 @@ def _load_error(session, code: str) -> IngestErrorLog:
     )
     assert error is not None
     return error
+
+
+def test_build_exception_filters_normalizes_blank_values():
+    filters = build_exception_filters(
+        {
+            "batch_id": "  demo-read-batch  ",
+            "meter_id": "   ",
+            "status": "",
+            "exception_code": " measuring_component_not_found ",
+        }
+    )
+
+    assert filters == ExceptionQueueFilters(
+        batch_id="demo-read-batch",
+        meter_id=None,
+        status=None,
+        exception_code="measuring_component_not_found",
+    )
+
+
+def test_list_exception_queue_filters_by_batch_meter_status_and_code(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    rows = list_exception_queue(
+        session,
+        build_exception_filters(
+            {
+                "batch_id": "demo-read-batch",
+                "meter_id": "MTR-9999",
+                "status": "open",
+                "exception_code": "measuring_component_not_found",
+            }
+        ),
+    )
+
+    assert len(rows) == 1
+    assert rows[0].exception_code == "measuring_component_not_found"
+    assert rows[0].status == "open"
+    assert rows[0].hes_read_raw is not None
+    assert rows[0].hes_read_raw.meter_identifier == "MTR-9999"
 
 
 def test_reprocess_exception_rejects_unsupported_duplicate_exception(session):

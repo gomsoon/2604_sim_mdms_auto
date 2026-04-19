@@ -33,6 +33,22 @@ def test_exception_detail_page_renders_raw_context(client, session):
     assert "Reprocess" in text
 
 
+def test_exception_queue_page_filters_by_meter_and_code_in_korean(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get(
+        "/exceptions?lang=ko&meter_id=MTR-9999&exception_code=measuring_component_not_found"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "오류 큐" in text
+    assert "MTR-9999" in text
+    assert "measuring_component_not_found" in text
+    assert "duplicate_raw_read" not in text
+
+
 def test_reprocess_exception_view_supports_korean_success_feedback(client, session):
     seed_demo_environment(session)
     session.commit()
@@ -77,3 +93,25 @@ def test_reprocess_exception_view_supports_korean_success_feedback(client, sessi
     assert "해결됨" in text
     assert refreshed_error is not None
     assert refreshed_error.status == "resolved"
+
+
+def test_exception_queue_api_filters_by_status_code_and_meter(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get(
+        "/api/v1/exceptions?status=open&exception_code=measuring_component_not_found&meter_id=MTR-9999"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == [
+        {
+            "id": 2,
+            "type": "mapping",
+            "code": "measuring_component_not_found",
+            "status": "open",
+            "message": "No active measuring component matched the incoming raw read.",
+            "batch_id": "demo-read-batch",
+            "meter_id": "MTR-9999",
+        }
+    ]
