@@ -34,3 +34,12 @@ def test_alembic_upgrade_creates_expected_tables(tmp_path: Path):
     assert "reprocess_request" in tables
     assert "pipeline_run" in tables
     assert "processing_watermark" in tables
+    assert "adapter_definition" in tables
+    assert "adapter_instance" in tables
+    assert "adapter_run" in tables
+    assert "adapter_watermark" in tables
+
+    ingest_batch_columns = {column["name"] for column in inspector.get_columns("ingest_batch")}
+
+    assert "adapter_instance_id" in ingest_batch_columns
+    assert "adapter_run_id" in ingest_batch_columns

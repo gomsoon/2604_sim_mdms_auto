@@ -38,10 +38,115 @@ class IngestBatch(TimestampMixin, Base):
     record_type: Mapped[str] = mapped_column(String(30), nullable=False)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    adapter_instance_id: Mapped[int | None] = mapped_column(
+        ForeignKey("adapter_instance.id"), index=True
+    )
+    adapter_run_id: Mapped[int | None] = mapped_column(ForeignKey("adapter_run.id"), index=True)
 
     hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="ingest_batch")
     hes_event_rows: Mapped[list["HesEventRaw"]] = relationship(back_populates="ingest_batch")
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(back_populates="ingest_batch")
+    adapter_instance: Mapped["AdapterInstance | None"] = relationship(back_populates="ingest_batches")
+    adapter_run: Mapped["AdapterRun | None"] = relationship(back_populates="ingest_batches")
+
+
+class AdapterDefinition(TimestampMixin, Base):
+    __tablename__ = "adapter_definition"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    adapter_code: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    delivery_mode: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    source_family: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    record_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    adapter_profile_key: Mapped[str | None] = mapped_column(String(100))
+    implementation_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="active", index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+
+    adapter_instances: Mapped[list["AdapterInstance"]] = relationship(
+        back_populates="adapter_definition"
+    )
+
+
+class AdapterInstance(TimestampMixin, Base):
+    __tablename__ = "adapter_instance"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    adapter_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("adapter_definition.id"), nullable=False, index=True
+    )
+    instance_code: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    admin_state: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    status_reason: Mapped[str | None] = mapped_column(String(200))
+    poll_interval_minutes: Mapped[int | None] = mapped_column(Integer)
+    batch_size: Mapped[int | None] = mapped_column(Integer)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_message: Mapped[str | None] = mapped_column(Text)
+    landing_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    connection_config_masked: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    secret_ref: Mapped[str | None] = mapped_column(String(200))
+
+    adapter_definition: Mapped[AdapterDefinition] = relationship(back_populates="adapter_instances")
+    adapter_runs: Mapped[list["AdapterRun"]] = relationship(back_populates="adapter_instance")
+    adapter_watermarks: Mapped[list["AdapterWatermark"]] = relationship(
+        back_populates="adapter_instance"
+    )
+    ingest_batches: Mapped[list[IngestBatch]] = relationship(back_populates="adapter_instance")
+
+
+class AdapterRun(TimestampMixin, Base):
+    __tablename__ = "adapter_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    adapter_instance_id: Mapped[int] = mapped_column(
+        ForeignKey("adapter_instance.id"), nullable=False, index=True
+    )
+    trigger_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    run_status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_rows_fetched: Mapped[int | None] = mapped_column(Integer)
+    ingest_batches_created: Mapped[int | None] = mapped_column(Integer)
+    ingest_records_created: Mapped[int | None] = mapped_column(Integer)
+    watermark_before: Mapped[str | None] = mapped_column(String(200))
+    watermark_after: Mapped[str | None] = mapped_column(String(200))
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    error_summary: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    adapter_instance: Mapped[AdapterInstance] = relationship(back_populates="adapter_runs")
+    ingest_batches: Mapped[list[IngestBatch]] = relationship(back_populates="adapter_run")
+
+
+class AdapterWatermark(TimestampMixin, Base):
+    __tablename__ = "adapter_watermark"
+    __table_args__ = (
+        UniqueConstraint(
+            "adapter_instance_id",
+            "record_type",
+            name="uq_adapter_watermark_scope",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    adapter_instance_id: Mapped[int] = mapped_column(
+        ForeignKey("adapter_instance.id"), nullable=False, index=True
+    )
+    record_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    cursor_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    cursor_value: Mapped[str | None] = mapped_column(String(200))
+    last_source_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    adapter_instance: Mapped[AdapterInstance] = relationship(back_populates="adapter_watermarks")
 
 
 class ServicePoint(TimestampMixin, Base):
