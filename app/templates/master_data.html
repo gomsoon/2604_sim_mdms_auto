@@ -12,6 +12,12 @@
   {% endfor %}
 {%- endmacro %}
 
+{% macro installation_status_options(selected) -%}
+  {% for value in ["installed", "removed"] %}
+  <option value="{{ value }}" {% if selected == value %}selected{% endif %}>{{ t_or("common.status." ~ value, value) }}</option>
+  {% endfor %}
+{%- endmacro %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
@@ -315,6 +321,113 @@
                 {% else %}
                 <tr>
                   <td colspan="9" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="installations" class="mb-5">
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 mb-3">{{ t("page.master_data.create_installation") }}</h2>
+          <form method="post" action="{{ url_for('web.create_installation_view') }}">
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.device") }}</label>
+              <select class="form-select" name="device_id" required>
+                <option value="">{{ t("common.none") }}</option>
+                {% for device in devices %}
+                <option value="{{ device.id }}">{{ device.external_meter_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.service_point") }}</label>
+              <select class="form-select" name="service_point_id" required>
+                <option value="">{{ t("common.none") }}</option>
+                {% for service_point in service_points %}
+                <option value="{{ service_point.id }}">{{ service_point.external_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.installed_at") }}</label>
+              <input class="form-control" name="installed_at" type="datetime-local" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.removed_at") }}</label>
+              <input class="form-control" name="removed_at" type="datetime-local">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.status") }}</label>
+              <select class="form-select" name="status">
+                {{ installation_status_options("installed") }}
+              </select>
+            </div>
+            <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">{{ t("page.master_data.installations") }}</h2>
+            <span class="text-secondary small">{{ installations|length }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>{{ t("table.id") }}</th>
+                  <th>{{ t("table.device_id") }}</th>
+                  <th>{{ t("table.service_point") }}</th>
+                  <th>{{ t("table.installed_at") }}</th>
+                  <th>{{ t("table.removed_at") }}</th>
+                  <th>{{ t("table.status") }}</th>
+                  <th>{{ t("table.actions") }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in installations %}
+                <tr>
+                  <form method="post" action="{{ url_for('web.update_installation_view', installation_id=row.id) }}">
+                    <td>{{ row.id }}</td>
+                    <td>
+                      <select class="form-select form-select-sm" name="device_id" required>
+                        {% for device in devices %}
+                        <option value="{{ device.id }}" {% if row.device_id == device.id %}selected{% endif %}>{{ device.external_meter_id }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="service_point_id" required>
+                        {% for service_point in service_points %}
+                        <option value="{{ service_point.id }}" {% if row.service_point_id == service_point.id %}selected{% endif %}>{{ service_point.external_id }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td><input class="form-control form-control-sm" name="installed_at" type="datetime-local" value="{{ row.installed_at.strftime('%Y-%m-%dT%H:%M') }}" required></td>
+                    <td><input class="form-control form-control-sm" name="removed_at" type="datetime-local" value="{{ row.removed_at.strftime('%Y-%m-%dT%H:%M') if row.removed_at else '' }}"></td>
+                    <td>
+                      <select class="form-select form-select-sm" name="status">
+                        {{ installation_status_options(row.status) }}
+                      </select>
+                    </td>
+                    <td><button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button></td>
+                  </form>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
                 </tr>
                 {% endfor %}
               </tbody>

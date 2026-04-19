@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import Device, ServicePoint
+from app.models import Device, InstallationHistory, ServicePoint
 from app.services.master_data import create_device, create_service_point
 
 
@@ -91,3 +91,91 @@ def test_create_service_point_via_web_rejects_empty_external_id_in_korean(client
     assert response.status_code == 200
     assert "외부 ID는 필수입니다." in response.get_data(as_text=True)
     assert service_point is None
+
+
+def test_create_installation_history_via_web_creates_record(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-WEB-3001",
+        service_type="electric",
+        name="Install Web Site",
+        status="active",
+    )
+    device = create_device(
+        session,
+        source_system="HES",
+        external_meter_id="MTR-WEB-3001",
+        serial_number="SER-WEB-3001",
+        service_point_id=service_point.id,
+        status="active",
+    )
+    session.commit()
+
+    response = client.post(
+        "/master-data/installations",
+        data={
+            "device_id": str(device.id),
+            "service_point_id": str(service_point.id),
+            "installed_at": "2026-04-19T10:00",
+            "removed_at": "",
+            "status": "installed",
+        },
+        follow_redirects=True,
+    )
+
+    installation = session.scalar(
+        select(InstallationHistory)
+        .where(InstallationHistory.device_id == device.id)
+        .order_by(InstallationHistory.id.desc())
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "Installation history created successfully." in response.get_data(as_text=True)
+    assert installation is not None
+    assert installation.status == "installed"
+
+
+def test_create_installation_history_via_web_rejects_missing_removed_time_in_korean(client, session):
+    client.get("/master-data?lang=ko")
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-WEB-4001",
+        service_type="electric",
+        name="Install Error Site",
+        status="active",
+    )
+    device = create_device(
+        session,
+        source_system="HES",
+        external_meter_id="MTR-WEB-4001",
+        serial_number="SER-WEB-4001",
+        service_point_id=service_point.id,
+        status="active",
+    )
+    session.commit()
+
+    response = client.post(
+        "/master-data/installations",
+        data={
+            "device_id": str(device.id),
+            "service_point_id": str(service_point.id),
+            "installed_at": "2026-04-19T10:00",
+            "removed_at": "",
+            "status": "removed",
+        },
+        follow_redirects=True,
+    )
+
+    installation = session.scalar(
+        select(InstallationHistory)
+        .where(InstallationHistory.device_id == device.id)
+        .order_by(InstallationHistory.id.desc())
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "상태가 철거일 때는 철거 시각이 필요합니다." in response.get_data(as_text=True)
+    assert installation is None

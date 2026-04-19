@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from app.db import get_session
 from app.i18n import (
@@ -19,12 +20,18 @@ from app.models import (
     IngestErrorLog,
     MeasuringComponent,
     ServicePoint,
+    InstallationHistory,
 )
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.exception_queue import (
     ExceptionReprocessError,
     get_exception_detail_context,
     reprocess_exception,
+)
+from app.services.installations import (
+    InstallationValidationError,
+    create_installation_history,
+    update_installation_history,
 )
 from app.services.master_data import (
     MasterDataValidationError,
@@ -148,15 +155,27 @@ def master_data():
     service_points = session.scalars(
         select(ServicePoint).order_by(ServicePoint.id.desc()).limit(100)
     ).all()
-    devices = session.scalars(select(Device).order_by(Device.id.desc()).limit(100)).all()
+    devices = session.scalars(
+        select(Device).options(joinedload(Device.service_point)).order_by(Device.id.desc()).limit(100)
+    ).all()
     components = session.scalars(
-        select(MeasuringComponent).order_by(MeasuringComponent.id.desc()).limit(100)
+        select(MeasuringComponent)
+        .options(joinedload(MeasuringComponent.device), joinedload(MeasuringComponent.service_point))
+        .order_by(MeasuringComponent.id.desc())
+        .limit(100)
+    ).all()
+    installations = session.scalars(
+        select(InstallationHistory)
+        .options(joinedload(InstallationHistory.device), joinedload(InstallationHistory.service_point))
+        .order_by(InstallationHistory.id.desc())
+        .limit(100)
     ).all()
     return render_template(
         "master_data.html",
         service_points=service_points,
         devices=devices,
         rows=components,
+        installations=installations,
     )
 
 
@@ -169,6 +188,10 @@ def _flash_master_data_success(message_key: str) -> None:
 
 
 def _flash_master_data_error(exc: MasterDataValidationError) -> None:
+    flash(translate_master_data_error(exc.error_code, exc.fallback_message), "danger")
+
+
+def _flash_installation_error(exc: InstallationValidationError) -> None:
     flash(translate_master_data_error(exc.error_code, exc.fallback_message), "danger")
 
 
@@ -331,3 +354,56 @@ def update_component_view(component_id: int):
         _flash_master_data_error(exc)
 
     return redirect(_master_data_redirect("components"))
+
+
+@bp.post("/master-data/installations")
+def create_installation_view():
+    session = get_session()
+    try:
+        create_installation_history(
+            session,
+            device_id=request.form.get("device_id"),
+            service_point_id=request.form.get("service_point_id"),
+            installed_at=request.form.get("installed_at"),
+            removed_at=request.form.get("removed_at"),
+            status=request.form.get("status"),
+        )
+        session.commit()
+        _flash_master_data_success("master_data.flash.installation_created")
+    except InstallationValidationError as exc:
+        session.rollback()
+        _flash_installation_error(exc)
+
+    return redirect(_master_data_redirect("installations"))
+
+
+@bp.post("/master-data/installations/<int:installation_id>")
+def update_installation_view(installation_id: int):
+    session = get_session()
+    installation = session.get(InstallationHistory, installation_id)
+    if installation is None:
+        flash(
+            translate_master_data_error(
+                "installation_not_found", "The selected installation history does not exist."
+            ),
+            "danger",
+        )
+        return redirect(_master_data_redirect("installations"))
+
+    try:
+        update_installation_history(
+            session,
+            installation,
+            device_id=request.form.get("device_id"),
+            service_point_id=request.form.get("service_point_id"),
+            installed_at=request.form.get("installed_at"),
+            removed_at=request.form.get("removed_at"),
+            status=request.form.get("status"),
+        )
+        session.commit()
+        _flash_master_data_success("master_data.flash.installation_updated")
+    except InstallationValidationError as exc:
+        session.rollback()
+        _flash_installation_error(exc)
+
+    return redirect(_master_data_redirect("installations"))

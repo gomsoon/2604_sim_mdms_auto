@@ -43,6 +43,9 @@ class ServicePoint(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="active")
 
     devices: Mapped[list["Device"]] = relationship(back_populates="service_point")
+    installation_history: Mapped[list["InstallationHistory"]] = relationship(
+        back_populates="service_point"
+    )
     measuring_components: Mapped[list["MeasuringComponent"]] = relationship(
         back_populates="service_point"
     )
@@ -95,6 +98,7 @@ class InstallationHistory(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="installed")
 
     device: Mapped[Device] = relationship(back_populates="installation_history")
+    service_point: Mapped[ServicePoint] = relationship(back_populates="installation_history")
 
 
 class HesReadRaw(TimestampMixin, Base):
