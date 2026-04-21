@@ -19,13 +19,12 @@ def test_ingest_reads_accepts_empty_read_list(session):
     )
     session.commit()
 
-    assert summary == {
-        "batches_created": 1,
-        "raw_reads_received": 0,
-        "canonical_created": 0,
-        "duplicates": 0,
-        "exceptions": 0,
-    }
+    assert summary["batches_created"] == 1
+    assert summary["ingest_batch_id"] is not None
+    assert summary["raw_reads_received"] == 0
+    assert summary["canonical_created"] == 0
+    assert summary["duplicates"] == 0
+    assert summary["exceptions"] == 0
     assert session.scalar(select(func.count()).select_from(IngestBatch)) == 1
     assert session.scalar(select(func.count()).select_from(HesReadRaw)) == 0
     assert session.scalar(select(func.count()).select_from(IngestErrorLog)) == 0

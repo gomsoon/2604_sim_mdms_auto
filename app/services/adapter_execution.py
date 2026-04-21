@@ -3,13 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import AdapterInstance, AdapterRun, AdapterWatermark
+from app.models import (
+    AdapterInstance,
+    AdapterRun,
+    AdapterWatermark,
+    LandingLpEmReadBlock,
+    RawIntervalWindowState,
+)
 from app.services.ingest_adapters import DEFAULT_ADAPTER_KEY
-from app.services.ingest_contract import parse_datetime
+from app.services.ingest_contract import coerce_numeric, parse_datetime
 from app.services.ingestion import ingest_events, ingest_reads
 
 
@@ -83,6 +90,93 @@ def _parse_runtime_timestamp(value: Any, *, error_code: str, fallback_message: s
     if parsed is None:
         raise AdapterExecutionError(error_code, fallback_message)
     return parsed
+
+
+def _require_source_timezone(raw_value: Any) -> ZoneInfo:
+    timezone_name = str(raw_value or "").strip()
+    if not timezone_name:
+        raise AdapterExecutionError(
+            "missing_source_timezone",
+            "The polling adapter requires an explicit source timezone.",
+        )
+    try:
+        return ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as exc:
+        raise AdapterExecutionError(
+            "invalid_source_timezone",
+            "The configured source timezone is not recognized.",
+            details={"source_timezone": timezone_name},
+        ) from exc
+
+
+def _parse_source_local_timestamp(
+    value: Any,
+    *,
+    source_timezone: ZoneInfo,
+    source_format: str,
+    error_code: str,
+    fallback_message: str,
+) -> datetime:
+    normalized = str(value or "").strip()
+    if not normalized:
+        raise AdapterExecutionError(error_code, fallback_message)
+    try:
+        parsed = datetime.strptime(normalized, source_format)
+    except ValueError as exc:
+        raise AdapterExecutionError(error_code, fallback_message) from exc
+    return parsed.replace(tzinfo=source_timezone).astimezone(timezone.utc)
+
+
+def _parse_optional_positive_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def _extract_lp_em_slot_values(row: dict[str, Any], *, row_index: int) -> dict[str, float]:
+    slot_values: dict[str, float] = {}
+    for slot_index in range(60):
+        slot_code = f"{slot_index:02d}"
+        raw_value = row.get(f"VALUE_{slot_code}")
+        if raw_value in (None, ""):
+            continue
+        try:
+            slot_values[slot_code] = float(coerce_numeric(raw_value))
+        except (TypeError, ValueError) as exc:
+            raise AdapterExecutionError(
+                "invalid_source_slot_value",
+                f"LP_EM sample block at index {row_index} contains a non-numeric slot value.",
+                details={"slot_code": slot_code},
+            ) from exc
+    return slot_values
+
+
+def _expected_slot_codes(interval_size_minutes: int) -> list[str]:
+    if interval_size_minutes <= 0 or 60 % interval_size_minutes != 0:
+        raise AdapterExecutionError(
+            "invalid_interval_size_minutes",
+            "Interval size must be a positive divisor of 60 minutes.",
+            details={"interval_size_minutes": interval_size_minutes},
+        )
+    return [f"{minute:02d}" for minute in range(0, 60, interval_size_minutes)]
+
+
+def _decode_slot_bitmap(value: str | None) -> set[str]:
+    if not value:
+        return set()
+    return {slot for slot in value.split(",") if slot}
+
+
+def _encode_slot_bitmap(values: set[str]) -> str | None:
+    if not values:
+        return None
+    return ",".join(sorted(values))
 
 
 def _load_adapter_watermark(
@@ -197,8 +291,360 @@ class CompanyHesPollRuntime:
         )
 
 
+class OracleLpEmPollRuntime:
+    record_type = "hes_read_raw"
+    source_table_name = "LP_EM"
+    source_business_hour_format = "%Y%m%d%H"
+    source_write_format = "%Y%m%d%H%M%S"
+
+    def build_ingest_envelope(
+        self,
+        session: Session,
+        instance: AdapterInstance,
+        run: AdapterRun,
+    ) -> AdapterIngestEnvelope:
+        definition = instance.adapter_definition
+        if definition.delivery_mode != "poll":
+            raise AdapterExecutionError(
+                "unsupported_delivery_mode",
+                "The selected adapter implementation only supports polling instances.",
+            )
+        if definition.record_type != self.record_type:
+            raise AdapterExecutionError(
+                "unsupported_runtime_record_type",
+                "The selected adapter implementation only supports raw read polling.",
+            )
+
+        runtime_config = dict(instance.connection_config_masked or {})
+        sample_blocks = runtime_config.get("sample_blocks")
+        if not isinstance(sample_blocks, list):
+            raise AdapterExecutionError(
+                "sample_source_not_configured",
+                "This provisional Oracle polling adapter requires sample_blocks in the masked configuration.",
+            )
+
+        source_timezone = _require_source_timezone(runtime_config.get("source_timezone"))
+        default_interval = _parse_optional_positive_int(runtime_config.get("default_interval_minutes"))
+        default_unit = str(runtime_config.get("unit_of_measure") or "kWh").strip() or "kWh"
+
+        watermark = _load_adapter_watermark(
+            session,
+            adapter_instance_id=instance.id,
+            record_type=definition.record_type,
+        )
+        watermark_before = watermark.cursor_value if watermark is not None else None
+        watermark_before_dt = None
+        if watermark_before is not None:
+            watermark_before_dt = _parse_runtime_timestamp(
+                watermark_before,
+                error_code="invalid_stored_watermark",
+                fallback_message="The stored adapter watermark is not a valid ISO timestamp.",
+            )
+
+        eligible_blocks: list[tuple[datetime, dict[str, Any]]] = []
+        for index, raw_row in enumerate(sample_blocks):
+            if not isinstance(raw_row, dict):
+                raise AdapterExecutionError(
+                    "invalid_source_row",
+                    f"Sample source block at index {index} must be a JSON object.",
+                )
+            source_write_ts = _parse_source_local_timestamp(
+                raw_row.get("WRITEDATE"),
+                source_timezone=source_timezone,
+                source_format=self.source_write_format,
+                error_code="invalid_source_write_timestamp",
+                fallback_message=(
+                    f"LP_EM sample block at index {index} must include WRITEDATE in YYYYMMDDHHMMSS format."
+                ),
+            )
+            if watermark_before_dt is None or source_write_ts > watermark_before_dt:
+                eligible_blocks.append((source_write_ts, dict(raw_row)))
+
+        eligible_blocks.sort(key=lambda row: row[0])
+        batch_limit = instance.batch_size or len(eligible_blocks)
+        selected_blocks = eligible_blocks[:batch_limit]
+
+        reads: list[dict[str, Any]] = []
+        window_updates: list[dict[str, Any]] = []
+        last_source_timestamp = watermark_before_dt
+        watermark_after = watermark_before
+        now = datetime.now(timezone.utc)
+
+        for row_index, (source_write_ts, row) in enumerate(selected_blocks):
+            meter_source_id = str(row.get("METER_ID") or "").strip()
+            if not meter_source_id:
+                raise AdapterExecutionError(
+                    "missing_meter_source_id",
+                    f"LP_EM sample block at index {row_index} is missing METER_ID.",
+                )
+            channel_code = str(row.get("CHANNEL") or "").strip()
+            if not channel_code:
+                raise AdapterExecutionError(
+                    "missing_channel_code",
+                    f"LP_EM sample block at index {row_index} is missing CHANNEL.",
+                )
+            source_business_hour = str(row.get("YYYYMMDDHH") or "").strip()
+            source_business_ts = _parse_source_local_timestamp(
+                source_business_hour,
+                source_timezone=source_timezone,
+                source_format=self.source_business_hour_format,
+                error_code="invalid_source_business_hour",
+                fallback_message=(
+                    f"LP_EM sample block at index {row_index} must include YYYYMMDDHH in YYYYMMDDHH format."
+                ),
+            )
+            interval_size_minutes = (
+                _parse_optional_positive_int(row.get("LP_INTERVAL")) or default_interval or 60
+            )
+            expected_slot_codes = _expected_slot_codes(interval_size_minutes)
+            slot_values = _extract_lp_em_slot_values(row, row_index=row_index)
+            block_key = "|".join(
+                (
+                    self.source_table_name,
+                    meter_source_id,
+                    source_business_hour,
+                    channel_code,
+                    str(row.get("WRITEDATE") or ""),
+                )
+            )
+            block_value = None
+            if row.get("VALUE") not in (None, ""):
+                try:
+                    block_value = float(coerce_numeric(row.get("VALUE")))
+                except (TypeError, ValueError) as exc:
+                    raise AdapterExecutionError(
+                        "invalid_source_block_value",
+                        f"LP_EM sample block at index {row_index} contains a non-numeric VALUE column.",
+                    ) from exc
+
+            landing_block = LandingLpEmReadBlock(
+                adapter_instance_id=instance.id,
+                adapter_run_id=run.id,
+                source_system=instance.source_system,
+                source_table_name=self.source_table_name,
+                source_block_key=block_key,
+                meter_source_id=meter_source_id,
+                device_source_id=str(row.get("DEVICE_ID") or "").strip() or None,
+                mdev_id=str(row.get("MDEV_ID") or "").strip() or None,
+                mdev_type=str(row.get("MDEV_TYPE") or "").strip() or None,
+                channel_code=channel_code,
+                source_business_hour=source_business_hour,
+                source_hour_component=str(row.get("HH") or "").strip() or None,
+                source_write_text=str(row.get("WRITEDATE") or "").strip() or None,
+                source_write_ts=source_write_ts,
+                location_source_id=str(row.get("LOCATION_ID") or "").strip() or None,
+                supplier_source_id=str(row.get("SUPPLIER_ID") or "").strip() or None,
+                enddevice_source_id=str(row.get("ENDDEVICE_ID") or "").strip() or None,
+                value_cnt=_parse_optional_positive_int(row.get("VALUE_CNT")),
+                block_value=block_value,
+                slot_values=slot_values,
+                slot_count=len(slot_values),
+                parsed_ok=True,
+                source_payload=row,
+            )
+            session.add(landing_block)
+            session.flush()
+
+            for slot_code, reading_value in sorted(slot_values.items()):
+                interval_start = source_business_ts + timedelta(minutes=int(slot_code))
+                reads.append(
+                    {
+                        "meter_id": meter_source_id,
+                        "channel_id": channel_code,
+                        "measurement_ts": interval_start.isoformat(),
+                        "value": reading_value,
+                        "quality_code": row.get("QUALITY_CODE"),
+                        "status_code": row.get("STATUS_CODE"),
+                        "unit_of_measure": default_unit,
+                        "interval_size_minutes": interval_size_minutes,
+                        "source_table_name": self.source_table_name,
+                        "source_block_key": block_key,
+                        "source_record_key": f"{block_key}|{slot_code}",
+                        "device_identifier": landing_block.device_source_id,
+                        "source_slot_code": slot_code,
+                        "source_slot_index": int(slot_code),
+                        "source_business_ts": source_business_ts.isoformat(),
+                        "source_write_ts": source_write_ts.isoformat(),
+                        "landing_lp_em_read_block_id": landing_block.id,
+                    }
+                )
+
+            window_updates.append(
+                {
+                    "source_system": instance.source_system,
+                    "meter_identifier": meter_source_id,
+                    "channel_identifier": channel_code,
+                    "window_start_at": source_business_ts.isoformat(),
+                    "window_size_minutes": 60,
+                    "interval_size_minutes": interval_size_minutes,
+                    "expected_slot_codes": expected_slot_codes,
+                    "received_slot_codes": sorted(slot_values),
+                    "source_write_ts": source_write_ts.isoformat(),
+                    "landing_lp_em_read_block_id": landing_block.id,
+                    "source_block_key": block_key,
+                }
+            )
+            last_source_timestamp = source_write_ts
+            watermark_after = _serialize_datetime(source_write_ts)
+
+        return AdapterIngestEnvelope(
+            record_type=definition.record_type,
+            payload={
+                "contract_version": "v1",
+                "source_system": instance.source_system,
+                "adapter_key": DEFAULT_ADAPTER_KEY,
+                "batch_id": f"adapter-{instance.instance_code}-run-{run.id}",
+                "received_at": now.isoformat(),
+                "reads": reads,
+            },
+            source_rows_fetched=len(selected_blocks),
+            watermark_before=watermark_before,
+            watermark_after=watermark_after,
+            cursor_type="timestamp",
+            last_source_timestamp=last_source_timestamp,
+            details={
+                "implementation_key": definition.implementation_key,
+                "delivery_mode": definition.delivery_mode,
+                "record_type": definition.record_type,
+                "adapter_key": DEFAULT_ADAPTER_KEY,
+                "source_fixture_rows": len(sample_blocks),
+                "landing_block_count": len(selected_blocks),
+                "expanded_interval_count": len(reads),
+                "window_updates": window_updates,
+            },
+        )
+
+    def finalize_ingest(
+        self,
+        session: Session,
+        instance: AdapterInstance,
+        run: AdapterRun,
+        envelope: AdapterIngestEnvelope,
+        ingest_summary: dict[str, int] | None,
+    ) -> None:
+        if ingest_summary is None:
+            return
+
+        ingest_batch_id = ingest_summary.get("ingest_batch_id")
+        if ingest_batch_id is None:
+            return
+
+        raw_updates = envelope.details.get("window_updates")
+        if not isinstance(raw_updates, list):
+            return
+
+        for raw_update in raw_updates:
+            if not isinstance(raw_update, dict):
+                continue
+            interval_size_minutes = _parse_optional_positive_int(
+                raw_update.get("interval_size_minutes")
+            )
+            if interval_size_minutes is None:
+                continue
+            expected_slot_codes = raw_update.get("expected_slot_codes")
+            if not isinstance(expected_slot_codes, list) or not expected_slot_codes:
+                expected_slot_codes = _expected_slot_codes(interval_size_minutes)
+            received_slot_codes = raw_update.get("received_slot_codes")
+            if not isinstance(received_slot_codes, list):
+                received_slot_codes = []
+            window_start_at = _parse_runtime_timestamp(
+                raw_update.get("window_start_at"),
+                error_code="invalid_window_start_at",
+                fallback_message="Window state update requires a valid ISO window start timestamp.",
+            )
+            source_write_ts = _parse_runtime_timestamp(
+                raw_update.get("source_write_ts"),
+                error_code="invalid_window_source_write_ts",
+                fallback_message="Window state update requires a valid ISO source write timestamp.",
+            )
+            state = session.scalar(
+                select(RawIntervalWindowState)
+                .where(
+                    RawIntervalWindowState.source_system == str(raw_update.get("source_system")),
+                    RawIntervalWindowState.meter_identifier
+                    == str(raw_update.get("meter_identifier")),
+                    RawIntervalWindowState.channel_identifier
+                    == str(raw_update.get("channel_identifier")),
+                    RawIntervalWindowState.window_start_at == window_start_at,
+                    RawIntervalWindowState.window_size_minutes
+                    == int(raw_update.get("window_size_minutes") or 60),
+                )
+                .limit(1)
+            )
+
+            merged_slots = set(received_slot_codes)
+            late_update_count = 0
+            first_source_write_ts = source_write_ts
+            last_source_write_ts = source_write_ts
+            if state is not None:
+                merged_slots |= _decode_slot_bitmap(state.received_slot_bitmap)
+                first_source_write_ts = min(
+                    [value for value in (state.first_source_write_ts, source_write_ts) if value]
+                )
+                last_source_write_ts = max(
+                    [value for value in (state.last_source_write_ts, source_write_ts) if value]
+                )
+                late_update_count = state.late_update_count
+
+            expected_slot_count = len(expected_slot_codes)
+            completion_status = "open"
+            if merged_slots:
+                completion_status = (
+                    "complete" if len(merged_slots) >= expected_slot_count else "partial"
+                )
+            if (
+                state is not None
+                and state.completion_status in {"complete", "late_update"}
+                and source_write_ts > (state.last_source_write_ts or source_write_ts)
+            ):
+                completion_status = "late_update"
+                late_update_count += 1
+
+            state_details = {
+                "expected_slot_codes": expected_slot_codes,
+                "last_received_slot_codes": sorted(received_slot_codes),
+                "landing_lp_em_read_block_id": raw_update.get("landing_lp_em_read_block_id"),
+                "source_block_key": raw_update.get("source_block_key"),
+            }
+
+            if state is None:
+                state = RawIntervalWindowState(
+                    source_system=str(raw_update.get("source_system")),
+                    meter_identifier=str(raw_update.get("meter_identifier")),
+                    channel_identifier=str(raw_update.get("channel_identifier")),
+                    window_start_at=window_start_at,
+                    window_size_minutes=int(raw_update.get("window_size_minutes") or 60),
+                    interval_size_minutes=interval_size_minutes,
+                    expected_slot_count=expected_slot_count,
+                    received_slot_count=len(merged_slots),
+                    received_slot_bitmap=_encode_slot_bitmap(merged_slots),
+                    first_source_write_ts=first_source_write_ts,
+                    last_source_write_ts=last_source_write_ts,
+                    completion_status=completion_status,
+                    late_update_count=late_update_count,
+                    last_adapter_run_id=run.id,
+                    last_ingest_batch_id=ingest_batch_id,
+                    details=state_details,
+                )
+                session.add(state)
+            else:
+                state.interval_size_minutes = interval_size_minutes
+                state.expected_slot_count = max(state.expected_slot_count, expected_slot_count)
+                state.received_slot_count = len(merged_slots)
+                state.received_slot_bitmap = _encode_slot_bitmap(merged_slots)
+                state.first_source_write_ts = first_source_write_ts
+                state.last_source_write_ts = last_source_write_ts
+                state.completion_status = completion_status
+                state.late_update_count = late_update_count
+                state.last_adapter_run_id = run.id
+                state.last_ingest_batch_id = ingest_batch_id
+                state.details = state_details
+            session.flush()
+
+
 RUNTIME_ADAPTERS: dict[str, RuntimeAdapter] = {
     "company_hes_poll_v1": CompanyHesPollRuntime(),
+    "oracle_lp_em_poll_v1": OracleLpEmPollRuntime(),
 }
 
 
@@ -458,6 +904,15 @@ def execute_adapter_run(session: Session, run_id: int) -> AdapterRunExecutionRes
                     "unsupported_runtime_record_type",
                     "The runtime adapter returned an unsupported record type.",
                     details={"record_type": envelope.record_type},
+                )
+            finalize_ingest = getattr(runtime, "finalize_ingest", None)
+            if callable(finalize_ingest):
+                finalize_ingest(
+                    session,
+                    run.adapter_instance,
+                    run,
+                    envelope,
+                    ingest_summary,
                 )
     except AdapterExecutionError as exc:
         return _fail_adapter_run(session, run=run, error=exc, envelope=envelope)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -35,6 +35,16 @@ class ParsedRawReadPayload:
     quality_code: str | None
     status_code: str | None
     unit_of_measure: str | None
+    interval_size_minutes: int | None = None
+    landing_lp_em_read_block_id: int | None = None
+    source_table_name: str | None = None
+    source_block_key: str | None = None
+    source_record_key: str | None = None
+    device_identifier: str | None = None
+    source_slot_code: str | None = None
+    source_slot_index: int | None = None
+    source_business_ts: datetime | None = None
+    source_write_ts: datetime | None = None
     exception_code: str | None = None
     exception_type: str | None = None
     exception_message: str | None = None
@@ -49,6 +59,24 @@ class ParsedRawEventPayload:
     exception_code: str | None = None
     exception_type: str | None = None
     exception_message: str | None = None
+
+
+def _parse_optional_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        return parse_datetime(value, require_timezone=True)
+    except ValueError:
+        return None
+
+
+def _parse_optional_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_hes_read_payload(item: dict[str, Any]) -> ParsedRawReadPayload:
@@ -73,6 +101,16 @@ def parse_hes_read_payload(item: dict[str, Any]) -> ParsedRawReadPayload:
         quality_code=item.get("quality_code"),
         status_code=item.get("status_code"),
         unit_of_measure=item.get("unit_of_measure", item.get("unit")),
+        interval_size_minutes=_parse_optional_int(item.get("interval_size_minutes")),
+        landing_lp_em_read_block_id=_parse_optional_int(item.get("landing_lp_em_read_block_id")),
+        source_table_name=item.get("source_table_name"),
+        source_block_key=item.get("source_block_key"),
+        source_record_key=item.get("source_record_key"),
+        device_identifier=item.get("device_identifier"),
+        source_slot_code=item.get("source_slot_code"),
+        source_slot_index=_parse_optional_int(item.get("source_slot_index")),
+        source_business_ts=_parse_optional_datetime(item.get("source_business_ts")),
+        source_write_ts=_parse_optional_datetime(item.get("source_write_ts")),
     )
 
     if measurement_value not in (None, "") and measured_at is None:
@@ -119,6 +157,22 @@ def apply_parsed_hes_read_payload(hes_read_raw: HesReadRaw, parsed: ParsedRawRea
     hes_read_raw.quality_code = parsed.quality_code
     hes_read_raw.status_code = parsed.status_code
     hes_read_raw.unit_of_measure = parsed.unit_of_measure
+    hes_read_raw.interval_size_minutes = parsed.interval_size_minutes or 60
+    hes_read_raw.landing_lp_em_read_block_id = parsed.landing_lp_em_read_block_id
+    hes_read_raw.source_table_name = parsed.source_table_name
+    hes_read_raw.source_block_key = parsed.source_block_key
+    hes_read_raw.source_record_key = parsed.source_record_key
+    hes_read_raw.device_identifier = parsed.device_identifier
+    hes_read_raw.source_slot_code = parsed.source_slot_code
+    hes_read_raw.source_slot_index = parsed.source_slot_index
+    hes_read_raw.source_business_ts = parsed.source_business_ts
+    hes_read_raw.source_write_ts = parsed.source_write_ts
+    if parsed.interval_size_minutes is not None and parsed.measured_at is not None:
+        hes_read_raw.interval_end_at = parsed.measured_at + timedelta(
+            minutes=parsed.interval_size_minutes
+        )
+    else:
+        hes_read_raw.interval_end_at = None
 
 
 def parse_hes_event_payload(item: dict[str, Any]) -> ParsedRawEventPayload:
@@ -231,6 +285,7 @@ def ingest_reads(
 
     summary = {
         "batches_created": 1,
+        "ingest_batch_id": batch.id,
         "raw_reads_received": 0,
         "canonical_created": 0,
         "duplicates": 0,
@@ -244,17 +299,13 @@ def ingest_reads(
 
         hes_read_raw = HesReadRaw(
             ingest_batch_id=batch.id,
+            adapter_instance_id=adapter_instance_id,
+            adapter_run_id=adapter_run_id,
             source_system=source_system,
-            meter_identifier=parsed.meter_identifier,
-            channel_identifier=parsed.channel_identifier,
-            measured_at=parsed.measured_at,
-            reading_value=parsed.reading_value,
-            quality_code=parsed.quality_code,
-            status_code=parsed.status_code,
-            unit_of_measure=parsed.unit_of_measure,
             received_at=received_at,
             payload=item.original_payload,
         )
+        apply_parsed_hes_read_payload(hes_read_raw, parsed)
         session.add(hes_read_raw)
         session.flush()
 
@@ -427,6 +478,7 @@ def ingest_events(
 
     summary = {
         "batches_created": 1,
+        "ingest_batch_id": batch.id,
         "raw_events_received": 0,
         "exceptions": 0,
     }

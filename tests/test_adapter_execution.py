@@ -10,11 +10,108 @@ from app.models import (
     AdapterRun,
     AdapterWatermark,
     CanonicalMeasurement,
+    Device,
+    HesReadRaw,
     IngestBatch,
+    InstallationHistory,
+    LandingLpEmReadBlock,
+    MeasuringComponent,
+    RawIntervalWindowState,
+    ServicePoint,
 )
 from app.services.adapter_execution import execute_adapter_run, process_waiting_adapter_runs
 from app.services.adapters import queue_adapter_run_once
 from app.services.seeds import seed_adapter_runtime, seed_master_data
+
+
+def _seed_oracle_runtime_prerequisites(session) -> AdapterInstance:
+    service_point = ServicePoint(
+        source_system="HES_OVERSEAS",
+        external_id="SP-OVERSEAS-32418",
+        service_type="electric",
+        name="Overseas Site 32418",
+        status="active",
+    )
+    session.add(service_point)
+    session.flush()
+
+    device = Device(
+        source_system="HES_OVERSEAS",
+        external_meter_id="32418",
+        serial_number="32418",
+        status="active",
+        service_point_id=service_point.id,
+    )
+    session.add(device)
+    session.flush()
+
+    component = MeasuringComponent(
+        source_system="HES_OVERSEAS",
+        external_channel_id="0",
+        unit_of_measure="kWh",
+        multiplier=1.0,
+        status="active",
+        device_id=device.id,
+        service_point_id=service_point.id,
+    )
+    installation = InstallationHistory(
+        device_id=device.id,
+        service_point_id=service_point.id,
+        installed_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        status="installed",
+    )
+    session.add_all([component, installation])
+    session.flush()
+
+    definition = AdapterDefinition(
+        adapter_code="oracle_lp_em_poll_v1",
+        display_name="Oracle LP_EM Poll",
+        delivery_mode="poll",
+        source_family="hes_overseas",
+        record_type="hes_read_raw",
+        adapter_profile_key="common_raw_v1",
+        implementation_key="oracle_lp_em_poll_v1",
+        status="active",
+    )
+    session.add(definition)
+    session.flush()
+
+    instance = AdapterInstance(
+        adapter_definition_id=definition.id,
+        instance_code="oracle_lp_em_primary",
+        display_name="Oracle LP_EM Primary",
+        source_system="HES_OVERSEAS",
+        admin_state="enabled",
+        poll_interval_minutes=5,
+        batch_size=10,
+        landing_enabled=True,
+        connection_config_masked={
+            "source_timezone": "Asia/Seoul",
+            "default_interval_minutes": 15,
+            "unit_of_measure": "kWh",
+            "sample_blocks": [
+                {
+                    "METER_ID": "32418",
+                    "DEVICE_ID": "795",
+                    "MDEV_ID": "32418",
+                    "MDEV_TYPE": "EM",
+                    "YYYYMMDDHH": "2024080603",
+                    "HH": "03",
+                    "WRITEDATE": "20240806030100",
+                    "CHANNEL": "0",
+                    "VALUE_CNT": 2,
+                    "VALUE_00": 1.25,
+                    "VALUE_15": 1.5,
+                    "LOCATION_ID": "100",
+                    "SUPPLIER_ID": "200",
+                    "ENDDEVICE_ID": "300",
+                }
+            ],
+        },
+    )
+    session.add(instance)
+    session.flush()
+    return instance
 
 
 def test_execute_adapter_run_consumes_waiting_run_and_creates_ingest_lineage(session):
@@ -207,3 +304,93 @@ def test_process_waiting_adapter_runs_returns_empty_summary_when_queue_is_empty(
     assert summary.completed == 0
     assert summary.failed == 0
     assert summary.results == []
+
+
+def test_execute_oracle_lp_em_run_creates_landing_rows_raw_reads_and_partial_window_state(session):
+    instance = _seed_oracle_runtime_prerequisites(session)
+    session.commit()
+
+    queued_run = queue_adapter_run_once(session, instance)
+
+    result = execute_adapter_run(session, queued_run.id)
+    session.commit()
+
+    landing_count = session.scalar(select(func.count()).select_from(LandingLpEmReadBlock))
+    raw_count = session.scalar(select(func.count()).select_from(HesReadRaw))
+    state = session.scalar(select(RawIntervalWindowState).limit(1))
+    watermark = session.scalar(
+        select(AdapterWatermark)
+        .where(
+            AdapterWatermark.adapter_instance_id == instance.id,
+            AdapterWatermark.record_type == "hes_read_raw",
+        )
+        .limit(1)
+    )
+
+    assert result.run_status == "completed"
+    assert result.source_rows_fetched == 1
+    assert result.ingest_batches_created == 1
+    assert result.ingest_records_created == 2
+    assert landing_count == 1
+    assert raw_count == 2
+    assert state is not None
+    assert state.received_slot_count == 2
+    assert state.expected_slot_count == 4
+    assert state.received_slot_bitmap == "00,15"
+    assert state.completion_status == "partial"
+    assert state.last_ingest_batch_id is not None
+    assert watermark is not None
+    assert watermark.cursor_value == "2024-08-05T18:01:00+00:00"
+
+
+def test_execute_oracle_lp_em_run_marks_complete_window_as_late_update_on_newer_source_write(session):
+    instance = _seed_oracle_runtime_prerequisites(session)
+    session.commit()
+
+    first_run = queue_adapter_run_once(session, instance)
+    first_result = execute_adapter_run(session, first_run.id)
+    assert first_result.run_status == "completed"
+
+    state = session.scalar(select(RawIntervalWindowState).limit(1))
+    assert state is not None
+    state.received_slot_count = 4
+    state.expected_slot_count = 4
+    state.received_slot_bitmap = "00,15,30,45"
+    state.completion_status = "complete"
+    state.last_source_write_ts = datetime(2024, 8, 5, 18, 1, tzinfo=timezone.utc)
+
+    instance.connection_config_masked = {
+        **dict(instance.connection_config_masked or {}),
+        "sample_blocks": [
+            {
+                "METER_ID": "32418",
+                "DEVICE_ID": "795",
+                "MDEV_ID": "32418",
+                "MDEV_TYPE": "EM",
+                "YYYYMMDDHH": "2024080603",
+                "HH": "03",
+                "WRITEDATE": "20240806030200",
+                "CHANNEL": "0",
+                "VALUE_CNT": 1,
+                "VALUE_00": 1.3,
+                "LOCATION_ID": "100",
+                "SUPPLIER_ID": "200",
+                "ENDDEVICE_ID": "300",
+            }
+        ],
+    }
+    session.flush()
+
+    second_run = queue_adapter_run_once(session, instance)
+    result = execute_adapter_run(session, second_run.id)
+    session.commit()
+
+    refreshed_state = session.get(RawIntervalWindowState, state.id)
+
+    assert result.run_status == "completed"
+    assert refreshed_state is not None
+    assert refreshed_state.completion_status == "late_update"
+    assert refreshed_state.late_update_count == 1
+    assert refreshed_state.last_source_write_ts == datetime(
+        2024, 8, 5, 18, 2, tzinfo=timezone.utc
+    )
