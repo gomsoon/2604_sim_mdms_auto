@@ -137,13 +137,11 @@ The adapter backlog should be interpreted in three groups:
 - [app/services/dashboard.py](/home/tprover/2604_sim_mdms_auto/app/services/dashboard.py)
 - [app/templates/dashboard.html](/home/tprover/2604_sim_mdms_auto/app/templates/dashboard.html)
 
-## Next
-
 ### A6. Schedule-driven enqueue for polling adapters
 
-#### Why it matters
+#### Why it mattered
 
-The current adapter model is execution-capable, but polling is still operationally manual because `Run Once` or explicit CLI execution is required.
+The current adapter model needed a way to queue due polling work without relying on repeated manual `Run Once` actions.
 
 #### Scope
 
@@ -155,6 +153,15 @@ The current adapter model is execution-capable, but polling is still operational
 - overlap prevention per adapter instance
 - reuse of current worker execution path
 
+#### Current status
+
+- done
+
+#### Evidence
+
+- [app/services/adapters.py](/home/tprover/2604_sim_mdms_auto/app/services/adapters.py)
+- [app/__init__.py](/home/tprover/2604_sim_mdms_auto/app/__init__.py)
+
 #### Acceptance criteria
 
 - polling adapters can queue work without manual UI action
@@ -163,9 +170,9 @@ The current adapter model is execution-capable, but polling is still operational
 
 ### A7. Stale and overdue adapter visibility
 
-#### Why it matters
+#### Why it mattered
 
-The current dashboard shows adapter state, but not yet whether a polling adapter is overdue or stale.
+Operators needed to distinguish a paused adapter from one that is enabled but falling behind or losing freshness.
 
 #### Scope
 
@@ -174,12 +181,44 @@ The current dashboard shows adapter state, but not yet whether a polling adapter
 - clearer adapter-detail summaries
 - stronger `Integration` card semantics
 
+#### Current status
+
+- done
+
+#### Evidence
+
+- [app/services/adapters.py](/home/tprover/2604_sim_mdms_auto/app/services/adapters.py)
+- [app/services/dashboard.py](/home/tprover/2604_sim_mdms_auto/app/services/dashboard.py)
+- [app/templates/adapters.html](/home/tprover/2604_sim_mdms_auto/app/templates/adapters.html)
+- [app/templates/adapter_detail.html](/home/tprover/2604_sim_mdms_auto/app/templates/adapter_detail.html)
+
 #### Acceptance criteria
 
 - operators can distinguish paused adapters from unhealthy or overdue adapters
 - dashboard and adapter detail agree on health interpretation
 
-### A8. Scheduled-run test baseline
+### A8. Adapter health alert promotion baseline
+
+#### Scope
+
+- `adapter_overdue_detected` alert emission
+- `adapter_stale_detected` alert emission
+- automatic close when the condition clears or the instance pauses
+- health-sync entry points from CLI and runtime execution
+
+#### Current status
+
+- done as minimal operator-alert baseline
+
+#### Evidence
+
+- [app/services/adapters.py](/home/tprover/2604_sim_mdms_auto/app/services/adapters.py)
+- [app/services/adapter_execution.py](/home/tprover/2604_sim_mdms_auto/app/services/adapter_execution.py)
+- [app/services/operational_events.py](/home/tprover/2604_sim_mdms_auto/app/services/operational_events.py)
+
+## Next
+
+### A9. Scheduled-run test baseline
 
 #### Why it matters
 
@@ -199,7 +238,7 @@ Once schedule-driven enqueueing exists, manual-only tests are no longer enough.
 
 ## Deferred
 
-### A9. Receive adapter runtime baseline
+### A10. Receive adapter runtime baseline
 
 #### Why deferred
 
@@ -211,7 +250,7 @@ The lifecycle model supports `receive`, but polling should be stabilized first.
 - heartbeat and delivery visibility
 - failure handling aligned with the existing adapter model
 
-### A10. Hard stop or cancel for active adapter runs
+### A11. Hard stop or cancel for active adapter runs
 
 #### Why deferred
 
@@ -222,7 +261,7 @@ This increases safety and transaction-boundary complexity too early.
 - `Pause` prevents future work
 - active runs are usually allowed to finish
 
-### A11. In-process scheduler or heavy task framework
+### A12. In-process scheduler or heavy task framework
 
 #### Why deferred
 
@@ -235,7 +274,7 @@ The minimal stage intentionally prefers a lightweight worker and external schedu
 - `Dramatiq`
 - embedded `APScheduler` as primary orchestration engine
 
-### A12. UI-driven adapter code creation
+### A13. UI-driven adapter code creation
 
 #### Why deferred
 
@@ -247,14 +286,32 @@ The project should manage adapter instances operationally, while adapter impleme
 - dynamic adapter code generation
 - code-free connector authoring
 
+### A14. Database-backed adapter alert condition table
+
+#### Why deferred
+
+The current alert set is still intentionally small, and the first operational need is structural clarity rather than a fully persistent rule-management model.
+
+#### Current direction
+
+- keep emitted alert rows in `operational_event`
+- keep health-condition logic in a table-like in-code rule registry
+- move to a database-backed condition-definition table only when operator-tunable thresholds or a larger alert catalog makes it worth the added persistence and governance complexity
+
+#### Examples of deferred scope
+
+- `adapter_alert_condition` persistence
+- operator-managed threshold editing
+- dynamic rule activation without deployment
+- database-resident expression evaluation
+
 ## Recommended immediate execution order
 
 The recommended next adapter backlog order is:
 
-1. `A6. Schedule-driven enqueue for polling adapters`
-2. `A7. Stale and overdue adapter visibility`
-3. `A8. Scheduled-run test baseline`
-4. `A9. Receive adapter runtime baseline`
+1. `A9. Scheduled-run test baseline`
+2. `A10. Receive adapter runtime baseline`
+3. `A14. Database-backed adapter alert condition table`
 
 ## Related documents
 

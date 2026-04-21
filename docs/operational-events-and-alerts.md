@@ -87,10 +87,29 @@ This is enough for minimal operator reaction without overbuilding a full notific
 - email, SMS, Slack, or paging integration
 - websocket-first real-time streaming infrastructure
 - complex alert correlation engine
+- database-backed alert condition tables
 - configurable alert rules UI
 - multi-step incident workflow
 - full escalation hierarchy
 - immediate physical movement of closed alerts into a separate history table
+
+## Minimal alert condition boundary
+
+The minimal stage should keep alert condition evaluation code-backed, but it should not remain ad-hoc.
+
+Recommended posture:
+
+- alert event metadata lives in the operational event specification registry
+- recurring health-condition checks should be expressed through a table-like in-code rule registry
+- new alert conditions should be added by extending the registry rather than by scattering direct condition branches
+
+This is intentionally not yet:
+
+- a persistent rule-definition table
+- a threshold-editing UI
+- a database-resident rule engine
+
+That later step should remain backlog work until the number of alert conditions or operator-tunable thresholds justifies the extra persistence and governance complexity.
 
 ## Recommended minimal event categories
 

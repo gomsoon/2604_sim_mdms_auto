@@ -42,6 +42,8 @@ It should not yet support:
 - escalation workflow
 - external alert delivery channels
 - immediate physical movement into history tables when an alert closes
+- database-backed alert condition tables
+- operator-managed alert rule editing UI
 
 ## Required minimal event capabilities
 
@@ -88,6 +90,36 @@ Why:
 - it still gives operators the duration they need in UI or reporting
 
 If duration queries become expensive later, add a derived view or summary layer then.
+
+## Alert condition configuration boundary
+
+### Minimal-stage recommendation
+
+For the minimal stage, alert conditions should remain code-backed but structurally organized.
+
+Recommended posture:
+
+- keep condition evaluation in application code
+- keep event metadata in the operational event specification registry
+- keep health-condition evaluation in a table-like in-code rule registry
+- avoid scattering condition-specific `if/else` branches across multiple services
+
+This gives the project:
+
+- a clean first implementation that is easy to test
+- one obvious place to add another health alert rule
+- a future migration path toward a database-backed rule table if operational complexity grows
+
+### What not to do yet
+
+The minimal stage should not require:
+
+- a persistent alert-condition definition table
+- operator-managed threshold editing
+- rule lifecycle management UI
+- dynamic expression parsing in the database
+
+Those concerns belong in backlog and later-stage operational hardening, not in the first event and alert baseline.
 
 ## Current versus history recommendation
 

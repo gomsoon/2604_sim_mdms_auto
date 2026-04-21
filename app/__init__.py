@@ -12,7 +12,7 @@ from app.db import get_session, init_app as init_db
 from app.i18n import register_i18n
 from app.migrations import upgrade_db
 from app.services.adapter_execution import process_waiting_adapter_runs
-from app.services.adapters import enqueue_scheduled_adapter_runs
+from app.services.adapters import enqueue_scheduled_adapter_runs, sync_adapter_health_alerts
 from app.services.finalization import finalize_canonical_measurements
 from app.services.seeds import seed_demo_environment
 
@@ -94,6 +94,7 @@ def register_commands(app: Flask) -> None:
         session = get_session()
         try:
             summary = process_waiting_adapter_runs(session, limit=limit, run_id=run_id)
+            health_summary = sync_adapter_health_alerts(session)
             session.commit()
         except Exception:
             session.rollback()
@@ -103,7 +104,8 @@ def register_commands(app: Flask) -> None:
             "Adapter run processing completed: "
             f"processed={summary.processed}, "
             f"completed={summary.completed}, "
-            f"failed={summary.failed}"
+            f"failed={summary.failed}, "
+            f"health_checked={health_summary.checked}"
         )
 
     @app.cli.command("enqueue-scheduled-adapter-runs")
@@ -112,6 +114,7 @@ def register_commands(app: Flask) -> None:
         session = get_session()
         try:
             summary = enqueue_scheduled_adapter_runs(session, limit=limit)
+            health_summary = sync_adapter_health_alerts(session)
             session.commit()
         except Exception:
             session.rollback()
@@ -121,7 +124,27 @@ def register_commands(app: Flask) -> None:
             "Scheduled adapter enqueue completed: "
             f"eligible={summary.eligible}, "
             f"enqueued={summary.enqueued}, "
-            f"skipped_due_to_active_run={summary.skipped_due_to_active_run}"
+            f"skipped_due_to_active_run={summary.skipped_due_to_active_run}, "
+            f"health_checked={health_summary.checked}"
+        )
+
+    @app.cli.command("refresh-adapter-health-alerts")
+    def refresh_adapter_health_alerts_command() -> None:
+        session = get_session()
+        try:
+            summary = sync_adapter_health_alerts(session)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+        click.echo(
+            "Adapter health alerts refreshed: "
+            f"checked={summary.checked}, "
+            f"overdue_opened={summary.overdue_opened}, "
+            f"overdue_closed={summary.overdue_closed}, "
+            f"stale_opened={summary.stale_opened}, "
+            f"stale_closed={summary.stale_closed}"
         )
 
 

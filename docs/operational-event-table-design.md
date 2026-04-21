@@ -22,6 +22,7 @@ It is not yet:
 - a full incident-management design
 - a production-tuned archival policy
 - a physically separated current-alert and alert-history storage platform
+- a database-backed alert-condition management system
 
 ## Core recommendation
 
@@ -115,6 +116,22 @@ Examples:
 - index on `meter_identifier`
 - index on `batch_id`
 - partial or filtered index for open alerts when needed later
+
+## Alert condition configuration boundary
+
+The minimal stage should treat `operational_event` as the persistence surface for emitted events and alert lifecycle, not as the place where alert conditions are defined.
+
+Recommended first posture:
+
+- keep alert-condition metadata in code
+- keep recurring health checks in a table-like in-code rule registry
+- persist only the emitted alert rows, not the rule definitions themselves
+
+Deferred posture:
+
+- a dedicated alert-condition definition table
+- operator-managed alert thresholds
+- dynamic rule activation or deactivation without a deployment
 
 ## Why a separate current and history alert table set is not recommended yet
 

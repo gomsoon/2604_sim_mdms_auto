@@ -25,6 +25,7 @@ from app.services.nuri_aimir_hes_source import (
 from app.services.ingest_adapters import DEFAULT_ADAPTER_KEY
 from app.services.ingest_contract import coerce_numeric, parse_datetime
 from app.services.ingestion import ingest_events, ingest_reads
+from app.services.adapters import sync_adapter_health_alerts
 from app.services.operational_events import close_operational_alerts, record_operational_event
 
 
@@ -947,6 +948,7 @@ def _complete_adapter_run(
         operator_memo="Closed automatically after a successful adapter run.",
         closed_at=completed_at,
     )
+    sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id], as_of=completed_at)
 
     return AdapterRunExecutionResult(
         run_id=run.id,
@@ -998,6 +1000,7 @@ def _fail_adapter_run(
         instance_code=instance.instance_code,
         error_summary=error.fallback_message,
     )
+    sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id], as_of=completed_at)
 
     return AdapterRunExecutionResult(
         run_id=run.id,

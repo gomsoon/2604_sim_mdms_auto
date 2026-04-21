@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+from typing import Any
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun, AdapterWatermark
-from app.services.operational_events import record_operational_event
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun, AdapterWatermark, OperationalEvent
+from app.services.operational_events import close_operational_alerts, record_operational_event
 
 
 @dataclass(slots=True)
@@ -43,6 +44,24 @@ class ScheduledAdapterEnqueueSummary:
     enqueued: int
     skipped_due_to_active_run: int
     run_ids: list[int]
+
+
+@dataclass(frozen=True, slots=True)
+class AdapterHealthAlertSyncSummary:
+    checked: int
+    overdue_opened: int
+    overdue_closed: int
+    stale_opened: int
+    stale_closed: int
+
+
+@dataclass(frozen=True, slots=True)
+class AdapterHealthAlertRule:
+    event_code: str
+    detector: Callable[[AdapterInstance, AdapterRun | None, datetime], bool]
+    details_builder: Callable[[AdapterInstance, AdapterRun | None], dict[str, Any]]
+    message_kwargs_builder: Callable[[AdapterInstance, AdapterRun | None], dict[str, Any]]
+    close_memo: str
 
 
 def list_active_adapter_definitions(session: Session) -> list[AdapterDefinition]:
@@ -212,6 +231,160 @@ def derive_is_stale(
     if instance.next_run_at is not None:
         return instance.next_run_at + threshold <= effective_as_of
     return False
+
+
+def _detect_adapter_overdue(
+    instance: AdapterInstance, latest_run: AdapterRun | None, as_of: datetime
+) -> bool:
+    return derive_is_overdue(instance, latest_run, as_of=as_of)
+
+
+def _detect_adapter_stale(
+    instance: AdapterInstance, latest_run: AdapterRun | None, as_of: datetime
+) -> bool:
+    return derive_is_stale(instance, latest_run, as_of=as_of)
+
+
+def _serialize_optional_timestamp(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def _format_optional_timestamp(value: datetime | None) -> str:
+    return _serialize_optional_timestamp(value) or "-"
+
+
+def _build_overdue_alert_details(
+    instance: AdapterInstance, latest_run: AdapterRun | None
+) -> dict[str, Any]:
+    return {
+        "next_run_at": _serialize_optional_timestamp(instance.next_run_at),
+        "latest_run_status": latest_run.run_status if latest_run is not None else None,
+    }
+
+
+def _build_overdue_alert_message_kwargs(
+    instance: AdapterInstance, latest_run: AdapterRun | None
+) -> dict[str, Any]:
+    del latest_run
+    return {
+        "instance_code": instance.instance_code,
+        "next_run_at": _format_optional_timestamp(instance.next_run_at),
+    }
+
+
+def _build_stale_alert_details(
+    instance: AdapterInstance, latest_run: AdapterRun | None
+) -> dict[str, Any]:
+    return {
+        "last_heartbeat_at": _serialize_optional_timestamp(instance.last_heartbeat_at),
+        "latest_run_status": latest_run.run_status if latest_run is not None else None,
+    }
+
+
+def _build_stale_alert_message_kwargs(
+    instance: AdapterInstance, latest_run: AdapterRun | None
+) -> dict[str, Any]:
+    del latest_run
+    return {
+        "instance_code": instance.instance_code,
+        "last_heartbeat_at": _format_optional_timestamp(instance.last_heartbeat_at),
+    }
+
+
+ADAPTER_HEALTH_ALERT_RULES: tuple[AdapterHealthAlertRule, ...] = (
+    AdapterHealthAlertRule(
+        event_code="adapter_overdue_detected",
+        detector=_detect_adapter_overdue,
+        details_builder=_build_overdue_alert_details,
+        message_kwargs_builder=_build_overdue_alert_message_kwargs,
+        close_memo="Closed automatically because the adapter is no longer overdue.",
+    ),
+    AdapterHealthAlertRule(
+        event_code="adapter_stale_detected",
+        detector=_detect_adapter_stale,
+        details_builder=_build_stale_alert_details,
+        message_kwargs_builder=_build_stale_alert_message_kwargs,
+        close_memo="Closed automatically because the adapter is no longer stale.",
+    ),
+)
+
+
+def sync_adapter_health_alerts(
+    session: Session,
+    *,
+    adapter_instance_ids: Sequence[int] | None = None,
+    as_of: datetime | None = None,
+) -> AdapterHealthAlertSyncSummary:
+    effective_as_of = as_of or datetime.now(timezone.utc)
+
+    statement: Select[tuple[AdapterInstance]] = (
+        select(AdapterInstance)
+        .join(AdapterInstance.adapter_definition)
+        .options(selectinload(AdapterInstance.adapter_definition))
+        .order_by(AdapterInstance.id.asc())
+    )
+    if adapter_instance_ids:
+        statement = statement.where(AdapterInstance.id.in_(adapter_instance_ids))
+
+    instances = session.scalars(statement).all()
+    latest_runs = _load_latest_runs(session, [row.id for row in instances])
+    alert_event_codes = tuple(rule.event_code for rule in ADAPTER_HEALTH_ALERT_RULES)
+
+    open_alerts_statement = select(OperationalEvent).where(
+        OperationalEvent.is_alert.is_(True),
+        OperationalEvent.event_code.in_(alert_event_codes),
+        OperationalEvent.alert_status.in_(("open", "acknowledged")),
+    )
+    if adapter_instance_ids:
+        open_alerts_statement = open_alerts_statement.where(
+            OperationalEvent.adapter_instance_id.in_(adapter_instance_ids)
+        )
+    open_alerts = session.scalars(open_alerts_statement).all()
+    open_alert_keys = {(row.event_code, row.adapter_instance_id) for row in open_alerts}
+
+    opened_counts = {rule.event_code: 0 for rule in ADAPTER_HEALTH_ALERT_RULES}
+    closed_counts = {rule.event_code: 0 for rule in ADAPTER_HEALTH_ALERT_RULES}
+
+    for instance in instances:
+        latest_run = latest_runs.get(instance.id)
+        for rule in ADAPTER_HEALTH_ALERT_RULES:
+            alert_key = (rule.event_code, instance.id)
+            is_active = rule.detector(instance, latest_run, effective_as_of)
+
+            if is_active:
+                if alert_key not in open_alert_keys:
+                    record_operational_event(
+                        session,
+                        rule.event_code,
+                        occurred_at=effective_as_of,
+                        adapter_instance=instance,
+                        details=rule.details_builder(instance, latest_run),
+                        **rule.message_kwargs_builder(instance, latest_run),
+                    )
+                    open_alert_keys.add(alert_key)
+                    opened_counts[rule.event_code] += 1
+                continue
+
+            closed_count = close_operational_alerts(
+                session,
+                event_code=rule.event_code,
+                adapter_instance_id=instance.id,
+                closed_at=effective_as_of,
+                operator_memo=rule.close_memo,
+            )
+            if closed_count:
+                open_alert_keys.discard(alert_key)
+            closed_counts[rule.event_code] += closed_count
+
+    return AdapterHealthAlertSyncSummary(
+        checked=len(instances),
+        overdue_opened=opened_counts["adapter_overdue_detected"],
+        overdue_closed=closed_counts["adapter_overdue_detected"],
+        stale_opened=opened_counts["adapter_stale_detected"],
+        stale_closed=closed_counts["adapter_stale_detected"],
+    )
 
 
 def list_adapter_instances(session: Session, *, limit: int = 100) -> list[AdapterInstanceSnapshot]:
@@ -396,6 +569,7 @@ def update_adapter_admin_state(
         details={"admin_state": target_state, "status_reason": instance.status_reason},
         instance_code=instance.instance_code,
     )
+    sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id])
     return instance
 
 

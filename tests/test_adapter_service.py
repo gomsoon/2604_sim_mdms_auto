@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app.models import AdapterDefinition, AdapterInstance, AdapterRun, OperationalEvent
 from app.services.adapters import (
+    ADAPTER_HEALTH_ALERT_RULES,
     AdapterValidationError,
     create_adapter_instance,
     derive_is_overdue,
@@ -14,9 +15,19 @@ from app.services.adapters import (
     enqueue_scheduled_adapter_runs,
     list_adapter_instances,
     queue_adapter_run_once,
+    sync_adapter_health_alerts,
     update_adapter_admin_state,
 )
+from app.services.operational_events import EVENT_SPECS
 from app.services.seeds import seed_demo_environment
+
+
+def test_adapter_health_alert_rules_reference_known_event_specs():
+    assert {rule.event_code for rule in ADAPTER_HEALTH_ALERT_RULES} == {
+        "adapter_overdue_detected",
+        "adapter_stale_detected",
+    }
+    assert all(rule.event_code in EVENT_SPECS for rule in ADAPTER_HEALTH_ALERT_RULES)
 
 
 def test_list_adapter_instances_derives_ready_status_from_seeded_runtime(session):
@@ -73,6 +84,74 @@ def test_list_adapter_instances_does_not_mark_paused_adapter_overdue_or_stale(se
     assert derive_is_stale(instance, rows[0].latest_run, as_of=as_of) is False
     assert rows[0].is_overdue is False
     assert rows[0].is_stale is False
+
+
+def test_sync_adapter_health_alerts_opens_overdue_and_stale_alerts_without_duplicates(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary"))
+    assert instance is not None
+
+    as_of = datetime(2026, 4, 21, 0, 0, tzinfo=timezone.utc)
+    instance.next_run_at = as_of - timedelta(minutes=10)
+    instance.last_heartbeat_at = as_of - timedelta(minutes=20)
+    session.flush()
+
+    first = sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id], as_of=as_of)
+    second = sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id], as_of=as_of)
+    session.commit()
+
+    alerts = session.scalars(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.adapter_instance_id == instance.id,
+            OperationalEvent.event_code.in_(("adapter_overdue_detected", "adapter_stale_detected")),
+        )
+        .order_by(OperationalEvent.id.asc())
+    ).all()
+
+    assert first.overdue_opened == 1
+    assert first.stale_opened == 1
+    assert second.overdue_opened == 0
+    assert second.stale_opened == 0
+    assert len(alerts) == 2
+    assert {row.event_code for row in alerts} == {
+        "adapter_overdue_detected",
+        "adapter_stale_detected",
+    }
+    assert all(row.alert_status == "open" for row in alerts)
+
+
+def test_update_adapter_admin_state_closes_health_alerts_when_instance_pauses(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary"))
+    assert instance is not None
+
+    as_of = datetime(2026, 4, 21, 0, 0, tzinfo=timezone.utc)
+    instance.next_run_at = as_of - timedelta(minutes=10)
+    instance.last_heartbeat_at = as_of - timedelta(minutes=20)
+    session.flush()
+    sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id], as_of=as_of)
+    session.flush()
+
+    update_adapter_admin_state(session, instance, "paused")
+    session.commit()
+
+    alerts = session.scalars(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.adapter_instance_id == instance.id,
+            OperationalEvent.event_code.in_(("adapter_overdue_detected", "adapter_stale_detected")),
+        )
+        .order_by(OperationalEvent.id.asc())
+    ).all()
+
+    assert len(alerts) == 2
+    assert all(row.alert_status == "closed" for row in alerts)
+    assert all(row.closed_at is not None for row in alerts)
 
 
 def test_queue_adapter_run_once_allows_paused_instance(session):

@@ -156,6 +156,16 @@ This document records current architectural and process decisions so that the te
   - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
   - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 
+### D-017. Minimal-stage alert conditions remain code-backed but registry-driven
+
+- Status: locked
+- Summary: In the minimal stage, alert-condition evaluation should remain in application code, but it should be organized through a table-like in-code rule registry rather than scattered condition-specific branches
+- Why: This keeps the first implementation simple and testable while preserving a clean migration path toward a database-backed rule-definition table if operator-tunable thresholds or a larger alert catalog become necessary
+- Related docs:
+  - [minimal-event-alert-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-event-alert-boundary.md)
+  - [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
+  - [adapter-backlog.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-backlog.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape
