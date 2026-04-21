@@ -76,6 +76,8 @@ Recommended row actions:
 - `Run Once`
 - `View Runs`
 
+In the minimal stage, these actions should be interpreted as runtime lifecycle controls, not OS-process controls.
+
 ### 2. Adapter detail view
 
 The detail page should give a more complete operational picture.
@@ -120,6 +122,7 @@ Expected result:
 - `admin_state` becomes `paused`
 - future scheduled polling does not start
 - existing history remains visible
+- an already-running adapter execution is usually allowed to finish
 
 ### Run Once
 
@@ -187,8 +190,11 @@ Allow:
 Defer:
 
 - `Cancel`
+- `Hard Stop`
 
 For the minimal stage, a running adapter should usually be allowed to finish.
+
+This is intentionally different from killing an OS process.
 
 ### When effective status is `paused`
 
@@ -302,6 +308,8 @@ If the team wants the smallest useful UI answer now, the recommended first actio
 - `View Runs`
 
 That set is enough to make runtime adapters operationally visible and controllable without overcommitting to a larger control plane.
+
+The exact minimal-stage boundary is defined in [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md).
 
 ## Relationship to other documents
 

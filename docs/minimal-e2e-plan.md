@@ -50,6 +50,8 @@ This scaffold is intentionally limited to the `Minimal End-to-End Version`.
 - Mapping failure handling
 - Exception queue visibility
 - Operator dashboard and basic list screens
+- Runtime adapter visibility with `Enable`, `Pause`, `Run Once`, run history, and watermark visibility
+- Separate worker-path adapter execution through CLI-driven run consumption
 
 ### Explicitly out of scope for this phase
 
@@ -61,6 +63,8 @@ This scaffold is intentionally limited to the `Minimal End-to-End Version`.
 - Billing or CIS export
 - Advanced audit and role model
 - Batch orchestration and worker scaling
+- Embedded scheduler management inside the Flask web process
+- Force-stop or kill control for already-running adapter executions
 
 ## Data flow
 
@@ -116,4 +120,5 @@ The minimal stage should align with the agreed backlog naming baseline.
 - Canonical records are created only after duplicate and mapping checks.
 - Exceptions are treated as first-class operational data.
 - The codebase already separates web, API, and service logic so background processing can be introduced without rewriting the Flask surface.
+- Runtime adapter operations in this stage are intentionally state-driven and worker-backed, rather than process-control features inside Flask.
 - The current scaffold still contains interim naming and SQLite-oriented defaults, so structural alignment to PostgreSQL and backlog naming is a planned prerequisite before broader feature growth.

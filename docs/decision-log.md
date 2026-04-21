@@ -136,6 +136,16 @@ This document records current architectural and process decisions so that the te
   - [interval-raw-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/interval-raw-table-design.md)
   - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
 
+### D-015. Minimal runtime adapter control is state-driven and worker-backed
+
+- Status: locked
+- Summary: In the minimal stage, adapter operations should use UI-driven state changes plus a separate worker execution path, rather than in-process scheduler control or OS-level process control from Flask
+- Why: This keeps adapter operations auditable and safe without turning the web application into a long-running orchestration platform too early
+- Related docs:
+  - [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md)
+  - [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+  - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

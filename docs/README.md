@@ -24,22 +24,23 @@ This directory captures the working engineering baseline for the `Minimal End-to
 18. [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
 19. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
 20. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
-21. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
-22. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
-23. [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
-24. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
-25. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
-26. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
-27. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
-28. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
-29. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
-30. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
-31. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
-32. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
-33. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
-34. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
-35. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
-36. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+21. [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md)
+22. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
+23. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
+24. [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
+25. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
+26. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
+27. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
+28. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+29. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
+30. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
+31. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
+32. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
+33. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+34. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+35. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+36. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+37. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
 
 ## Intent
 
@@ -65,6 +66,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `integration-adapter-management.md` defines how to distinguish field-normalization adapter profiles from runtime adapters that connect to external HES systems.
 - `adapter-runtime-lifecycle.md` defines the proposed minimal state model for runtime adapters and the operator-facing status view.
 - `adapter-operations-ui.md` defines the recommended first operator actions and screen scope for runtime adapters.
+- `minimal-adapter-operations-boundary.md` defines what runtime adapter control means in the minimal stage, what libraries are in use now, and what is intentionally deferred.
 - `polling-adapter-baseline.md` defines the first practical polling-adapter implementation target and boundaries.
 - `lp-em-adapter-mapping.md` defines the current mapping baseline from the overseas HES `LP_EM` and `METER` tables into landing and common raw.
 - `nuri-aimir-hes-lp-em-polling-adapter.md` defines the first NURI AIMIR HES runtime polling adapter baseline for the overseas deployment on Oracle.

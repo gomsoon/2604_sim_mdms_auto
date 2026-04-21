@@ -65,7 +65,7 @@ This kind of adapter is operational and lifecycle-oriented.
 
 ## Current implementation status
 
-At the current minimal stage, the project has implemented adapter profiles and part of the runtime adapter management baseline, but not runtime execution.
+At the current minimal stage, the project has implemented adapter profiles and a lightweight runtime execution baseline, but not a full always-on adapter control plane.
 
 Implemented now:
 
@@ -80,17 +80,18 @@ Implemented now:
 - operator-triggered `Run Once` queueing
 - adapter list and detail screens
 - adapter-specific recent run and watermark visibility
+- code-backed runtime execution selected by `implementation_key`
+- a lightweight worker command that consumes queued `adapter_run` rows
+- runtime lineage population into `ingest_batch`
+- source-specific polling execution baseline for the first company overseas HES source
 
 Not implemented yet:
 
-- code-backed runtime execution selected by `implementation_key`
-- a worker or scheduler that consumes queued adapter runs
-- upstream polling against a real HES source
 - upstream receive runtime handling
-- automatic heartbeat or health status updates
 - polling scheduler for source adapters
-- automatic success and failure summary updates
-- automatic runtime lineage population into `ingest_batch`
+- hard-stop or force-cancel control for already-running adapter executions
+- in-process scheduler management from the Flask web process
+- full OS-service lifecycle control from the operator UI
 
 ## Current code interpretation
 
@@ -98,9 +99,10 @@ The existing code should be interpreted like this:
 
 - `app/services/ingest_adapters.py` handles adapter profiles
 - `app/services/adapters.py` handles runtime adapter registration, lifecycle transitions, and run queueing
+- `app/services/adapter_execution.py` handles code-backed runtime execution and watermark-aware run completion
 - `app/services/ingestion.py` handles ingest processing after a payload has already arrived
 - the current UI now manages adapter instances as operational objects
-- the current system still does not execute upstream runtime adapter work
+- the current system executes runtime adapter work through a separate worker path rather than directly inside web requests
 
 This means the current implementation is suitable for:
 
@@ -111,10 +113,12 @@ This means the current implementation is suitable for:
 It is not yet sufficient for:
 
 - production polling from multiple HES instances
-- operator control of upstream collection
+- operator control of upstream collection at OS-process level
 - long-running adapter health monitoring
-- watermark-driven incremental source fetching
-- runtime execution-to-ingest lineage closure
+- generalized watermark-driven incremental source fetching across multiple source families
+- force-stop semantics for active runs
+
+The exact minimal operational boundary is defined in [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md).
 
 ## Recommended architectural rule
 
