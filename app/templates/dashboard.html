@@ -225,6 +225,25 @@
                 {% endif %}
               </span>
             </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+              {% if row.alert_status == "open" %}
+              <form method="post" action="{{ url_for('web.acknowledge_operational_alert_view', event_id=row.id) }}">
+                <input type="hidden" name="next" value="{{ url_for('web.dashboard', lang=current_locale) }}">
+                <button type="submit" class="btn btn-sm btn-outline-primary">{{ t("button.acknowledge") }}</button>
+              </form>
+              {% endif %}
+              <form method="post" action="{{ url_for('web.close_operational_alert_view', event_id=row.id) }}" class="d-flex flex-wrap gap-2 align-items-center">
+                <input type="hidden" name="next" value="{{ url_for('web.dashboard', lang=current_locale) }}">
+                <input
+                  type="text"
+                  name="operator_memo"
+                  class="form-control form-control-sm"
+                  style="max-width: 16rem;"
+                  placeholder="{{ t('dashboard.alert_memo_placeholder') }}"
+                >
+                <button type="submit" class="btn btn-sm btn-outline-danger">{{ t("button.close_alert") }}</button>
+              </form>
+            </div>
           </div>
           {% else %}
           <div class="text-secondary">{{ t("dashboard.no_open_alerts") }}</div>

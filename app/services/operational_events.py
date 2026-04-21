@@ -30,6 +30,12 @@ class OperationalEventSpec:
     message_ko: str
 
 
+@dataclass(frozen=True, slots=True)
+class OperationalAlertError(Exception):
+    error_code: str
+    fallback_message: str
+
+
 EVENT_SPECS: dict[str, OperationalEventSpec] = {
     "adapter_enabled": OperationalEventSpec(
         source_layer="operator_action",
@@ -353,3 +359,56 @@ def close_operational_alerts(
             row.operator_memo = operator_memo
     session.flush()
     return len(rows)
+
+
+def _get_operational_alert(session: Session, event_id: int) -> OperationalEvent:
+    event = session.get(OperationalEvent, event_id)
+    if event is None:
+        raise OperationalAlertError(
+            "not_found", "The selected operational alert does not exist."
+        )
+    if not event.is_alert:
+        raise OperationalAlertError("not_alert", "The selected operational event is not an alert.")
+    return event
+
+
+def acknowledge_operational_alert(
+    session: Session,
+    event_id: int,
+    *,
+    acknowledged_by: str,
+    acknowledged_at: datetime | None = None,
+) -> OperationalEvent:
+    event = _get_operational_alert(session, event_id)
+    if event.alert_status == "closed":
+        raise OperationalAlertError("already_closed", "The selected alert is already closed.")
+    if event.alert_status == "acknowledged":
+        raise OperationalAlertError(
+            "already_acknowledged", "The selected alert is already acknowledged."
+        )
+
+    event.alert_status = "acknowledged"
+    event.acknowledged_at = acknowledged_at or datetime.now(timezone.utc)
+    event.acknowledged_by = acknowledged_by
+    session.flush()
+    return event
+
+
+def close_operational_alert(
+    session: Session,
+    event_id: int,
+    *,
+    closed_at: datetime | None = None,
+    operator_memo: str | None = None,
+) -> OperationalEvent:
+    event = _get_operational_alert(session, event_id)
+    if event.alert_status == "closed":
+        raise OperationalAlertError("already_closed", "The selected alert is already closed.")
+
+    event.alert_status = "closed"
+    event.closed_at = closed_at or datetime.now(timezone.utc)
+    normalized_memo = (operator_memo or "").strip()
+    if normalized_memo:
+        event.operator_memo = normalized_memo
+    session.flush()
+    return event

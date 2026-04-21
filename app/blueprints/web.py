@@ -9,6 +9,7 @@ from app.i18n import (
     translate_adapter_error,
     get_locale,
     translate,
+    translate_operational_alert_error,
     translate_finalization_result,
     translate_master_data_error,
     translate_reprocess_error,
@@ -58,6 +59,11 @@ from app.services.master_data import (
     update_measuring_component,
     update_service_point,
 )
+from app.services.operational_events import (
+    OperationalAlertError,
+    acknowledge_operational_alert,
+    close_operational_alert,
+)
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
@@ -85,6 +91,38 @@ def dashboard():
         open_alerts=snapshot.open_alerts,
         recent_events=snapshot.recent_events,
     )
+
+
+@bp.post("/operational-events/<int:event_id>/acknowledge")
+def acknowledge_operational_alert_view(event_id: int):
+    session = get_session()
+    try:
+        acknowledge_operational_alert(session, event_id, acknowledged_by="operator_ui")
+        session.commit()
+        flash(translate("operational_alert.flash.acknowledged"), "success")
+    except OperationalAlertError as exc:
+        session.rollback()
+        flash(translate_operational_alert_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(url_for("web.dashboard", lang=get_locale())))
+
+
+@bp.post("/operational-events/<int:event_id>/close")
+def close_operational_alert_view(event_id: int):
+    session = get_session()
+    try:
+        close_operational_alert(
+            session,
+            event_id,
+            operator_memo=request.form.get("operator_memo"),
+        )
+        session.commit()
+        flash(translate("operational_alert.flash.closed"), "success")
+    except OperationalAlertError as exc:
+        session.rollback()
+        flash(translate_operational_alert_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(url_for("web.dashboard", lang=get_locale())))
 
 
 @bp.get("/raw-reads")

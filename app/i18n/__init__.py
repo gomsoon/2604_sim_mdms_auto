@@ -59,6 +59,7 @@ MESSAGES = {
         "dashboard.no_exceptions": "No exceptions recorded.",
         "dashboard.no_open_alerts": "No open alerts right now.",
         "dashboard.no_recent_events": "No recent operational events have been recorded.",
+        "dashboard.alert_memo_placeholder": "Optional close memo",
         "page.raw_reads.title": "Raw Reads",
         "page.raw_reads.description": "Original meter reads are preserved before business-level processing.",
         "page.raw_events.title": "Raw Events",
@@ -192,6 +193,7 @@ MESSAGES = {
         "field.removed_at": "Removed At",
         "field.status": "Status",
         "field.payload": "Payload",
+        "field.operator_memo": "Operator Memo",
         "button.create": "Create",
         "button.register_adapter": "Register Adapter",
         "button.save": "Save",
@@ -201,6 +203,8 @@ MESSAGES = {
         "button.enable": "Enable",
         "button.pause": "Pause",
         "button.run_once": "Run Once",
+        "button.acknowledge": "Acknowledge",
+        "button.close_alert": "Close Alert",
         "button.promote_final": "Promote to Final",
         "button.reprocess": "Reprocess",
         "button.open_master_data": "Open Master Data",
@@ -294,6 +298,8 @@ MESSAGES = {
         "adapter.flash.paused": "Adapter instance paused successfully.",
         "adapter.flash.run_queued": "Manual adapter run request has been queued.",
         "adapter.flash.created": "Adapter instance created successfully.",
+        "operational_alert.flash.acknowledged": "Alert has been marked as acknowledged.",
+        "operational_alert.flash.closed": "Alert has been closed.",
         "master_data.error.missing_source_system": "Source system is required.",
         "master_data.error.missing_external_id": "External identifier is required.",
         "master_data.error.missing_service_type": "Service type is required.",
@@ -344,6 +350,10 @@ MESSAGES = {
         "finalization.result.finalization_completed_with_skips": "Finalization completed with skips. Candidates: {candidates}, finalized: {finalized}, already finalized: {skipped_existing}, not well formed: {skipped_not_well_formed}.",
         "finalization.result.finalization_noop": "No new final measurements were created. Candidates: {candidates}, already finalized: {skipped_existing}.",
         "finalization.error.unexpected": "Finalization could not be completed.",
+        "operational_alert.error.not_found": "The selected alert could not be found.",
+        "operational_alert.error.not_alert": "The selected operational event is not an alert.",
+        "operational_alert.error.already_acknowledged": "The selected alert is already acknowledged.",
+        "operational_alert.error.already_closed": "The selected alert is already closed.",
         "reprocess.error.unsupported_exception_code": "This exception type cannot be reprocessed yet.",
         "reprocess.error.missing_raw_record": "The exception does not have a linked raw read.",
         "reprocess.error.processing_in_progress": "A reprocess request is already in progress.",
@@ -405,6 +415,7 @@ MESSAGES = {
         "dashboard.no_exceptions": "기록된 오류가 없습니다.",
         "dashboard.no_open_alerts": "현재 열린 알림이 없습니다.",
         "dashboard.no_recent_events": "기록된 최근 운영 이벤트가 없습니다.",
+        "dashboard.alert_memo_placeholder": "종료 메모(선택)",
         "page.raw_reads.title": "원시 검침",
         "page.raw_reads.description": "원시 검침 데이터는 업무 처리 전에 먼저 보존됩니다.",
         "page.raw_events.title": "원시 이벤트",
@@ -538,6 +549,7 @@ MESSAGES = {
         "field.removed_at": "철거 시각",
         "field.status": "상태",
         "field.payload": "원본 페이로드",
+        "field.operator_memo": "운영 메모",
         "button.create": "등록",
         "button.register_adapter": "어댑터 등록",
         "button.save": "저장",
@@ -547,6 +559,8 @@ MESSAGES = {
         "button.enable": "활성화",
         "button.pause": "일시중지",
         "button.run_once": "한 번 실행",
+        "button.acknowledge": "확인",
+        "button.close_alert": "종료",
         "button.promote_final": "최종화 실행",
         "button.reprocess": "재처리",
         "button.open_master_data": "마스터 데이터 열기",
@@ -640,6 +654,8 @@ MESSAGES = {
         "adapter.flash.paused": "어댑터 인스턴스가 일시중지되었습니다.",
         "adapter.flash.run_queued": "수동 어댑터 실행 요청이 대기열에 등록되었습니다.",
         "adapter.flash.created": "어댑터 인스턴스가 등록되었습니다.",
+        "operational_alert.flash.acknowledged": "알림이 확인 상태로 변경되었습니다.",
+        "operational_alert.flash.closed": "알림이 종료되었습니다.",
         "master_data.error.missing_source_system": "출처 시스템은 필수입니다.",
         "master_data.error.missing_external_id": "외부 ID는 필수입니다.",
         "master_data.error.missing_service_type": "서비스 유형은 필수입니다.",
@@ -690,6 +706,10 @@ MESSAGES = {
         "finalization.result.finalization_completed_with_skips": "최종 계측 승격이 일부 건너뛰기와 함께 완료되었습니다. 대상: {candidates}, 최종화: {finalized}, 이미 최종화됨: {skipped_existing}, 정합성 미충족: {skipped_not_well_formed}.",
         "finalization.result.finalization_noop": "새로 최종화된 계측은 없습니다. 대상: {candidates}, 이미 최종화됨: {skipped_existing}.",
         "finalization.error.unexpected": "최종 계측 승격을 완료하지 못했습니다.",
+        "operational_alert.error.not_found": "선택한 알림을 찾을 수 없습니다.",
+        "operational_alert.error.not_alert": "선택한 운영 이벤트는 알림이 아닙니다.",
+        "operational_alert.error.already_acknowledged": "선택한 알림은 이미 확인되었습니다.",
+        "operational_alert.error.already_closed": "선택한 알림은 이미 종료되었습니다.",
         "reprocess.error.unsupported_exception_code": "아직 이 오류 유형은 재처리할 수 없습니다.",
         "reprocess.error.missing_raw_record": "이 오류와 연결된 원시 검침이 없습니다.",
         "reprocess.error.processing_in_progress": "이미 재처리가 진행 중입니다.",
@@ -775,6 +795,11 @@ def translate_visibility_error(code: str, fallback_message: str | None = None) -
     return translate_or(key, fallback_message or code)
 
 
+def translate_operational_alert_error(code: str, fallback_message: str | None = None) -> str:
+    key = f"operational_alert.error.{code}"
+    return translate_or(key, fallback_message or code)
+
+
 def translate_reprocess_error(code: str, fallback_message: str | None = None) -> str:
     key = f"reprocess.error.{code}"
     return translate_or(key, fallback_message or code)
@@ -847,6 +872,7 @@ def register_i18n(app: Flask) -> None:
             "t_ingest_error": translate_ingest_error,
             "t_master_data_error": translate_master_data_error,
             "t_adapter_error": translate_adapter_error,
+            "t_operational_alert_error": translate_operational_alert_error,
             "t_reprocess_result": translate_reprocess_result,
             "t_reprocess_error": translate_reprocess_error,
             "t_visibility_error": translate_visibility_error,
