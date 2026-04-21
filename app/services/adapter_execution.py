@@ -18,6 +18,7 @@ from app.models import (
 from app.services.nuri_aimir_hes_source import (
     NuriAimirHesLpEmCursor,
     NuriAimirHesPollingConfig,
+    NuriAimirHesSourceError,
     fetch_nuri_aimir_hes_lp_em_rows,
     format_nuri_aimir_hes_lp_em_cursor,
     parse_nuri_aimir_hes_lp_em_cursor,
@@ -453,6 +454,12 @@ class NuriAimirHesLpEmPollRuntime:
 
         try:
             rows = fetch_nuri_aimir_hes_lp_em_rows(polling_config, cursor=watermark_cursor)
+        except NuriAimirHesSourceError as exc:
+            raise AdapterExecutionError(
+                exc.error_code,
+                exc.fallback_message,
+                details=exc.details,
+            ) from exc
         except Exception as exc:
             raise AdapterExecutionError(
                 "nuri_aimir_hes_poll_failed",

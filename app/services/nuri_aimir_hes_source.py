@@ -36,6 +36,16 @@ class NuriAimirHesRuntimeConfig:
     polling_config: NuriAimirHesPollingConfig | None
 
 
+@dataclass(frozen=True, slots=True)
+class NuriAimirHesSourceError(RuntimeError):
+    error_code: str
+    fallback_message: str
+    details: dict[str, Any] | None = None
+
+    def __str__(self) -> str:
+        return self.fallback_message
+
+
 SELECT_COLUMNS = [
     "LP_EM.METER_ID",
     "LP_EM.DEVICE_ID",
@@ -282,12 +292,34 @@ def _build_lp_em_query(
     return query, bind_values
 
 
+def _classify_connect_error(exc: Exception) -> NuriAimirHesSourceError:
+    rendered = str(exc)
+    if "ORA-01017" in rendered or "ORA-28000" in rendered or "ORA-28001" in rendered:
+        return NuriAimirHesSourceError(
+            "nuri_aimir_hes_authentication_failed",
+            "The NURI AIMIR HES Oracle authentication failed.",
+            details={"exception_type": type(exc).__name__},
+        )
+    return NuriAimirHesSourceError(
+        "nuri_aimir_hes_connection_failed",
+        "The NURI AIMIR HES Oracle connection could not be established.",
+        details={"exception_type": type(exc).__name__},
+    )
+
+
 def fetch_nuri_aimir_hes_lp_em_rows(
     config: NuriAimirHesPollingConfig,
     *,
     cursor: NuriAimirHesLpEmCursor | None,
 ) -> list[dict[str, Any]]:
-    import oracledb
+    try:
+        import oracledb
+    except ImportError as exc:
+        raise NuriAimirHesSourceError(
+            "oracle_driver_unavailable",
+            "The Python Oracle driver is not available in the current runtime.",
+            details={"exception_type": type(exc).__name__},
+        ) from exc
 
     if config.sid:
         dsn = oracledb.makedsn(config.host, config.port, sid=config.sid)
@@ -309,11 +341,21 @@ def fetch_nuri_aimir_hes_lp_em_rows(
             }
         )
 
-    connection = oracledb.connect(user=config.username, password=config.password, dsn=dsn)
+    try:
+        connection = oracledb.connect(user=config.username, password=config.password, dsn=dsn)
+    except Exception as exc:
+        raise _classify_connect_error(exc) from exc
     try:
         cursor_obj = connection.cursor()
         try:
-            cursor_obj.execute(query, bind_values)
+            try:
+                cursor_obj.execute(query, bind_values)
+            except Exception as exc:
+                raise NuriAimirHesSourceError(
+                    "nuri_aimir_hes_query_failed",
+                    "The NURI AIMIR HES Oracle polling query failed.",
+                    details={"exception_type": type(exc).__name__},
+                ) from exc
             column_names = [column[0] for column in cursor_obj.description or []]
             return [dict(zip(column_names, row, strict=False)) for row in cursor_obj.fetchall()]
         finally:

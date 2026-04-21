@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from app.services.nuri_aimir_hes_source import (
+    NuriAimirHesSourceError,
     NuriAimirHesLpEmCursor,
     _build_lp_em_query,
+    fetch_nuri_aimir_hes_lp_em_rows,
     format_nuri_aimir_hes_lp_em_cursor,
     parse_nuri_aimir_hes_lp_em_cursor,
     parse_nuri_aimir_hes_polling_config,
@@ -123,3 +128,76 @@ def test_build_lp_em_query_includes_cursor_and_channel_filters():
     assert "LP_EM.CHANNEL in (:channel_0, :channel_1)" in query
     assert "fetch first 250 rows only" in query.lower()
     assert binds == {"channel_0": "0", "channel_1": "98"}
+
+
+def test_fetch_nuri_aimir_hes_lp_em_rows_classifies_authentication_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class FakeOracleDatabaseError(Exception):
+        pass
+
+    fake_module = SimpleNamespace(
+        makedsn=lambda host, port, sid=None, service_name=None: "fake-dsn",
+        connect=lambda **kwargs: (_ for _ in ()).throw(FakeOracleDatabaseError("ORA-01017 invalid")),
+    )
+    monkeypatch.setitem(sys.modules, "oracledb", fake_module)
+    monkeypatch.setenv("MDMS_NURI_AIMIR_HES_DB_PASSWORD", "oracle-secret")
+
+    config = parse_nuri_aimir_hes_polling_config(
+        {
+            "oracle_host": "172.16.10.111",
+            "oracle_port": 1521,
+            "oracle_sid": "HESDB",
+            "oracle_username": "aimir",
+        },
+        secret_ref="env://MDMS_NURI_AIMIR_HES_DB_PASSWORD",
+        batch_size=100,
+    )
+
+    with pytest.raises(NuriAimirHesSourceError) as exc_info:
+        fetch_nuri_aimir_hes_lp_em_rows(config, cursor=None)
+
+    assert exc_info.value.error_code == "nuri_aimir_hes_authentication_failed"
+
+
+def test_fetch_nuri_aimir_hes_lp_em_rows_classifies_query_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class FakeCursor:
+        description = []
+
+        def execute(self, query, bind_values):
+            raise RuntimeError("query failed")
+
+        def close(self):
+            return None
+
+    class FakeConnection:
+        def cursor(self):
+            return FakeCursor()
+
+        def close(self):
+            return None
+
+    fake_module = SimpleNamespace(
+        makedsn=lambda host, port, sid=None, service_name=None: "fake-dsn",
+        connect=lambda **kwargs: FakeConnection(),
+    )
+    monkeypatch.setitem(sys.modules, "oracledb", fake_module)
+    monkeypatch.setenv("MDMS_NURI_AIMIR_HES_DB_PASSWORD", "oracle-secret")
+
+    config = parse_nuri_aimir_hes_polling_config(
+        {
+            "oracle_host": "172.16.10.111",
+            "oracle_port": 1521,
+            "oracle_sid": "HESDB",
+            "oracle_username": "aimir",
+        },
+        secret_ref="env://MDMS_NURI_AIMIR_HES_DB_PASSWORD",
+        batch_size=100,
+    )
+
+    with pytest.raises(NuriAimirHesSourceError) as exc_info:
+        fetch_nuri_aimir_hes_lp_em_rows(config, cursor=None)
+
+    assert exc_info.value.error_code == "nuri_aimir_hes_query_failed"

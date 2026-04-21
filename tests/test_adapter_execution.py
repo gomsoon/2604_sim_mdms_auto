@@ -22,6 +22,7 @@ from app.models import (
 )
 from app.services.adapter_execution import execute_adapter_run, process_waiting_adapter_runs
 from app.services.adapters import queue_adapter_run_once
+from app.services.nuri_aimir_hes_source import NuriAimirHesSourceError
 from app.services.seeds import seed_adapter_runtime, seed_master_data
 
 
@@ -510,6 +511,51 @@ def test_execute_nuri_aimir_hes_lp_em_run_supports_oracle_query_mode(
     assert refreshed_run.details["source_fetch_mode"] == "oracle_query"
     assert state is not None
     assert state.completion_status == "partial"
+
+
+def test_execute_nuri_aimir_hes_lp_em_run_preserves_classified_source_failure(
+    session, monkeypatch
+):
+    instance = _seed_nuri_aimir_hes_runtime_prerequisites(session)
+    instance.connection_config_masked = {
+        "source_timezone": "Asia/Seoul",
+        "default_interval_minutes": 15,
+        "unit_of_measure": "kWh",
+        "oracle_host": "172.16.10.111",
+        "oracle_port": 1521,
+        "oracle_sid": "HESDB",
+        "oracle_username": "aimir",
+        "allowed_channels": ["0"],
+    }
+    instance.secret_ref = "env://MDMS_NURI_AIMIR_HES_DB_PASSWORD"
+    session.commit()
+
+    monkeypatch.setenv("MDMS_NURI_AIMIR_HES_DB_PASSWORD", "oracle-secret")
+
+    def fake_fetch_nuri_aimir_hes_lp_em_rows(config, *, cursor):
+        del config, cursor
+        raise NuriAimirHesSourceError(
+            "nuri_aimir_hes_query_failed",
+            "The NURI AIMIR HES Oracle polling query failed.",
+            details={"exception_type": "RuntimeError"},
+        )
+
+    monkeypatch.setattr(
+        "app.services.adapter_execution.fetch_nuri_aimir_hes_lp_em_rows",
+        fake_fetch_nuri_aimir_hes_lp_em_rows,
+    )
+
+    queued_run = queue_adapter_run_once(session, instance)
+    result = execute_adapter_run(session, queued_run.id)
+    session.commit()
+
+    refreshed_run = session.get(AdapterRun, queued_run.id)
+
+    assert result.run_status == "failed"
+    assert result.error_code == "nuri_aimir_hes_query_failed"
+    assert refreshed_run is not None
+    assert refreshed_run.run_status == "failed"
+    assert refreshed_run.error_code == "nuri_aimir_hes_query_failed"
 
 
 def test_execute_nuri_aimir_hes_lp_em_run_fails_for_mixed_sample_and_oracle_configuration(
