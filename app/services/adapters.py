@@ -34,6 +34,14 @@ class AdapterInstanceDetail:
     watermarks: list[AdapterWatermark]
 
 
+@dataclass(frozen=True, slots=True)
+class ScheduledAdapterEnqueueSummary:
+    eligible: int
+    enqueued: int
+    skipped_due_to_active_run: int
+    run_ids: list[int]
+
+
 def list_active_adapter_definitions(session: Session) -> list[AdapterDefinition]:
     return session.scalars(
         select(AdapterDefinition)
@@ -338,3 +346,69 @@ def queue_adapter_run_once(session: Session, instance: AdapterInstance) -> Adapt
     session.add(run)
     session.flush()
     return run
+
+
+def enqueue_scheduled_adapter_runs(
+    session: Session,
+    *,
+    as_of: datetime | None = None,
+    limit: int = 10,
+) -> ScheduledAdapterEnqueueSummary:
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+
+    effective_as_of = as_of or datetime.now(timezone.utc)
+    candidates = session.scalars(
+        select(AdapterInstance)
+        .join(AdapterInstance.adapter_definition)
+        .options(selectinload(AdapterInstance.adapter_definition))
+        .where(
+            AdapterInstance.admin_state == "enabled",
+            AdapterInstance.next_run_at.is_not(None),
+            AdapterInstance.next_run_at <= effective_as_of,
+            AdapterDefinition.delivery_mode == "poll",
+            AdapterDefinition.status == "active",
+        )
+        .order_by(AdapterInstance.next_run_at.asc(), AdapterInstance.id.asc())
+        .limit(limit)
+    ).all()
+
+    enqueued_runs: list[int] = []
+    skipped_due_to_active_run = 0
+
+    for instance in candidates:
+        active_run = session.scalar(
+            select(AdapterRun.id)
+            .where(
+                AdapterRun.adapter_instance_id == instance.id,
+                AdapterRun.run_status.in_(("waiting", "running")),
+            )
+            .order_by(AdapterRun.id.desc())
+            .limit(1)
+        )
+        if active_run is not None:
+            skipped_due_to_active_run += 1
+            continue
+
+        run = AdapterRun(
+            adapter_instance_id=instance.id,
+            trigger_type="schedule",
+            run_status="waiting",
+            requested_at=effective_as_of,
+            details={
+                "requested_via": "scheduler",
+                "scheduled_for": instance.next_run_at.isoformat()
+                if instance.next_run_at is not None
+                else None,
+            },
+        )
+        session.add(run)
+        session.flush()
+        enqueued_runs.append(run.id)
+
+    return ScheduledAdapterEnqueueSummary(
+        eligible=len(candidates),
+        enqueued=len(enqueued_runs),
+        skipped_due_to_active_run=skipped_due_to_active_run,
+        run_ids=enqueued_runs,
+    )

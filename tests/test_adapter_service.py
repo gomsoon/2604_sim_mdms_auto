@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from sqlalchemy import func, select
 
@@ -7,6 +9,7 @@ from app.models import AdapterDefinition, AdapterInstance, AdapterRun
 from app.services.adapters import (
     AdapterValidationError,
     create_adapter_instance,
+    enqueue_scheduled_adapter_runs,
     list_adapter_instances,
     queue_adapter_run_once,
     update_adapter_admin_state,
@@ -135,3 +138,66 @@ def test_create_adapter_instance_rejects_duplicate_instance_code(session):
         )
 
     assert exc_info.value.error_code == "duplicate_instance_code"
+
+
+def test_enqueue_scheduled_adapter_runs_creates_waiting_schedule_run_for_due_poll_instance(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(
+        select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary").limit(1)
+    )
+    assert instance is not None
+
+    as_of = datetime(2026, 4, 21, 0, 0, tzinfo=timezone.utc)
+    instance.next_run_at = as_of - timedelta(minutes=1)
+    session.flush()
+
+    summary = enqueue_scheduled_adapter_runs(session, as_of=as_of, limit=10)
+    session.commit()
+
+    scheduled_run = session.scalar(
+        select(AdapterRun)
+        .where(AdapterRun.adapter_instance_id == instance.id, AdapterRun.trigger_type == "schedule")
+        .order_by(AdapterRun.id.desc())
+        .limit(1)
+    )
+
+    assert summary.eligible == 1
+    assert summary.enqueued == 1
+    assert summary.skipped_due_to_active_run == 0
+    assert len(summary.run_ids) == 1
+    assert scheduled_run is not None
+    assert scheduled_run.run_status == "waiting"
+    assert scheduled_run.details["requested_via"] == "scheduler"
+
+
+def test_enqueue_scheduled_adapter_runs_skips_instance_with_active_waiting_run(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(
+        select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary").limit(1)
+    )
+    assert instance is not None
+
+    as_of = datetime(2026, 4, 21, 0, 0, tzinfo=timezone.utc)
+    instance.next_run_at = as_of - timedelta(minutes=1)
+    session.flush()
+    queue_adapter_run_once(session, instance)
+    session.flush()
+
+    summary = enqueue_scheduled_adapter_runs(session, as_of=as_of, limit=10)
+    session.commit()
+
+    schedule_run_count = session.scalar(
+        select(func.count())
+        .select_from(AdapterRun)
+        .where(AdapterRun.adapter_instance_id == instance.id, AdapterRun.trigger_type == "schedule")
+    )
+
+    assert summary.eligible == 1
+    assert summary.enqueued == 0
+    assert summary.skipped_due_to_active_run == 1
+    assert summary.run_ids == []
+    assert schedule_run_count == 1

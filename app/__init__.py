@@ -12,6 +12,7 @@ from app.db import get_session, init_app as init_db
 from app.i18n import register_i18n
 from app.migrations import upgrade_db
 from app.services.adapter_execution import process_waiting_adapter_runs
+from app.services.adapters import enqueue_scheduled_adapter_runs
 from app.services.finalization import finalize_canonical_measurements
 from app.services.seeds import seed_demo_environment
 
@@ -103,6 +104,24 @@ def register_commands(app: Flask) -> None:
             f"processed={summary.processed}, "
             f"completed={summary.completed}, "
             f"failed={summary.failed}"
+        )
+
+    @app.cli.command("enqueue-scheduled-adapter-runs")
+    @click.option("--limit", default=10, type=int)
+    def enqueue_scheduled_adapter_runs_command(limit: int) -> None:
+        session = get_session()
+        try:
+            summary = enqueue_scheduled_adapter_runs(session, limit=limit)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+        click.echo(
+            "Scheduled adapter enqueue completed: "
+            f"eligible={summary.eligible}, "
+            f"enqueued={summary.enqueued}, "
+            f"skipped_due_to_active_run={summary.skipped_due_to_active_run}"
         )
 
 

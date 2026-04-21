@@ -22,6 +22,8 @@ make init-db
 make seed-demo
 # optional: operator UI can also trigger finalization from /canonical-measurements
 ./.venv/bin/flask --app wsgi:app promote-final
+# optional: enqueue polling adapters that are due for scheduled execution
+./.venv/bin/flask --app wsgi:app enqueue-scheduled-adapter-runs --limit 10
 # optional: queued adapter runs can be consumed by the lightweight worker command
 ./.venv/bin/flask --app wsgi:app process-adapter-runs --limit 1
 make run

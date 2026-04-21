@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
@@ -295,6 +295,38 @@ def test_process_adapter_runs_cli_processes_waiting_run(app, session):
     assert "completed=1" in result.output
     assert refreshed_run is not None
     assert refreshed_run.run_status == "completed"
+
+
+def test_enqueue_scheduled_adapter_runs_cli_creates_waiting_schedule_run(app, session):
+    seed_master_data(session)
+    seed_adapter_runtime(session)
+    session.commit()
+
+    instance = session.scalar(
+        select(AdapterInstance)
+        .where(AdapterInstance.instance_code == "demo_hes_poll_primary")
+        .limit(1)
+    )
+    assert instance is not None
+
+    instance.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(args=["enqueue-scheduled-adapter-runs", "--limit", "1"])
+
+    refreshed_run = session.scalar(
+        select(AdapterRun)
+        .where(AdapterRun.adapter_instance_id == instance.id, AdapterRun.trigger_type == "schedule")
+        .order_by(AdapterRun.id.desc())
+        .limit(1)
+    )
+
+    assert result.exit_code == 0
+    assert "eligible=1" in result.output
+    assert "enqueued=1" in result.output
+    assert refreshed_run is not None
+    assert refreshed_run.run_status == "waiting"
 
 
 def test_process_waiting_adapter_runs_returns_empty_summary_when_queue_is_empty(session):
