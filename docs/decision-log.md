@@ -166,6 +166,16 @@ This document records current architectural and process decisions so that the te
   - [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
   - [adapter-backlog.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-backlog.md)
 
+### D-018. Replay-safe adapter operation remains bounded-window-first in the minimal stage
+
+- Status: locked
+- Summary: Replay and idempotency are currently strong enough for bounded polling and repeated incremental runs, but broader recovery and backfill should still be executed as multiple bounded runs rather than one unbounded load
+- Why: The current implementation prioritizes correctness and traceability through application-level replay checks, landing reuse, and completeness-state updates, which is appropriate now but can become expensive at larger volume before stronger database-assisted dedupe and concurrency hardening are in place
+- Related docs:
+  - [replay-idempotency-operations.md](/home/tprover/2604_sim_mdms_auto/docs/replay-idempotency-operations.md)
+  - [adapter-live-hardening-plan.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-live-hardening-plan.md)
+  - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

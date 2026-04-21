@@ -33,21 +33,22 @@ This directory captures the working engineering baseline for the `Minimal End-to
 27. [adapter-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-test-matrix.md)
 28. [adapter-operator-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operator-runbook.md)
 29. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
-30. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
-31. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
-32. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
-33. [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
-34. [minimal-event-alert-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-event-alert-boundary.md)
-35. [operational-event-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/operational-event-table-design.md)
-36. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
-37. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
-38. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
-39. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
-40. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
-41. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
-42. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
-43. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
-44. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+30. [replay-idempotency-operations.md](/home/tprover/2604_sim_mdms_auto/docs/replay-idempotency-operations.md)
+31. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
+32. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
+33. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+34. [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
+35. [minimal-event-alert-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-event-alert-boundary.md)
+36. [operational-event-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/operational-event-table-design.md)
+37. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
+38. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
+39. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
+40. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
+41. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+42. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+43. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+44. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+45. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
 
 ## Intent
 
@@ -82,6 +83,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `adapter-test-matrix.md` turns adapter hardening expectations into concrete test scenarios and verification priorities.
 - `adapter-operator-runbook.md` defines the minimal-stage operating procedure for adapter visibility, `Run Once`, pause and resume, worker commands, and troubleshooting.
 - `adapter-data-model.md` defines the minimum persistent model for adapter definitions, instances, runs, and watermarks.
+- `replay-idempotency-operations.md` explains how replay and idempotency currently work, what limits they imply at larger volume, and why bounded runs remain the preferred operating model in the minimal stage.
 - `adapter-gap-analysis.md` explains what is already implemented versus what is still missing before runtime adapters are execution-complete.
 - `adapter-implementation-sequence.md` defines the recommended order for closing the remaining runtime adapter gap.
 - `pipeline-orchestration.md` defines how data should move upward between layers and how administrators should see status on the dashboard.

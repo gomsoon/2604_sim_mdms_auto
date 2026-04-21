@@ -131,6 +131,12 @@ The adapter should support:
 - replaying already-landed source blocks without multiplying common-raw rows
 - observing whether a late source write changed completeness status
 
+### Operational note
+
+The current replay-safe path is appropriate for bounded windows and repeated incremental polling, but it should not yet be treated as an unlimited bulk-backfill engine.
+
+Until stronger dedupe constraints, conflict-handling, and concurrency hardening are in place, broader recovery or historical loads should be sliced into repeated bounded runs.
+
 ## Workstream 4. Failure classification and operator visibility
 
 ### Goal

@@ -73,6 +73,7 @@ When adding or modifying logic, test at least the following classes of values wh
 - Changes to mapping logic should re-test both mapped and unmapped scenarios.
 - Changes to user-facing text or locale logic should re-test English and Korean presentation paths.
 - Changes to external integration boundaries should re-test adapter behavior and failure handling.
+- Changes to replay, idempotency, or adapter watermark behavior should re-test both exact replay and bounded multi-run scenarios.
 
 ## Recommended test organization
 
@@ -89,6 +90,7 @@ As the repository grows, tests should evolve toward a structure like the followi
 - `pytest-cov` should be used to collect branch coverage for the application package.
 - `Playwright` should be evaluated for functional browser-driven testing.
 - Test data should be deterministic and easy to understand.
+- For integration adapters, bounded replay and repeated-run verification should remain part of the regression baseline.
 
 ## Test design principles
 
@@ -96,6 +98,7 @@ As the repository grows, tests should evolve toward a structure like the followi
 - Name tests by behavior and expected result.
 - Keep fixtures small and domain meaningful.
 - Ensure each test has a clear reason for existence tied to requirements or regression risk.
+- Prefer bounded source windows in adapter tests so replay and idempotency behavior can be reasoned about explicitly.
 
 ## Definition of done for testing
 
