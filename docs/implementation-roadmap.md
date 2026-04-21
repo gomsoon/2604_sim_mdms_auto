@@ -220,6 +220,34 @@ Introduce the first production-like runtime adapter control model without overbu
 - [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
 - [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
 
+### Stage 8. Source-specific packed-read adapter expansion
+
+#### Goal
+
+Introduce the first source-specific adapter path for packed HES read blocks while preserving an interval-granular MDM common raw model.
+
+#### Key tasks
+
+- define the interval-granular common raw read target
+- define the completeness-state table
+- implement optional landing for packed source blocks
+- implement the overseas Oracle `LP_EM` polling adapter
+- expand packed source rows into interval raw rows
+
+#### Test gate
+
+- source block fetch is auditable
+- source block replay can regenerate interval rows
+- interval raw rows preserve lineage to source blocks
+- completeness-state updates are deterministic
+- late-write behavior is visible and testable
+
+#### Related documents
+
+- [common-raw-interval-model.md](/home/tprover/2604_sim_mdms_auto/docs/common-raw-interval-model.md)
+- [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
+- [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

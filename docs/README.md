@@ -18,23 +18,26 @@ This directory captures the working engineering baseline for the `Minimal End-to
 12. [hes-schema-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/hes-schema-checklist.md)
 13. [provisional-raw-schema.md](/home/tprover/2604_sim_mdms_auto/docs/provisional-raw-schema.md)
 14. [data-layer-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/data-layer-architecture.md)
-15. [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
-16. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
-17. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
-18. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
-19. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
-20. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
-21. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
-22. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
-23. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
-24. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
-25. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
-26. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
-27. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
-28. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
-29. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
-30. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
-31. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+15. [common-raw-interval-model.md](/home/tprover/2604_sim_mdms_auto/docs/common-raw-interval-model.md)
+16. [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+17. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
+18. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+19. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
+20. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
+21. [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+22. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
+23. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
+24. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
+25. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+26. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
+27. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
+28. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
+29. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
+30. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+31. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+32. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+33. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+34. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
 
 ## Intent
 
@@ -54,10 +57,13 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `hes-schema-checklist.md` defines what to inspect in the real HES schema before raw table design starts.
 - `provisional-raw-schema.md` defines the pre-HES-review raw schema we can use to keep moving now.
 - `data-layer-architecture.md` defines when to use landing tables and how data should converge into the common raw and final layers.
+- `common-raw-interval-model.md` defines why the common raw layer should remain interval-granular and append-only, even when source HES tables are block-oriented.
 - `integration-adapter-management.md` defines how to distinguish field-normalization adapter profiles from runtime adapters that connect to external HES systems.
 - `adapter-runtime-lifecycle.md` defines the proposed minimal state model for runtime adapters and the operator-facing status view.
 - `adapter-operations-ui.md` defines the recommended first operator actions and screen scope for runtime adapters.
 - `polling-adapter-baseline.md` defines the first practical polling-adapter implementation target and boundaries.
+- `lp-em-adapter-mapping.md` defines the current mapping baseline from the overseas HES `LP_EM` and `METER` tables into landing and common raw.
+- `oracle-lp-em-polling-adapter.md` defines the first source-specific Oracle polling adapter baseline for the overseas HES.
 - `adapter-data-model.md` defines the minimum persistent model for adapter definitions, instances, runs, and watermarks.
 - `adapter-gap-analysis.md` explains what is already implemented versus what is still missing before runtime adapters are execution-complete.
 - `adapter-implementation-sequence.md` defines the recommended order for closing the remaining runtime adapter gap.

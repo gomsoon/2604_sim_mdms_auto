@@ -39,6 +39,10 @@ The first polling baseline should prioritize:
 - company HES as the first target source
 - raw read collection first
 
+The first concrete source-specific design baseline is now captured in:
+
+- [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+
 Raw events can follow the same runtime pattern later, but the first implementation should focus on reads because the strongest current end-to-end path already depends on them.
 
 ## Recommended architectural shape
@@ -209,6 +213,13 @@ If source rows cannot be normalized safely by field mapping alone, the design sh
 
 - polling into a landing area first
 - then controlled movement into common raw
+
+For packed source rows such as `LP_EM`, the recommended path is:
+
+- poll source block
+- optionally persist landing block
+- expand block into interval-granular common raw rows
+- update completeness state
 
 The first polling adapter does not need to implement both paths at once, but it must not block the landing option later.
 

@@ -100,6 +100,24 @@ This document records current architectural and process decisions so that the te
   - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
   - [architecture.md](/home/tprover/2604_sim_mdms_auto/docs/architecture.md)
 
+### D-011. Common raw interval reads remain append-only and interval-granular
+
+- Status: locked
+- Summary: The MDM common raw read model should store one interval read per row and should not copy vendor-specific packed block layouts into the common raw layer
+- Why: This keeps downstream processing vendor-neutral, reduces hot-row update patterns, and makes completeness and replay behavior easier to audit
+- Related docs:
+  - [common-raw-interval-model.md](/home/tprover/2604_sim_mdms_auto/docs/common-raw-interval-model.md)
+  - [data-layer-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/data-layer-architecture.md)
+
+### D-012. Packed HES read blocks belong in landing or adapter expansion, not in common raw
+
+- Status: locked
+- Summary: Source-specific packed rows such as `LP_EM` block rows may be preserved in landing or adapter replay storage, but must be expanded before entering the common raw read layer
+- Why: This allows the project to support multiple HES layouts without forcing one vendor's block format into the internal MDM core
+- Related docs:
+  - [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
+  - [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape
@@ -174,6 +192,15 @@ This document records current architectural and process decisions so that the te
 - Related docs:
   - [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
   - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+
+### O-010. What exact completeness-state shape should accompany interval-granular common raw
+
+- Status: open
+- Why it matters: The project now prefers append-only interval rows in common raw, but the exact table shape, bitmap strategy, and late-update semantics for completeness tracking still need implementation choices
+- Current direction: Add a dedicated completeness or window-state table rather than using packed raw-row updates as the missing-data mechanism
+- Related docs:
+  - [common-raw-interval-model.md](/home/tprover/2604_sim_mdms_auto/docs/common-raw-interval-model.md)
+  - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 
 ## Deferred decisions
 

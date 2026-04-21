@@ -73,6 +73,14 @@ Key rule:
 
 Even if there are multiple HES vendors, the MDM should avoid vendor-specific branching after the common raw layer unless absolutely necessary.
 
+Additional rule:
+
+- the common raw read model should converge to interval-granular append-only rows, not packed vendor-specific block rows
+
+Related document:
+
+- [common-raw-interval-model.md](/home/tprover/2604_sim_mdms_auto/docs/common-raw-interval-model.md)
+
 ### 3. Canonical or initial business layer
 
 Purpose:
@@ -187,6 +195,7 @@ Recommended path:
 Why:
 
 - this preserves source fidelity and allows controlled normalization before business logic depends on the data
+- it allows packed source blocks such as hourly rows with multiple slot columns to remain source-specific while the MDM common raw model stays stable
 
 ## Integration adapter note
 
@@ -258,6 +267,7 @@ For the current phase, the recommended model is:
 
 - our HES goes directly to the common raw layer
 - compatible external HES sources also go directly to the common raw layer
+- packed or block-oriented external HES sources should use landing first and then expand into interval-granular common raw rows
 - incompatible external HES sources use a landing layer first
 - common raw then flows into canonical measurement
 - later phases add `initial_measurement`, VEE, final, usage, and bill determinant layers
