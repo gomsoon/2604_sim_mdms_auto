@@ -505,3 +505,43 @@ class ProcessingWatermark(TimestampMixin, Base):
     record_type: Mapped[str | None] = mapped_column(String(30), index=True)
     last_processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class OperationalEvent(Base):
+    __tablename__ = "operational_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    source_layer: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    event_category: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    event_code: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    is_alert: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    alert_status: Mapped[str | None] = mapped_column(String(20), index=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[str | None] = mapped_column(String(100))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    operator_memo: Mapped[str | None] = mapped_column(Text)
+    title_en: Mapped[str] = mapped_column(String(200), nullable=False)
+    title_ko: Mapped[str] = mapped_column(String(200), nullable=False)
+    message_en: Mapped[str] = mapped_column(Text, nullable=False)
+    message_ko: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_type: Mapped[str | None] = mapped_column(String(40))
+    entity_id: Mapped[int | None] = mapped_column(Integer)
+    adapter_instance_id: Mapped[int | None] = mapped_column(ForeignKey("adapter_instance.id"), index=True)
+    adapter_run_id: Mapped[int | None] = mapped_column(ForeignKey("adapter_run.id"), index=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(ForeignKey("pipeline_run.id"), index=True)
+    ingest_batch_id: Mapped[int | None] = mapped_column(ForeignKey("ingest_batch.id"), index=True)
+    ingest_error_log_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ingest_error_log.id"), index=True
+    )
+    reprocess_request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("reprocess_request.id"), index=True
+    )
+    meter_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
+    batch_id: Mapped[str | None] = mapped_column(String(100), index=True)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

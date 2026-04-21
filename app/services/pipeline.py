@@ -4,9 +4,25 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.models import IngestBatch, PipelineRun, ProcessingWatermark, ReprocessRequest
+from app.services.operational_events import close_operational_alerts, record_operational_event
+
+
+PIPELINE_SUCCESS_EVENT_CODES = {
+    "raw_ingest": "raw_ingest_completed",
+    "canonical": "canonical_completed",
+    "finalization": "finalization_completed",
+    "exception_reprocess": "exception_reprocess_completed",
+}
+
+PIPELINE_FAILURE_EVENT_CODES = {
+    "raw_ingest": "raw_ingest_failed",
+    "canonical": "canonical_failed",
+    "finalization": "finalization_failed",
+    "exception_reprocess": "exception_reprocess_failed",
+}
 
 
 def _normalize_utc(value: datetime) -> datetime:
@@ -49,6 +65,40 @@ def complete_pipeline_run(
     run.completed_at = datetime.now(timezone.utc)
     if details is not None:
         run.details = details
+    session = object_session(run)
+    event_code = PIPELINE_SUCCESS_EVENT_CODES.get(run.pipeline_name)
+    if session is not None and event_code is not None:
+        batch_reference = (
+            run.ingest_batch.batch_id
+            if run.ingest_batch is not None
+            else (run.details or {}).get("batch_id")
+        )
+        record_operational_event(
+            session,
+            event_code,
+            occurred_at=run.completed_at,
+            pipeline_run=run,
+            ingest_batch=run.ingest_batch,
+            reprocess_request=run.reprocess_request,
+            meter_identifier=(run.details or {}).get("meter_identifier"),
+            details={
+                "pipeline_name": run.pipeline_name,
+                "trigger_type": run.trigger_type,
+                "result_code": result_code,
+                **(run.details or {}),
+            },
+            batch_id=batch_reference,
+        )
+        failure_event_code = PIPELINE_FAILURE_EVENT_CODES.get(run.pipeline_name)
+        if failure_event_code is not None and (
+            run.ingest_batch_id is not None or run.reprocess_request_id is not None
+        ):
+            close_operational_alerts(
+                session,
+                event_code=failure_event_code,
+                ingest_batch_id=run.ingest_batch_id,
+                reprocess_request_id=run.reprocess_request_id,
+            )
     return run
 
 
@@ -63,6 +113,30 @@ def fail_pipeline_run(
     run.completed_at = datetime.now(timezone.utc)
     if details is not None:
         run.details = details
+    session = object_session(run)
+    event_code = PIPELINE_FAILURE_EVENT_CODES.get(run.pipeline_name)
+    if session is not None and event_code is not None:
+        batch_reference = (
+            run.ingest_batch.batch_id
+            if run.ingest_batch is not None
+            else (run.details or {}).get("batch_id")
+        )
+        record_operational_event(
+            session,
+            event_code,
+            occurred_at=run.completed_at,
+            pipeline_run=run,
+            ingest_batch=run.ingest_batch,
+            reprocess_request=run.reprocess_request,
+            batch_id=batch_reference,
+            meter_identifier=(run.details or {}).get("meter_identifier"),
+            details={
+                "pipeline_name": run.pipeline_name,
+                "trigger_type": run.trigger_type,
+                "result_code": result_code,
+                **(run.details or {}),
+            },
+        )
     return run
 
 

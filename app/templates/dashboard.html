@@ -189,4 +189,102 @@
     </div>
   </div>
 </section>
+
+<section class="row g-4 mt-1">
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">{{ t("dashboard.open_alerts") }}</h2>
+          <span class="badge text-bg-danger">{{ stats.open_alerts }}</span>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for row in open_alerts %}
+          <div class="list-group-item px-0">
+            <div class="d-flex justify-content-between gap-3 mb-1">
+              <div class="fw-semibold">{{ t_event_title(row) }}</div>
+              <div class="d-flex gap-2 align-self-start">
+                <span class="badge text-bg-{{ 'danger' if row.severity in ['error', 'critical'] else 'warning' if row.severity == 'warning' else 'secondary' }}">
+                  {{ t_or("operational_event.severity." ~ row.severity, row.severity) }}
+                </span>
+                <span class="badge text-bg-light">
+                  {{ t_or("common.status." ~ row.alert_status, row.alert_status or t("common.none")) }}
+                </span>
+              </div>
+            </div>
+            <div class="small text-secondary mb-2">{{ t_event_message(row) }}</div>
+            <div class="d-flex justify-content-between gap-3 small">
+              <span class="text-secondary">{{ row.occurred_at|dt }}</span>
+              <span class="text-secondary">
+                {% if row.batch_id %}
+                  {{ row.batch_id }}
+                {% elif row.meter_identifier %}
+                  {{ row.meter_identifier }}
+                {% else %}
+                  {{ t("common.none") }}
+                {% endif %}
+              </span>
+            </div>
+          </div>
+          {% else %}
+          <div class="text-secondary">{{ t("dashboard.no_open_alerts") }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">{{ t("dashboard.recent_events") }}</h2>
+          <span class="badge text-bg-light">{{ recent_events|length }}</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.occurred_at") }}</th>
+                <th>{{ t("table.severity") }}</th>
+                <th>{{ t("table.event") }}</th>
+                <th>{{ t("table.source_layer") }}</th>
+                <th>{{ t("table.status") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in recent_events %}
+              <tr>
+                <td>{{ row.occurred_at|dt }}</td>
+                <td>
+                  <span class="badge text-bg-{{ 'danger' if row.severity in ['error', 'critical'] else 'warning' if row.severity == 'warning' else 'secondary' }}">
+                    {{ t_or("operational_event.severity." ~ row.severity, row.severity) }}
+                  </span>
+                </td>
+                <td>
+                  <div class="fw-semibold">{{ t_event_title(row) }}</div>
+                  <div class="small text-secondary">{{ t_event_message(row) }}</div>
+                </td>
+                <td>{{ t_or("operational_event.source_layer." ~ row.source_layer, row.source_layer) }}</td>
+                <td>
+                  {% if row.is_alert %}
+                  <span class="badge text-bg-light">
+                    {{ t_or("common.status." ~ row.alert_status, row.alert_status or t("common.none")) }}
+                  </span>
+                  {% else %}
+                  <span class="text-secondary">{{ t("common.none") }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="text-secondary">{{ t("dashboard.no_recent_events") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 {% endblock %}

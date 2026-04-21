@@ -57,12 +57,16 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "adapter_watermark" in tables
         assert "landing_lp_em_read_block" in tables
         assert "raw_interval_window_state" in tables
+        assert "operational_event" in tables
 
         ingest_batch_columns = {
             column["name"] for column in inspector.get_columns("ingest_batch", schema=schema_name)
         }
         hes_read_raw_columns = {
             column["name"] for column in inspector.get_columns("hes_read_raw", schema=schema_name)
+        }
+        operational_event_columns = {
+            column["name"] for column in inspector.get_columns("operational_event", schema=schema_name)
         }
 
         assert "adapter_instance_id" in ingest_batch_columns
@@ -72,5 +76,10 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "landing_lp_em_read_block_id" in hes_read_raw_columns
         assert "interval_size_minutes" in hes_read_raw_columns
         assert "source_write_ts" in hes_read_raw_columns
+        assert "is_alert" in operational_event_columns
+        assert "alert_status" in operational_event_columns
+        assert "opened_at" in operational_event_columns
+        assert "acknowledged_at" in operational_event_columns
+        assert "closed_at" in operational_event_columns
     finally:
         drop_schema(test_database_url, schema_name)

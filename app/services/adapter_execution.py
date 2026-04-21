@@ -25,6 +25,7 @@ from app.services.nuri_aimir_hes_source import (
 from app.services.ingest_adapters import DEFAULT_ADAPTER_KEY
 from app.services.ingest_contract import coerce_numeric, parse_datetime
 from app.services.ingestion import ingest_events, ingest_reads
+from app.services.operational_events import close_operational_alerts, record_operational_event
 
 
 @dataclass(slots=True)
@@ -825,6 +826,15 @@ def _claim_adapter_run(session: Session, run: AdapterRun) -> AdapterRun:
     run.details = _coerce_details(run.details) | {"claimed_at": started_at.isoformat()}
     run.adapter_instance.last_heartbeat_at = started_at
     session.flush()
+    record_operational_event(
+        session,
+        "adapter_run_started",
+        occurred_at=started_at,
+        adapter_instance=run.adapter_instance,
+        adapter_run=run,
+        details={"trigger_type": run.trigger_type, **run.details},
+        instance_code=run.adapter_instance.instance_code,
+    )
     return run
 
 
@@ -911,6 +921,32 @@ def _complete_adapter_run(
         polled_at=completed_at,
     )
     session.flush()
+    record_operational_event(
+        session,
+        "adapter_run_completed",
+        occurred_at=completed_at,
+        adapter_instance=instance,
+        adapter_run=run,
+        details={
+            "trigger_type": run.trigger_type,
+            "source_rows_fetched": envelope.source_rows_fetched,
+            "ingest_batches_created": ingest_batches_created,
+            "ingest_records_created": ingest_records_created,
+            "watermark_before": envelope.watermark_before,
+            "watermark_after": envelope.watermark_after,
+        },
+        instance_code=instance.instance_code,
+        source_rows_fetched=envelope.source_rows_fetched,
+        ingest_batches_created=ingest_batches_created,
+        ingest_records_created=ingest_records_created,
+    )
+    close_operational_alerts(
+        session,
+        event_code="adapter_run_failed",
+        adapter_instance_id=instance.id,
+        operator_memo="Closed automatically after a successful adapter run.",
+        closed_at=completed_at,
+    )
 
     return AdapterRunExecutionResult(
         run_id=run.id,
@@ -948,6 +984,20 @@ def _fail_adapter_run(
     instance.last_heartbeat_at = completed_at
     instance.next_run_at = _schedule_next_run(instance, reference_time=completed_at)
     session.flush()
+    record_operational_event(
+        session,
+        "adapter_run_failed",
+        occurred_at=completed_at,
+        adapter_instance=instance,
+        adapter_run=run,
+        details={
+            "trigger_type": run.trigger_type,
+            "error_code": error.error_code,
+            **(error.details or {}),
+        },
+        instance_code=instance.instance_code,
+        error_summary=error.fallback_message,
+    )
 
     return AdapterRunExecutionResult(
         run_id=run.id,

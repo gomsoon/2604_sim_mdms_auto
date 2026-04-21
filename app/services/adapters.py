@@ -9,6 +9,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import AdapterDefinition, AdapterInstance, AdapterRun, AdapterWatermark
+from app.services.operational_events import record_operational_event
 
 
 @dataclass(slots=True)
@@ -311,6 +312,14 @@ def update_adapter_admin_state(
     instance.admin_state = target_state
     instance.status_reason = f"manual_{target_state}"
     session.flush()
+    event_code = "adapter_enabled" if target_state == "enabled" else "adapter_paused"
+    record_operational_event(
+        session,
+        event_code,
+        adapter_instance=instance,
+        details={"admin_state": target_state, "status_reason": instance.status_reason},
+        instance_code=instance.instance_code,
+    )
     return instance
 
 
@@ -345,6 +354,15 @@ def queue_adapter_run_once(session: Session, instance: AdapterInstance) -> Adapt
     )
     session.add(run)
     session.flush()
+    record_operational_event(
+        session,
+        "adapter_run_queued",
+        adapter_instance=instance,
+        adapter_run=run,
+        details={"trigger_type": run.trigger_type, **run.details},
+        instance_code=instance.instance_code,
+        trigger_type=run.trigger_type,
+    )
     return run
 
 
@@ -404,6 +422,15 @@ def enqueue_scheduled_adapter_runs(
         )
         session.add(run)
         session.flush()
+        record_operational_event(
+            session,
+            "adapter_run_queued",
+            adapter_instance=instance,
+            adapter_run=run,
+            details={"trigger_type": run.trigger_type, **run.details},
+            instance_code=instance.instance_code,
+            trigger_type=run.trigger_type,
+        )
         enqueued_runs.append(run.id)
 
     return ScheduledAdapterEnqueueSummary(

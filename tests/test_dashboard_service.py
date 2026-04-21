@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.models import AdapterInstance, AdapterRun, IngestErrorLog
+from app.models import AdapterInstance, AdapterRun, IngestErrorLog, OperationalEvent
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.exception_queue import reprocess_exception
 from app.services.finalization import finalize_canonical_measurements
@@ -17,6 +17,9 @@ def test_dashboard_snapshot_returns_zero_stage_counts_without_data(session):
     assert snapshot.stats["raw_reads"] == 0
     assert snapshot.stats["raw_events"] == 0
     assert snapshot.stats["exceptions"] == 0
+    assert snapshot.stats["open_alerts"] == 0
+    assert snapshot.open_alerts == []
+    assert snapshot.recent_events == []
     assert [(card.waiting, card.processing, card.completed, card.failed) for card in snapshot.stage_cards] == [
         (0, 0, 0, 0),
         (0, 0, 0, 0),
@@ -60,6 +63,9 @@ def test_dashboard_snapshot_derives_stage_counts_from_seeded_data(session):
     assert cards["dashboard.stage.final"].processing == 0
     assert cards["dashboard.stage.final"].completed == 0
     assert cards["dashboard.stage.final"].failed == 0
+    assert snapshot.stats["open_alerts"] == 1
+    assert snapshot.open_alerts[0].event_code == "canonical_failed"
+    assert len(snapshot.recent_events) >= 5
 
 
 def test_dashboard_snapshot_reflects_failed_reprocess_pipeline_runs(session):
@@ -83,6 +89,11 @@ def test_dashboard_snapshot_reflects_failed_reprocess_pipeline_runs(session):
     assert cards["dashboard.stage.errors"].processing == 0
     assert cards["dashboard.stage.errors"].completed == 0
     assert cards["dashboard.stage.errors"].failed == 1
+    assert snapshot.stats["open_alerts"] == 2
+    assert {row.event_code for row in snapshot.open_alerts} >= {
+        "canonical_failed",
+        "exception_reprocess_failed",
+    }
 
 
 def test_dashboard_snapshot_reflects_finalization_pipeline_runs(session):
@@ -99,6 +110,7 @@ def test_dashboard_snapshot_reflects_finalization_pipeline_runs(session):
     assert cards["dashboard.stage.final"].processing == 0
     assert cards["dashboard.stage.final"].completed == 1
     assert cards["dashboard.stage.final"].failed == 0
+    assert any(row.event_code == "finalization_completed" for row in snapshot.recent_events)
 
 
 def test_dashboard_snapshot_derives_integration_card_from_adapter_runtime_states(session):
@@ -173,3 +185,31 @@ def test_dashboard_snapshot_derives_integration_card_from_adapter_runtime_states
     assert card.completed == 1
     assert card.failed == 1
     assert card.summary_rows[1].value == 1
+
+
+def test_dashboard_snapshot_lists_open_alerts_and_recent_events_in_time_order(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    later_event = OperationalEvent(
+        occurred_at=datetime.now(timezone.utc),
+        source_layer="system",
+        event_category="system_health",
+        event_code="test_event",
+        severity="warning",
+        is_alert=True,
+        alert_status="open",
+        opened_at=datetime.now(timezone.utc),
+        title_en="Test event",
+        title_ko="테스트 이벤트",
+        message_en="A test event was recorded.",
+        message_ko="테스트 이벤트가 기록되었습니다.",
+        details={},
+    )
+    session.add(later_event)
+    session.commit()
+
+    snapshot = build_dashboard_snapshot(session)
+
+    assert snapshot.open_alerts[0].id == later_event.id
+    assert snapshot.recent_events[0].id == later_event.id

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import func, select
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun, OperationalEvent
 from app.services.adapters import (
     AdapterValidationError,
     create_adapter_instance,
@@ -44,6 +44,11 @@ def test_queue_adapter_run_once_allows_paused_instance(session):
     assert run.trigger_type == "manual"
     assert run.run_status == "waiting"
     assert session.scalar(select(func.count()).select_from(AdapterRun)) == 2
+    latest_event = session.scalar(
+        select(OperationalEvent).order_by(OperationalEvent.id.desc()).limit(1)
+    )
+    assert latest_event is not None
+    assert latest_event.event_code == "adapter_run_queued"
 
 
 def test_queue_adapter_run_once_rejects_duplicate_waiting_run(session):
@@ -170,6 +175,11 @@ def test_enqueue_scheduled_adapter_runs_creates_waiting_schedule_run_for_due_pol
     assert scheduled_run is not None
     assert scheduled_run.run_status == "waiting"
     assert scheduled_run.details["requested_via"] == "scheduler"
+    latest_event = session.scalar(
+        select(OperationalEvent).order_by(OperationalEvent.id.desc()).limit(1)
+    )
+    assert latest_event is not None
+    assert latest_event.event_code == "adapter_run_queued"
 
 
 def test_enqueue_scheduled_adapter_runs_skips_instance_with_active_waiting_run(session):

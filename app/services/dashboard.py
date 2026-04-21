@@ -15,6 +15,7 @@ from app.models import (
     HesReadRaw,
     IngestErrorLog,
     MeasuringComponent,
+    OperationalEvent,
     PipelineRun,
     ServicePoint,
 )
@@ -55,6 +56,8 @@ class DashboardSnapshot:
     stage_cards: list[StageStatusCard]
     recent_reads: list[HesReadRaw]
     recent_exceptions: list[IngestErrorLog]
+    open_alerts: list[OperationalEvent]
+    recent_events: list[OperationalEvent]
 
 
 def _count(session: Session, statement) -> int:
@@ -87,6 +90,15 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         "canonical": _count(session, select(func.count()).select_from(CanonicalMeasurement)),
         "final": _count(session, select(func.count()).select_from(FinalMeasurement)),
         "exceptions": _count(session, select(func.count()).select_from(IngestErrorLog)),
+        "open_alerts": _count(
+            session,
+            select(func.count())
+            .select_from(OperationalEvent)
+            .where(
+                OperationalEvent.is_alert.is_(True),
+                OperationalEvent.alert_status.in_(("open", "acknowledged")),
+            ),
+        ),
     }
 
     adapter_instances = session.scalars(select(AdapterInstance).order_by(AdapterInstance.id.asc())).all()
@@ -273,10 +285,26 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
     recent_exceptions = session.scalars(
         select(IngestErrorLog).order_by(IngestErrorLog.id.desc()).limit(10)
     ).all()
+    open_alerts = session.scalars(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.is_alert.is_(True),
+            OperationalEvent.alert_status.in_(("open", "acknowledged")),
+        )
+        .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
+        .limit(5)
+    ).all()
+    recent_events = session.scalars(
+        select(OperationalEvent)
+        .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
+        .limit(12)
+    ).all()
 
     return DashboardSnapshot(
         stats=stats,
         stage_cards=stage_cards,
         recent_reads=recent_reads,
         recent_exceptions=recent_exceptions,
+        open_alerts=open_alerts,
+        recent_events=recent_events,
     )

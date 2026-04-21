@@ -51,10 +51,14 @@ MESSAGES = {
         "dashboard.exceptions": "Exceptions",
         "dashboard.recent_raw_reads": "Recent Raw Reads",
         "dashboard.recent_exceptions": "Recent Exceptions",
+        "dashboard.open_alerts": "Open Alerts",
+        "dashboard.recent_events": "Recent Events",
         "dashboard.view_all": "View all",
         "dashboard.view_queue": "View queue",
         "dashboard.no_raw_reads": "No raw reads loaded yet.",
         "dashboard.no_exceptions": "No exceptions recorded.",
+        "dashboard.no_open_alerts": "No open alerts right now.",
+        "dashboard.no_recent_events": "No recent operational events have been recorded.",
         "page.raw_reads.title": "Raw Reads",
         "page.raw_reads.description": "Original meter reads are preserved before business-level processing.",
         "page.raw_events.title": "Raw Events",
@@ -118,7 +122,11 @@ MESSAGES = {
         "table.channel": "Channel",
         "table.measured_at": "Measured At",
         "table.value": "Value",
+        "table.event": "Event",
+        "table.occurred_at": "Occurred At",
         "table.status": "Status",
+        "table.alert_status": "Alert Status",
+        "table.source_layer": "Source Layer",
         "table.latest_run_status": "Latest Run",
         "table.duplicate": "Duplicate",
         "table.event_time": "Event Time",
@@ -205,6 +213,8 @@ MESSAGES = {
         "common.status.finalized": "finalized",
         "common.status.installed": "installed",
         "common.status.open": "open",
+        "common.status.acknowledged": "acknowledged",
+        "common.status.closed": "closed",
         "common.status.processing": "processing",
         "common.status.removed": "removed",
         "common.status.resolved": "resolved",
@@ -237,6 +247,15 @@ MESSAGES = {
         "severity.high": "high",
         "severity.medium": "medium",
         "severity.low": "low",
+        "operational_event.severity.info": "info",
+        "operational_event.severity.warning": "warning",
+        "operational_event.severity.error": "error",
+        "operational_event.severity.critical": "critical",
+        "operational_event.source_layer.integration": "integration",
+        "operational_event.source_layer.ingest": "ingest",
+        "operational_event.source_layer.processing": "processing",
+        "operational_event.source_layer.system": "system",
+        "operational_event.source_layer.operator_action": "operator action",
         "canonical_status.mapped": "mapped",
         "canonical_status.duplicate": "duplicate",
         "canonical_status.exception": "exception",
@@ -378,10 +397,14 @@ MESSAGES = {
         "dashboard.exceptions": "오류",
         "dashboard.recent_raw_reads": "최근 원시 검침",
         "dashboard.recent_exceptions": "최근 오류",
+        "dashboard.open_alerts": "열린 알림",
+        "dashboard.recent_events": "최근 이벤트",
         "dashboard.view_all": "전체 보기",
         "dashboard.view_queue": "큐 보기",
         "dashboard.no_raw_reads": "적재된 원시 검침이 없습니다.",
         "dashboard.no_exceptions": "기록된 오류가 없습니다.",
+        "dashboard.no_open_alerts": "현재 열린 알림이 없습니다.",
+        "dashboard.no_recent_events": "기록된 최근 운영 이벤트가 없습니다.",
         "page.raw_reads.title": "원시 검침",
         "page.raw_reads.description": "원시 검침 데이터는 업무 처리 전에 먼저 보존됩니다.",
         "page.raw_events.title": "원시 이벤트",
@@ -445,7 +468,11 @@ MESSAGES = {
         "table.channel": "채널",
         "table.measured_at": "검침 시각",
         "table.value": "값",
+        "table.event": "이벤트",
+        "table.occurred_at": "발생 시각",
         "table.status": "상태",
+        "table.alert_status": "알림 상태",
+        "table.source_layer": "출처 계층",
         "table.latest_run_status": "최근 실행 상태",
         "table.duplicate": "중복",
         "table.event_time": "이벤트 시각",
@@ -532,6 +559,8 @@ MESSAGES = {
         "common.status.finalized": "최종화",
         "common.status.installed": "설치됨",
         "common.status.open": "대기",
+        "common.status.acknowledged": "확인됨",
+        "common.status.closed": "종료됨",
         "common.status.processing": "처리 중",
         "common.status.removed": "철거됨",
         "common.status.resolved": "해결됨",
@@ -564,6 +593,15 @@ MESSAGES = {
         "severity.high": "높음",
         "severity.medium": "보통",
         "severity.low": "낮음",
+        "operational_event.severity.info": "정보",
+        "operational_event.severity.warning": "주의",
+        "operational_event.severity.error": "오류",
+        "operational_event.severity.critical": "심각",
+        "operational_event.source_layer.integration": "연계",
+        "operational_event.source_layer.ingest": "적재",
+        "operational_event.source_layer.processing": "처리",
+        "operational_event.source_layer.system": "시스템",
+        "operational_event.source_layer.operator_action": "운영자 동작",
         "canonical_status.mapped": "매핑 완료",
         "canonical_status.duplicate": "중복",
         "canonical_status.exception": "예외",
@@ -758,6 +796,20 @@ def translate_finalization_result(
     return translate_or(key, fallback_message or code, **kwargs)
 
 
+def translate_operational_event_title(event, locale: str | None = None) -> str:
+    target_locale = normalize_locale(locale) or get_locale()
+    if target_locale == "ko":
+        return getattr(event, "title_ko", None) or getattr(event, "title_en", None) or "-"
+    return getattr(event, "title_en", None) or getattr(event, "title_ko", None) or "-"
+
+
+def translate_operational_event_message(event, locale: str | None = None) -> str:
+    target_locale = normalize_locale(locale) or get_locale()
+    if target_locale == "ko":
+        return getattr(event, "message_ko", None) or getattr(event, "message_en", None) or "-"
+    return getattr(event, "message_en", None) or getattr(event, "message_ko", None) or "-"
+
+
 def localized_url(target_locale: str) -> str:
     normalized_locale = normalize_locale(target_locale) or DEFAULT_LOCALE
     if request.endpoint is None:
@@ -798,4 +850,6 @@ def register_i18n(app: Flask) -> None:
             "t_reprocess_result": translate_reprocess_result,
             "t_reprocess_error": translate_reprocess_error,
             "t_visibility_error": translate_visibility_error,
+            "t_event_title": translate_operational_event_title,
+            "t_event_message": translate_operational_event_message,
         }

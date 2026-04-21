@@ -16,6 +16,7 @@ from app.models import (
     InstallationHistory,
     LandingLpEmReadBlock,
     MeasuringComponent,
+    OperationalEvent,
     RawIntervalWindowState,
     ServicePoint,
 )
@@ -148,6 +149,7 @@ def test_execute_adapter_run_consumes_waiting_run_and_creates_ingest_lineage(ses
         .limit(1)
     )
     refreshed_instance = session.get(AdapterInstance, instance.id)
+    event_codes = set(session.scalars(select(OperationalEvent.event_code)).all())
 
     assert result.run_status == "completed"
     assert result.source_rows_fetched == 2
@@ -168,6 +170,7 @@ def test_execute_adapter_run_consumes_waiting_run_and_creates_ingest_lineage(ses
     assert refreshed_instance.last_success_at != previous_success_at
     assert refreshed_instance.last_error_message is None
     assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 2
+    assert {"adapter_run_started", "adapter_run_completed", "ingest_batch_accepted", "raw_ingest_completed", "canonical_completed"} <= event_codes
 
 
 def test_execute_adapter_run_completes_without_new_rows_when_watermark_is_current(session):
@@ -258,6 +261,9 @@ def test_execute_adapter_run_marks_failed_for_unknown_implementation(session):
 
     refreshed_run = session.get(AdapterRun, run.id)
     refreshed_instance = session.get(AdapterInstance, instance.id)
+    latest_event = session.scalar(
+        select(OperationalEvent).order_by(OperationalEvent.id.desc()).limit(1)
+    )
 
     assert result.run_status == "failed"
     assert result.error_code == "unsupported_runtime_implementation"
@@ -268,6 +274,10 @@ def test_execute_adapter_run_marks_failed_for_unknown_implementation(session):
     assert refreshed_instance.last_failure_at is not None
     assert refreshed_instance.last_error_message is not None
     assert session.scalar(select(func.count()).select_from(IngestBatch)) == 0
+    assert latest_event is not None
+    assert latest_event.event_code == "adapter_run_failed"
+    assert latest_event.is_alert is True
+    assert latest_event.alert_status == "open"
 
 
 def test_process_adapter_runs_cli_processes_waiting_run(app, session):

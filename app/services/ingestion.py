@@ -18,6 +18,7 @@ from app.models import (
 )
 from app.services.ingest_adapters import adapt_event_records, adapt_read_records
 from app.services.ingest_contract import coerce_numeric, parse_datetime
+from app.services.operational_events import record_operational_event
 from app.services.pipeline import (
     complete_pipeline_run,
     fail_pipeline_run,
@@ -257,6 +258,20 @@ def ingest_reads(
     )
     session.add(batch)
     session.flush()
+    record_operational_event(
+        session,
+        "ingest_batch_accepted",
+        occurred_at=received_at,
+        ingest_batch=batch,
+        meter_identifier=None,
+        details={
+            "record_type": batch.record_type,
+            "source_system": source_system,
+            "adapter_key": adapter_key,
+        },
+        batch_id=batch.batch_id,
+        record_type=batch.record_type,
+    )
 
     raw_ingest_run = start_pipeline_run(
         session,
@@ -462,6 +477,20 @@ def ingest_events(
     )
     session.add(batch)
     session.flush()
+    record_operational_event(
+        session,
+        "ingest_batch_accepted",
+        occurred_at=received_at,
+        ingest_batch=batch,
+        meter_identifier=None,
+        details={
+            "record_type": batch.record_type,
+            "source_system": source_system,
+            "adapter_key": adapter_key,
+        },
+        batch_id=batch.batch_id,
+        record_type=batch.record_type,
+    )
 
     raw_ingest_run = start_pipeline_run(
         session,

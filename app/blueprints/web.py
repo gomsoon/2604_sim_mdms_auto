@@ -82,6 +82,8 @@ def dashboard():
         stage_cards=snapshot.stage_cards,
         recent_reads=snapshot.recent_reads,
         recent_exceptions=snapshot.recent_exceptions,
+        open_alerts=snapshot.open_alerts,
+        recent_events=snapshot.recent_events,
     )
 
 
