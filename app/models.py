@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    Index,
     JSON,
     Boolean,
     DateTime,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -278,6 +280,24 @@ class InstallationHistory(TimestampMixin, Base):
 
 class HesReadRaw(TimestampMixin, Base):
     __tablename__ = "hes_read_raw"
+    __table_args__ = (
+        Index(
+            "uq_hes_read_raw_source_record_key_scope",
+            "source_system",
+            "source_record_key",
+            unique=True,
+            postgresql_where=text(
+                "source_record_key IS NOT NULL AND btrim(source_record_key) <> ''"
+            ),
+        ),
+        Index(
+            "ix_hes_read_raw_source_meter_channel_measured_at",
+            "source_system",
+            "meter_identifier",
+            "channel_identifier",
+            "measured_at",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ingest_batch_id: Mapped[int] = mapped_column(ForeignKey("ingest_batch.id"), nullable=False)

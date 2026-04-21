@@ -5,6 +5,7 @@ from pathlib import Path
 
 from alembic import command
 from sqlalchemy import create_engine, inspect
+from sqlalchemy import text
 
 from app.migrations import build_alembic_config
 TESTS_DIR = Path(__file__).resolve().parent
@@ -81,5 +82,29 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "opened_at" in operational_event_columns
         assert "acknowledged_at" in operational_event_columns
         assert "closed_at" in operational_event_columns
+
+        engine = create_engine(schema_url)
+        with engine.connect() as connection:
+            index_rows = connection.execute(
+                text(
+                    """
+                    select indexname, indexdef
+                    from pg_indexes
+                    where schemaname = :schema_name
+                      and tablename = 'hes_read_raw'
+                    order by indexname
+                    """
+                ),
+                {"schema_name": schema_name},
+            ).fetchall()
+
+        index_defs = {row.indexname: row.indexdef for row in index_rows}
+
+        assert "uq_hes_read_raw_source_record_key_scope" in index_defs
+        assert "UNIQUE INDEX" in index_defs["uq_hes_read_raw_source_record_key_scope"]
+        assert "source_record_key IS NOT NULL" in index_defs[
+            "uq_hes_read_raw_source_record_key_scope"
+        ]
+        assert "ix_hes_read_raw_source_meter_channel_measured_at" in index_defs
     finally:
         drop_schema(test_database_url, schema_name)

@@ -57,8 +57,7 @@ def _create_adapter_runtime(session) -> tuple[AdapterInstance, AdapterRun]:
     return instance, run
 
 
-def test_landing_block_links_to_runtime_and_raw_interval(session):
-    instance, run = _create_adapter_runtime(session)
+def _create_ingest_batch(session, *, instance: AdapterInstance, run: AdapterRun) -> IngestBatch:
     batch = IngestBatch(
         source_system="HES_OVERSEAS",
         batch_id="batch-001",
@@ -70,6 +69,12 @@ def test_landing_block_links_to_runtime_and_raw_interval(session):
     )
     session.add(batch)
     session.flush()
+    return batch
+
+
+def test_landing_block_links_to_runtime_and_raw_interval(session):
+    instance, run = _create_adapter_runtime(session)
+    batch = _create_ingest_batch(session, instance=instance, run=run)
 
     landing_block = LandingLpEmReadBlock(
         adapter_instance_id=instance.id,
@@ -166,16 +171,7 @@ def test_landing_block_key_must_be_unique_per_source_system(session):
 
 def test_raw_interval_window_state_scope_is_unique(session):
     instance, run = _create_adapter_runtime(session)
-    batch = IngestBatch(
-        source_system="HES_OVERSEAS",
-        batch_id="batch-001",
-        record_type="hes_read_raw",
-        received_at=datetime.now(timezone.utc),
-        payload={"reads": []},
-        adapter_instance_id=instance.id,
-        adapter_run_id=run.id,
-    )
-    session.add(batch)
+    batch = _create_ingest_batch(session, instance=instance, run=run)
     session.commit()
 
     first = RawIntervalWindowState(
@@ -216,3 +212,91 @@ def test_raw_interval_window_state_scope_is_unique(session):
         session.commit()
 
     session.rollback()
+
+
+def test_hes_read_raw_source_record_key_scope_is_unique(session):
+    instance, run = _create_adapter_runtime(session)
+    batch = _create_ingest_batch(session, instance=instance, run=run)
+
+    first = HesReadRaw(
+        ingest_batch_id=batch.id,
+        adapter_instance_id=instance.id,
+        adapter_run_id=run.id,
+        source_system="HES_OVERSEAS",
+        source_record_key="LP_EM|32418|2024080603|0|00|20240806030100",
+        meter_identifier="32418",
+        channel_identifier="0",
+        measured_at=datetime(2024, 8, 5, 18, 0, tzinfo=timezone.utc),
+        interval_size_minutes=60,
+        reading_value=14.2,
+        received_at=datetime.now(timezone.utc),
+        canonical_status="pending",
+        is_duplicate=False,
+        payload={"VALUE_00": 14.2},
+    )
+    second = HesReadRaw(
+        ingest_batch_id=batch.id,
+        adapter_instance_id=instance.id,
+        adapter_run_id=run.id,
+        source_system="HES_OVERSEAS",
+        source_record_key="LP_EM|32418|2024080603|0|00|20240806030100",
+        meter_identifier="32418",
+        channel_identifier="0",
+        measured_at=datetime(2024, 8, 5, 19, 0, tzinfo=timezone.utc),
+        interval_size_minutes=60,
+        reading_value=15.0,
+        received_at=datetime.now(timezone.utc),
+        canonical_status="pending",
+        is_duplicate=False,
+        payload={"VALUE_00": 15.0},
+    )
+    session.add_all([first, second])
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+    session.rollback()
+
+
+def test_hes_read_raw_blank_source_record_key_is_not_uniqued(session):
+    instance, run = _create_adapter_runtime(session)
+    batch = _create_ingest_batch(session, instance=instance, run=run)
+
+    session.add_all(
+        [
+            HesReadRaw(
+                ingest_batch_id=batch.id,
+                adapter_instance_id=instance.id,
+                adapter_run_id=run.id,
+                source_system="HES_OVERSEAS",
+                source_record_key="",
+                meter_identifier="32418",
+                channel_identifier="0",
+                measured_at=datetime(2024, 8, 5, 18, 0, tzinfo=timezone.utc),
+                interval_size_minutes=60,
+                reading_value=14.2,
+                received_at=datetime.now(timezone.utc),
+                canonical_status="pending",
+                is_duplicate=False,
+                payload={"VALUE_00": 14.2},
+            ),
+            HesReadRaw(
+                ingest_batch_id=batch.id,
+                adapter_instance_id=instance.id,
+                adapter_run_id=run.id,
+                source_system="HES_OVERSEAS",
+                source_record_key="",
+                meter_identifier="32418",
+                channel_identifier="1",
+                measured_at=datetime(2024, 8, 5, 19, 0, tzinfo=timezone.utc),
+                interval_size_minutes=60,
+                reading_value=15.0,
+                received_at=datetime.now(timezone.utc),
+                canonical_status="pending",
+                is_duplicate=False,
+                payload={"VALUE_00": 15.0},
+            ),
+        ]
+    )
+
+    session.commit()

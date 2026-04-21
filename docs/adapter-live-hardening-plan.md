@@ -123,6 +123,17 @@ Make the path from source block to landing to common raw safe for reruns and lat
 - safe completeness-state updates on replay
 - safe behavior when the same logical hour is polled more than once
 
+### Current near-term database direction
+
+For the minimal stage, `hes_read_raw` should be hardened in two different ways.
+
+- `source_system + source_record_key`
+  - promote to a database-enforced partial unique index
+- `source_system + meter_identifier + channel_identifier + measured_at`
+  - promote to a composite lookup index, but not yet a unique constraint
+
+This keeps exact replay protection strong while preserving flexibility for later decisions about late writes and logical duplicates.
+
 ### Expected outcome
 
 The adapter should support:

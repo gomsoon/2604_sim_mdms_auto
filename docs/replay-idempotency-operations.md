@@ -213,6 +213,58 @@ The current code checks:
 
 But those checks are not yet fully enforced as the primary dedupe baseline by a database unique strategy.
 
+## Near-term database hardening decision
+
+The next hardening step should not promote every dedupe rule to the same database constraint level.
+
+The two current dedupe scopes have different meanings and should be hardened differently.
+
+### 1. Exact replay key
+
+Scope:
+
+- `source_system`
+- `source_record_key`
+
+Recommended database posture now:
+
+- add a PostgreSQL partial unique index
+- apply it only when `source_record_key` is present and non-blank
+
+Reason:
+
+- this key represents the strongest replay identity currently available
+- it is already used by the ingestion path as the first replay check
+- it is the best candidate for database-enforced protection against rerun and race-condition replay
+
+### 2. Business duplicate key
+
+Scope:
+
+- `source_system`
+- `meter_identifier`
+- `channel_identifier`
+- `measured_at`
+
+Recommended database posture now:
+
+- add a composite non-unique index
+- keep business-duplicate handling in application logic for now
+
+Reason:
+
+- the system may still need to observe late writes, source corrections, or source-record variance under the same logical interval
+- promoting this key to a strict unique constraint too early would lock in a policy that is not fully settled yet
+
+## Minimal-stage rule
+
+For the minimal stage, the working rule is:
+
+- exact replay should become database-enforced
+- business duplicate should become database-accelerated, but not yet database-forbidden
+
+This gives the system a stronger first-line replay defense without closing off future policy choices for late updates or source corrections.
+
 ### Gap 3. Concurrency is not yet hardened for high parallelism
 
 The current adapter-run claim model is still minimal-stage friendly, but not yet optimized for many concurrent workers.
