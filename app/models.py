@@ -107,6 +107,14 @@ class AdapterInstance(TimestampMixin, Base):
 
 class AdapterRun(TimestampMixin, Base):
     __tablename__ = "adapter_run"
+    __table_args__ = (
+        Index(
+            "uq_adapter_run_single_running_per_instance",
+            "adapter_instance_id",
+            unique=True,
+            postgresql_where=text("run_status = 'running'"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     adapter_instance_id: Mapped[int] = mapped_column(

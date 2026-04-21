@@ -138,3 +138,32 @@ def test_adapter_watermark_scope_is_unique_per_instance_and_record_type(session)
         session.commit()
 
     session.rollback()
+
+
+def test_adapter_run_allows_only_one_running_row_per_instance(session):
+    definition = _create_adapter_definition(session)
+    instance = _create_adapter_instance(session, definition, instance_code="company_hes_primary")
+    session.commit()
+
+    first = AdapterRun(
+        adapter_instance_id=instance.id,
+        trigger_type="schedule",
+        run_status="running",
+        requested_at=datetime.now(timezone.utc),
+        started_at=datetime.now(timezone.utc),
+        details={"ordinal": 1},
+    )
+    second = AdapterRun(
+        adapter_instance_id=instance.id,
+        trigger_type="manual",
+        run_status="running",
+        requested_at=datetime.now(timezone.utc),
+        started_at=datetime.now(timezone.utc),
+        details={"ordinal": 2},
+    )
+    session.add_all([first, second])
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+    session.rollback()

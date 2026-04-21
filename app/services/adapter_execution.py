@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import exists, select
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from app.models import (
     AdapterInstance,
@@ -819,6 +819,40 @@ def list_waiting_adapter_run_ids(
     return list(session.scalars(statement).all())
 
 
+def _claim_next_waiting_adapter_run(
+    session: Session,
+    *,
+    run_id: int | None = None,
+) -> AdapterRun | None:
+    running_run = aliased(AdapterRun)
+    active_running_exists = exists(
+        select(running_run.id).where(
+            running_run.adapter_instance_id == AdapterRun.adapter_instance_id,
+            running_run.run_status == "running",
+        )
+    )
+
+    statement = select(AdapterRun.id).where(
+        AdapterRun.run_status == "waiting",
+        ~active_running_exists,
+    )
+    if run_id is not None:
+        statement = statement.where(AdapterRun.id == run_id)
+
+    statement = (
+        statement.order_by(AdapterRun.requested_at.asc(), AdapterRun.id.asc())
+        .limit(1)
+        .with_for_update(skip_locked=True, of=AdapterRun)
+    )
+
+    claimed_run_id = session.scalar(statement)
+    if claimed_run_id is None:
+        return None
+
+    run = _load_adapter_run(session, claimed_run_id)
+    return _claim_adapter_run(session, run)
+
+
 def _load_adapter_run(session: Session, run_id: int) -> AdapterRun:
     run = session.scalar(
         select(AdapterRun)
@@ -1164,8 +1198,98 @@ def process_waiting_adapter_runs(
     if limit < 1:
         raise ValueError("limit must be at least 1")
 
-    run_ids = list_waiting_adapter_run_ids(session, limit=limit, run_id=run_id)
-    results = [execute_adapter_run(session, candidate_run_id) for candidate_run_id in run_ids]
+    results: list[AdapterRunExecutionResult] = []
+    for index in range(limit):
+        claimed_run = _claim_next_waiting_adapter_run(
+            session,
+            run_id=run_id if index == 0 else None,
+        )
+        if claimed_run is None:
+            break
+
+        envelope: AdapterIngestEnvelope | None = None
+        try:
+            runtime = _resolve_runtime(claimed_run.adapter_instance)
+            with session.begin_nested():
+                envelope = runtime.build_ingest_envelope(
+                    session, claimed_run.adapter_instance, claimed_run
+                )
+                if envelope.record_type == "hes_read_raw":
+                    ingest_summary = (
+                        ingest_reads(
+                            session,
+                            envelope.payload,
+                            adapter_instance_id=claimed_run.adapter_instance_id,
+                            adapter_run_id=claimed_run.id,
+                        )
+                        if envelope.source_rows_fetched > 0
+                        else None
+                    )
+                elif envelope.record_type == "hes_event_raw":
+                    ingest_summary = (
+                        ingest_events(
+                            session,
+                            envelope.payload,
+                            adapter_instance_id=claimed_run.adapter_instance_id,
+                            adapter_run_id=claimed_run.id,
+                        )
+                        if envelope.source_rows_fetched > 0
+                        else None
+                    )
+                else:
+                    raise AdapterExecutionError(
+                        "unsupported_runtime_record_type",
+                        "The runtime adapter returned an unsupported record type.",
+                        details={"record_type": envelope.record_type},
+                    )
+                finalize_ingest = getattr(runtime, "finalize_ingest", None)
+                if callable(finalize_ingest):
+                    finalize_ingest(
+                        session,
+                        claimed_run.adapter_instance,
+                        claimed_run,
+                        envelope,
+                        ingest_summary,
+                    )
+        except AdapterExecutionError as exc:
+            results.append(
+                _fail_adapter_run(session, run=claimed_run, error=exc, envelope=envelope)
+            )
+            continue
+        except Exception as exc:
+            results.append(
+                _fail_adapter_run(
+                    session,
+                    run=claimed_run,
+                    error=AdapterExecutionError(
+                        "runtime_execution_failed",
+                        "The adapter run failed unexpectedly during execution.",
+                        details={"exception_type": type(exc).__name__},
+                    ),
+                    envelope=envelope,
+                )
+            )
+            continue
+
+        ingest_batches_created = 0
+        ingest_records_created = 0
+        if ingest_summary is not None:
+            ingest_batches_created = ingest_summary["batches_created"]
+            if envelope.record_type == "hes_read_raw":
+                ingest_records_created = ingest_summary["raw_reads_received"]
+            else:
+                ingest_records_created = ingest_summary["raw_events_received"]
+
+        results.append(
+            _complete_adapter_run(
+                session,
+                run=claimed_run,
+                envelope=envelope,
+                ingest_batches_created=ingest_batches_created,
+                ingest_records_created=ingest_records_created,
+            )
+        )
+
     completed = sum(1 for row in results if row.run_status == "completed")
     failed = sum(1 for row in results if row.run_status == "failed")
     return AdapterRunProcessingSummary(

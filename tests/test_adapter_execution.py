@@ -116,6 +116,58 @@ def _seed_nuri_aimir_hes_runtime_prerequisites(session) -> AdapterInstance:
     return instance
 
 
+def _create_secondary_company_hes_instance(session) -> AdapterInstance:
+    definition = session.scalar(
+        select(AdapterDefinition)
+        .where(AdapterDefinition.adapter_code == "company_hes_poll_v1")
+        .limit(1)
+    )
+    assert definition is not None
+
+    instance = AdapterInstance(
+        adapter_definition_id=definition.id,
+        instance_code="demo_hes_poll_secondary",
+        display_name="Demo HES Poll Secondary",
+        source_system="HES",
+        admin_state="enabled",
+        status_reason="test_secondary",
+        poll_interval_minutes=5,
+        batch_size=500,
+        next_run_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        last_success_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+        last_heartbeat_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        landing_enabled=False,
+        connection_config_masked={
+            "host": "hes-db.internal",
+            "database": "hes",
+            "sample_reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T01:15:00+09:00",
+                    "value": 6.5,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T01:30:00+09:00",
+                    "value": 6.8,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                },
+            ],
+        },
+        secret_ref="env://MDMS_HES_SECONDARY",
+    )
+    session.add(instance)
+    session.flush()
+    return instance
+
+
 def test_execute_adapter_run_consumes_waiting_run_and_creates_ingest_lineage(session):
     seed_master_data(session)
     seed_adapter_runtime(session)
@@ -347,6 +399,104 @@ def test_process_waiting_adapter_runs_returns_empty_summary_when_queue_is_empty(
     assert summary.completed == 0
     assert summary.failed == 0
     assert summary.results == []
+
+
+def test_process_waiting_adapter_runs_leaves_waiting_run_queued_when_instance_is_already_running(
+    session,
+):
+    seed_master_data(session)
+    seed_adapter_runtime(session)
+    session.commit()
+
+    instance = session.scalar(
+        select(AdapterInstance)
+        .where(AdapterInstance.instance_code == "demo_hes_poll_primary")
+        .limit(1)
+    )
+    assert instance is not None
+
+    running_run = AdapterRun(
+        adapter_instance_id=instance.id,
+        trigger_type="schedule",
+        run_status="running",
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        details={"requested_via": "test"},
+    )
+    waiting_run = AdapterRun(
+        adapter_instance_id=instance.id,
+        trigger_type="manual",
+        run_status="waiting",
+        requested_at=datetime.now(timezone.utc),
+        details={"requested_via": "test"},
+    )
+    session.add_all([running_run, waiting_run])
+    session.commit()
+
+    summary = process_waiting_adapter_runs(session, limit=1)
+
+    refreshed_waiting_run = session.get(AdapterRun, waiting_run.id)
+
+    assert summary.processed == 0
+    assert summary.completed == 0
+    assert summary.failed == 0
+    assert refreshed_waiting_run is not None
+    assert refreshed_waiting_run.run_status == "waiting"
+
+
+def test_process_waiting_adapter_runs_skips_blocked_instance_and_claims_next_available_run(
+    session,
+):
+    seed_master_data(session)
+    seed_adapter_runtime(session)
+    session.commit()
+
+    primary_instance = session.scalar(
+        select(AdapterInstance)
+        .where(AdapterInstance.instance_code == "demo_hes_poll_primary")
+        .limit(1)
+    )
+    assert primary_instance is not None
+    secondary_instance = _create_secondary_company_hes_instance(session)
+
+    running_run = AdapterRun(
+        adapter_instance_id=primary_instance.id,
+        trigger_type="schedule",
+        run_status="running",
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=4),
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+        details={"requested_via": "test"},
+    )
+    blocked_waiting_run = AdapterRun(
+        adapter_instance_id=primary_instance.id,
+        trigger_type="manual",
+        run_status="waiting",
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+        details={"requested_via": "test"},
+    )
+    claimable_waiting_run = AdapterRun(
+        adapter_instance_id=secondary_instance.id,
+        trigger_type="manual",
+        run_status="waiting",
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        details={"requested_via": "test"},
+    )
+    session.add_all([running_run, blocked_waiting_run, claimable_waiting_run])
+    session.commit()
+
+    summary = process_waiting_adapter_runs(session, limit=1)
+    session.commit()
+
+    refreshed_blocked_run = session.get(AdapterRun, blocked_waiting_run.id)
+    refreshed_claimable_run = session.get(AdapterRun, claimable_waiting_run.id)
+
+    assert summary.processed == 1
+    assert summary.completed == 1
+    assert summary.failed == 0
+    assert refreshed_blocked_run is not None
+    assert refreshed_blocked_run.run_status == "waiting"
+    assert refreshed_claimable_run is not None
+    assert refreshed_claimable_run.run_status == "completed"
 
 
 def test_execute_nuri_aimir_hes_lp_em_run_creates_landing_rows_raw_reads_and_partial_window_state(

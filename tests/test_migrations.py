@@ -91,8 +91,8 @@ def test_alembic_upgrade_creates_expected_tables():
                     select indexname, indexdef
                     from pg_indexes
                     where schemaname = :schema_name
-                      and tablename = 'hes_read_raw'
-                    order by indexname
+                      and tablename in ('hes_read_raw', 'adapter_run')
+                    order by tablename, indexname
                     """
                 ),
                 {"schema_name": schema_name},
@@ -106,5 +106,12 @@ def test_alembic_upgrade_creates_expected_tables():
             "uq_hes_read_raw_source_record_key_scope"
         ]
         assert "ix_hes_read_raw_source_meter_channel_measured_at" in index_defs
+        assert "uq_adapter_run_single_running_per_instance" in index_defs
+        assert "run_status" in index_defs[
+            "uq_adapter_run_single_running_per_instance"
+        ]
+        assert "running" in index_defs[
+            "uq_adapter_run_single_running_per_instance"
+        ]
     finally:
         drop_schema(test_database_url, schema_name)
