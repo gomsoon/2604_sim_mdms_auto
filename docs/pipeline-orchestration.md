@@ -199,6 +199,22 @@ The orchestration layer moves data upward through the following conceptual path:
 
 The orchestration layer does not replace those layers. It coordinates progression between them.
 
+## Relationship to operational events and alerts
+
+The orchestration layer should also act as one of the main producers of operator-facing events and alerts.
+
+Why:
+
+- status rows alone are not a readable operational timeline
+- operators need milestone visibility, not only final state counts
+- failures and overdue conditions should become prominent alerts, not only hidden run records
+
+Recommended minimal rule:
+
+- meaningful pipeline milestones should emit operational events
+- failed or blocked processing milestones should emit alerts
+- dashboard stage cards and the event timeline should agree on the same underlying interpretation
+
 ## Administrator dashboard recommendation
 
 Your idea of dashboard cards at the top is a strong fit for this project.
@@ -292,4 +308,3 @@ For the minimal stage:
 - [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
 - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
 - [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
-

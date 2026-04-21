@@ -58,6 +58,26 @@ Confirm that each runtime adapter is in an expected operational state before rel
 - The operator can stop scheduled collection safely without deleting the adapter instance
 - The operator can validate one adapter without changing the whole system state
 
+## Workflow 1B. Review operational events and alerts
+
+### Goal
+
+Understand recent system behavior quickly and identify conditions that need operator action now.
+
+### Typical steps
+
+1. Open the dashboard
+2. Review open alerts first
+3. Review the recent event timeline below the summary cards
+4. Filter the event or alert history by severity, adapter, batch, meter, or date range
+5. Drill into the related adapter, batch, exception, or pipeline detail when needed
+
+### Expected operator outcome
+
+- The operator can distinguish routine lifecycle activity from actionable failures
+- The operator can identify where the current issue sits in the end-to-end flow
+- The operator can react before needing direct log access
+
 ## Workflow 2. Register or confirm master data
 
 ### Goal
@@ -187,6 +207,7 @@ Minimal-stage screens should help operators complete the workflows above with as
 - Dashboard for current ingest and canonical status
 - Future adapter operations view for runtime integration control
 - Dashboard cards at the top showing `ready`, `running`, `paused`, and `error` counts for integration plus `waiting`, `processing`, `completed`, and `failed` counts by major processing stage
+- Recent operational event and alert timeline on the dashboard
 - Raw read visibility
 - Raw event visibility
 - Error visibility
@@ -214,6 +235,8 @@ Operators and support staff should be able to answer these questions quickly:
 
 The dashboard should answer these questions first through summary cards before the operator needs to inspect detailed tables.
 
+The recent event and alert timeline should then explain what happened recently and which condition now requires operator attention.
+
 ## Relationship to acceptance testing
 
 Each workflow in this document should map to at least one integration or functional verification path in [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md).
@@ -227,4 +250,5 @@ The operator workflow is minimally acceptable only when:
 - Operators can ingest raw reads and events
 - Operators can review failures clearly
 - Operators can verify canonical conversion and lineage
+- Operators can see recent important events and current alerts without log inspection
 - Operators can do the above in English and Korean without structural redesign

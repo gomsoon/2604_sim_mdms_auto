@@ -179,6 +179,7 @@ Close the gap between proof-of-concept and a stable minimal baseline.
 - Add sample fixtures
 - Improve logging and observability
 - Add lightweight orchestration status visibility for the dashboard
+- Add a minimal operational event and alert timeline for operator visibility
 - Clean up technical debt discovered during earlier stages
 
 #### Test gate

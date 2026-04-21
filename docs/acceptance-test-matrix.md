@@ -26,7 +26,7 @@ This document maps minimal-stage backlog items to concrete test intent so that i
 | `M3` | Raw event ingest | Accept valid HES event payload and persist event-level metadata | Empty event list, missing `event_code`, malformed `event_ts`, unsupported locale, duplicate envelope | `U`, `I` |
 | `M4` | Master data mapping | Device, service point, component, and installation data support mapping | Known mapping, unknown meter, unknown channel, overlapping installation window, no active installation | `U`, `I` |
 | `M5` | Canonical conversion | Valid raw read becomes canonical measurement with lineage | Valid source, mapping failure, duplicate read, missing UOM, timestamp normalization edge, mixed source types | `U`, `I` |
-| `M6` | Visibility APIs and UI | Operators can inspect ingest and canonical outcomes with filters and lineage | Empty result set, large batch filter, unknown meter filter, invalid date range, locale-sensitive messages | `I`, `F` |
+| `M6` | Visibility APIs and UI | Operators can inspect ingest, canonical, event, and alert outcomes with filters and lineage | Empty result set, large batch filter, unknown meter filter, invalid date range, locale-sensitive messages, no open alerts vs multiple open alerts | `I`, `F` |
 
 ## Detailed verification scenarios
 
@@ -127,6 +127,7 @@ This document maps minimal-stage backlog items to concrete test intent so that i
 - Operator can query by batch
 - Operator can query by meter
 - Operator can inspect raw, event, canonical, and error outcomes
+- Operator can inspect recent operational events and open alerts
 - Lineage is visible through API or UI
 
 #### Boundary scenarios
@@ -136,11 +137,13 @@ This document maps minimal-stage backlog items to concrete test intent so that i
 - Very narrow date range
 - Invalid filter combinations
 - English vs Korean visible text
+- No alerts vs one alert vs multiple alerts
 
 #### Regression scope
 
 - Query endpoints still work after persistence renaming
 - Operator labels remain localizable
+- Operator event and alert visibility still matches underlying adapter and pipeline state
 
 ## Cross-cutting regression checklist
 
@@ -171,4 +174,3 @@ A backlog item is not ready to close unless:
 - Boundary cases were considered explicitly
 - Regression scope was executed for adjacent flows
 - English and Korean behavior was checked where user-facing text or locale behavior was touched
-

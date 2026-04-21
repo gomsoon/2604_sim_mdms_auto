@@ -17,6 +17,7 @@ This document defines the development requirements for the `Minimal End-to-End` 
 - Basic duplicate detection
 - Exception queue handling for validation and mapping failures
 - Operator-facing dashboard, list views, and APIs
+- Operator-facing operational event timeline and alert visibility for major integration and processing conditions
 - External integration readiness for future HES, database, and API connectivity
 - Internationalization readiness for English and Korean user-facing content
 - PostgreSQL-based persistence as the default runtime database for the minimal stage
@@ -32,6 +33,7 @@ This document defines the development requirements for the `Minimal End-to-End` 
 - Billing or CIS export
 - Production-grade batch orchestration
 - Full RBAC and advanced audit tooling
+- External notification channels such as email, SMS, chat, or paging integration
 
 ## Functional requirements
 
@@ -58,6 +60,14 @@ This document defines the development requirements for the `Minimal End-to-End` 
 
 - Operators must be able to view raw reads, raw events, canonicalization status, and exceptions.
 - Operators must be able to trace records from raw source payload to canonical output or exception state.
+
+### Operational events and alerts
+
+- The system must surface important integration and processing milestones as operational events.
+- Operator-actionable failures or degraded conditions must be surfaced as alerts.
+- Events and alerts must be queryable through operator-facing history views or APIs.
+- The dashboard must expose recent events and open alerts without requiring direct log inspection first.
+- User-facing event and alert text must remain localizable in English and Korean.
 
 ## Cross-cutting requirements
 

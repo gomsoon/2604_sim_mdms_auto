@@ -146,6 +146,16 @@ This document records current architectural and process decisions so that the te
   - [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
   - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
 
+### D-016. Minimal stage includes an operational event timeline and alert subset
+
+- Status: locked
+- Summary: The minimal stage should expose important integration and processing behavior through a unified operational event timeline, with alerts treated as an operator-actionable subset of those events
+- Why: Operators need one readable history and one clear set of urgent conditions without having to infer everything from logs, exception rows, and run tables separately
+- Related docs:
+  - [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
+  - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+  - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

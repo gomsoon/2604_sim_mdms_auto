@@ -67,6 +67,7 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Raw read query API
 - Raw event query API
 - Canonical measurement query API
+- Operational event and alert timeline
 - Filters such as `batch_id`, `meter_id`, and date range
 
 ## Phase 2. MVP Version
@@ -255,4 +256,3 @@ This document captures the staged backlog derived from the reference PDF backlog
 - C1
 - C2
 - C3
-

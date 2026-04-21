@@ -133,6 +133,7 @@ Allow operators to inspect ingest and conversion outcomes.
 - Query raw reads
 - Query raw events
 - Query canonical measurements
+- Query operational events and open alerts
 - Add batch, meter, and date filters
 
 #### Acceptance criteria
@@ -140,6 +141,7 @@ Allow operators to inspect ingest and conversion outcomes.
 - Operators can inspect ingest counts and failures by batch
 - Operators can query raw and canonical data by meter
 - Lineage can be verified through API responses or UI
+- Recent important events and open alerts are visible without log inspection
 
 ## Minimal-stage structural prerequisites
 
