@@ -84,6 +84,10 @@ The persistent execution record for one runtime adapter attempt, such as a sched
 
 The persistent incremental cursor or resume point used by a runtime adapter to continue polling safely.
 
+### operational_event
+
+The operator-facing durable timeline record that captures important integration, ingest, processing, and system milestones, with alert state represented as a subset of those events.
+
 ## Processing terms
 
 ### lineage

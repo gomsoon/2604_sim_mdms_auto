@@ -69,6 +69,7 @@ The minimal stage should introduce:
 - one append-only operational event timeline
 - one alert interpretation model on top of that timeline
 - one dashboard view of recent events and open alerts
+- one small alert lifecycle that operators can acknowledge and close
 
 This is enough for minimal operator reaction without overbuilding a full notification platform.
 
@@ -76,6 +77,7 @@ This is enough for minimal operator reaction without overbuilding a full notific
 
 - persistent operational events for important adapter, ingest, processing, and exception milestones
 - alert tagging for operator-actionable situations
+- alert lifecycle fields such as open time, acknowledgement, close time, and memo
 - recent event and alert visibility on the dashboard
 - historical event and alert lookup with filters
 - English and Korean operator-facing messages
@@ -87,7 +89,8 @@ This is enough for minimal operator reaction without overbuilding a full notific
 - complex alert correlation engine
 - configurable alert rules UI
 - multi-step incident workflow
-- full acknowledgement and escalation hierarchy
+- full escalation hierarchy
+- immediate physical movement of closed alerts into a separate history table
 
 ## Recommended minimal event categories
 
@@ -200,14 +203,42 @@ One table keeps the minimal stage simpler:
 - one way to localize operator-facing text
 - one alert model as a filtered subset
 
+The concrete first-table baseline is described in:
+
+- [operational-event-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/operational-event-table-design.md)
+
 ### Recommended minimal alert state
 
-For the first implementation, keep alert state simple:
+For the first implementation, keep alert state small but operationally useful:
 
 - `open`
-- `resolved`
+- `acknowledged`
+- `closed`
 
-`acknowledged` can be added later if the team sees real operator need for it.
+Recommended supporting fields:
+
+- `opened_at`
+- `acknowledged_at`
+- `acknowledged_by`
+- `closed_at`
+- `operator_memo`
+
+Recommended duration behavior:
+
+- derive it from timestamps instead of storing it as a base column
+
+## Current versus history recommendation
+
+For the minimal stage, current and history should first be separated logically.
+
+Recommended interpretation:
+
+- current alerts are `open` or `acknowledged`
+- history alerts are `closed`
+
+The first implementation should not require closed alerts to be moved immediately into a separate history table.
+
+That physical archive step should remain a later operational optimization after volume and retention behavior are better understood.
 
 ## Relationship to existing tables
 
@@ -275,6 +306,11 @@ Operators should be able to query event and alert history by:
 - meter identifier
 - date range
 
+This should support two practical views:
+
+- current open or acknowledged alerts
+- closed alert history
+
 This keeps the event stream useful after the dashboard scrolls past the latest items.
 
 ## Event production guidance
@@ -299,6 +335,10 @@ Emit events for meaningful operator-visible milestones.
 3. Show recent events and open alerts on the dashboard
 4. Add filtered event history view
 5. Add regression coverage for event emission and alert visibility
+
+The broader minimal boundary for this area is defined in:
+
+- [minimal-event-alert-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-event-alert-boundary.md)
 
 ## Acceptance baseline
 

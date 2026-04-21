@@ -34,15 +34,17 @@ This directory captures the working engineering baseline for the `Minimal End-to
 28. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
 29. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 30. [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
-31. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
-32. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
-33. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
-34. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
-35. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
-36. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
-37. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
-38. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
-39. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+31. [minimal-event-alert-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-event-alert-boundary.md)
+32. [operational-event-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/operational-event-table-design.md)
+33. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
+34. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
+35. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
+36. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
+37. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+38. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+39. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+40. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+41. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
 
 ## Intent
 
@@ -78,6 +80,8 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `adapter-implementation-sequence.md` defines the recommended order for closing the remaining runtime adapter gap.
 - `pipeline-orchestration.md` defines how data should move upward between layers and how administrators should see status on the dashboard.
 - `operational-events-and-alerts.md` defines the minimal operator-facing timeline and alert model for integration and processing behavior.
+- `minimal-event-alert-boundary.md` defines what the first event and alert implementation must include, what remains deferred, and how current versus history should be handled.
+- `operational-event-table-design.md` defines the first concrete persistence baseline for that event and alert model.
 - `persistence-renaming-plan.md` defines the naming-alignment refactor sequence.
 - `i18n-strategy.md` defines the English and Korean support baseline.
 - `migration-strategy.md` defines the schema evolution baseline.
