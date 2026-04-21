@@ -186,7 +186,7 @@ Minimal-stage screens should help operators complete the workflows above with as
 
 - Dashboard for current ingest and canonical status
 - Future adapter operations view for runtime integration control
-- Dashboard cards at the top showing `waiting`, `processing`, `completed`, and `failed` counts by major stage
+- Dashboard cards at the top showing `ready`, `running`, `paused`, and `error` counts for integration plus `waiting`, `processing`, `completed`, and `failed` counts by major processing stage
 - Raw read visibility
 - Raw event visibility
 - Error visibility

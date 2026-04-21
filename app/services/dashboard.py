@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdapterInstance,
+    AdapterRun,
     CanonicalMeasurement,
     Device,
     FinalMeasurement,
@@ -16,6 +18,15 @@ from app.models import (
     PipelineRun,
     ServicePoint,
 )
+from app.services.adapters import derive_effective_status
+
+
+@dataclass(frozen=True, slots=True)
+class CardSummaryRow:
+    label_key: str
+    value: object | None
+    is_datetime: bool = False
+    empty_key: str = "common.none"
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +36,17 @@ class StageStatusCard:
     processing: int
     completed: int
     failed: int
+    waiting_label_key: str = "dashboard.stage.waiting"
+    processing_label_key: str = "dashboard.stage.processing"
+    completed_label_key: str = "dashboard.stage.completed"
+    failed_label_key: str = "dashboard.stage.failed"
+    waiting_value_class: str = ""
+    processing_value_class: str = ""
+    completed_value_class: str = "text-success"
+    failed_value_class: str = "text-danger"
+    detail_endpoint: str | None = None
+    detail_link_key: str | None = None
+    summary_rows: list[CardSummaryRow] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +61,22 @@ def _count(session: Session, statement) -> int:
     return int(session.scalar(statement) or 0)
 
 
+def _load_latest_adapter_runs(session: Session, adapter_instance_ids: list[int]) -> dict[int, AdapterRun]:
+    if not adapter_instance_ids:
+        return {}
+
+    runs = session.scalars(
+        select(AdapterRun)
+        .where(AdapterRun.adapter_instance_id.in_(adapter_instance_ids))
+        .order_by(AdapterRun.adapter_instance_id.asc(), AdapterRun.id.desc())
+    ).all()
+
+    latest_runs: dict[int, AdapterRun] = {}
+    for run in runs:
+        latest_runs.setdefault(run.adapter_instance_id, run)
+    return latest_runs
+
+
 def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
     stats = {
         "service_points": _count(session, select(func.count()).select_from(ServicePoint)),
@@ -50,6 +88,29 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         "final": _count(session, select(func.count()).select_from(FinalMeasurement)),
         "exceptions": _count(session, select(func.count()).select_from(IngestErrorLog)),
     }
+
+    adapter_instances = session.scalars(select(AdapterInstance).order_by(AdapterInstance.id.asc())).all()
+    latest_adapter_runs = _load_latest_adapter_runs(session, [row.id for row in adapter_instances])
+    integration_ready = 0
+    integration_running = 0
+    integration_paused = 0
+    integration_error = 0
+    for instance in adapter_instances:
+        effective_status = derive_effective_status(instance, latest_adapter_runs.get(instance.id))
+        if effective_status == "ready":
+            integration_ready += 1
+        elif effective_status == "running":
+            integration_running += 1
+        elif effective_status == "paused":
+            integration_paused += 1
+        elif effective_status == "error":
+            integration_error += 1
+
+    integration_last_success = session.scalar(select(func.max(AdapterInstance.last_success_at)))
+    integration_pending_runs = _count(
+        session,
+        select(func.count()).select_from(AdapterRun).where(AdapterRun.run_status == "waiting"),
+    )
 
     raw_ingest_waiting = _count(
         session,
@@ -151,6 +212,33 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
     )
 
     stage_cards = [
+        StageStatusCard(
+            title_key="dashboard.stage.integration",
+            waiting=integration_ready,
+            processing=integration_running,
+            completed=integration_paused,
+            failed=integration_error,
+            waiting_label_key="adapter_status.ready",
+            processing_label_key="adapter_status.running",
+            completed_label_key="adapter_status.paused",
+            failed_label_key="adapter_status.error",
+            processing_value_class="text-primary",
+            completed_value_class="text-warning",
+            failed_value_class="text-danger",
+            detail_endpoint="web.adapters",
+            detail_link_key="dashboard.view_adapters",
+            summary_rows=[
+                CardSummaryRow(
+                    label_key="dashboard.integration.last_success",
+                    value=integration_last_success,
+                    is_datetime=True,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.integration.pending_runs",
+                    value=integration_pending_runs,
+                ),
+            ],
+        ),
         StageStatusCard(
             title_key="dashboard.stage.raw_ingest",
             waiting=raw_ingest_waiting,

@@ -245,12 +245,16 @@ Recommended future card:
 
 That card should summarize:
 
+- adapters ready
 - adapters running
 - adapters paused
 - adapters in error
 - last successful collection activity
+- pending adapter runs
 
 This card complements the current `Raw Ingest`, `Canonical`, `Final`, and `Errors` cards.
+
+For the first dashboard implementation, this card should appear before downstream processing cards so operators can confirm upstream collection health first.
 
 ## What administrators should and should not do in the UI
 

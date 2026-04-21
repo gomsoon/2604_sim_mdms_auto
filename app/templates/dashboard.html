@@ -30,34 +30,55 @@
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div class="fw-semibold">{{ t(card.title_key) }}</div>
-          <span class="badge text-bg-light">{{ card.waiting + card.processing + card.completed + card.failed }}</span>
+          <div class="d-flex align-items-center gap-2">
+            {% if card.detail_endpoint and card.detail_link_key %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for(card.detail_endpoint) }}">{{ t(card.detail_link_key) }}</a>
+            {% endif %}
+            <span class="badge text-bg-light">{{ card.waiting + card.processing + card.completed + card.failed }}</span>
+          </div>
         </div>
         <div class="row g-2 text-center">
           <div class="col-6">
             <div class="border rounded-3 py-2 px-2 h-100">
-              <div class="text-secondary small">{{ t("dashboard.stage.waiting") }}</div>
-              <div class="fw-semibold">{{ card.waiting }}</div>
+              <div class="text-secondary small">{{ t(card.waiting_label_key) }}</div>
+              <div class="fw-semibold {{ card.waiting_value_class }}">{{ card.waiting }}</div>
             </div>
           </div>
           <div class="col-6">
             <div class="border rounded-3 py-2 px-2 h-100">
-              <div class="text-secondary small">{{ t("dashboard.stage.processing") }}</div>
-              <div class="fw-semibold">{{ card.processing }}</div>
+              <div class="text-secondary small">{{ t(card.processing_label_key) }}</div>
+              <div class="fw-semibold {{ card.processing_value_class }}">{{ card.processing }}</div>
             </div>
           </div>
           <div class="col-6">
             <div class="border rounded-3 py-2 px-2 h-100">
-              <div class="text-secondary small">{{ t("dashboard.stage.completed") }}</div>
-              <div class="fw-semibold text-success">{{ card.completed }}</div>
+              <div class="text-secondary small">{{ t(card.completed_label_key) }}</div>
+              <div class="fw-semibold {{ card.completed_value_class }}">{{ card.completed }}</div>
             </div>
           </div>
           <div class="col-6">
             <div class="border rounded-3 py-2 px-2 h-100">
-              <div class="text-secondary small">{{ t("dashboard.stage.failed") }}</div>
-              <div class="fw-semibold text-danger">{{ card.failed }}</div>
+              <div class="text-secondary small">{{ t(card.failed_label_key) }}</div>
+              <div class="fw-semibold {{ card.failed_value_class }}">{{ card.failed }}</div>
             </div>
           </div>
         </div>
+        {% if card.summary_rows %}
+        <div class="border-top mt-3 pt-3">
+          {% for row in card.summary_rows %}
+          <div class="d-flex justify-content-between gap-3 small">
+            <span class="text-secondary">{{ t(row.label_key) }}</span>
+            <span class="fw-semibold">
+              {% if row.is_datetime %}
+                {{ row.value|dt if row.value else t(row.empty_key) }}
+              {% else %}
+                {{ row.value if row.value is not none else t(row.empty_key) }}
+              {% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
