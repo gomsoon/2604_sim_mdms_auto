@@ -341,6 +341,79 @@ class NuriAimirHesLpEmPollRuntime:
             channel=channel_code,
         )
 
+    def _get_or_create_landing_block(
+        self,
+        session: Session,
+        *,
+        instance: AdapterInstance,
+        run: AdapterRun,
+        row: dict[str, Any],
+        row_index: int,
+        meter_source_id: str,
+        channel_code: str,
+        source_business_hour: str,
+        source_write_ts: datetime,
+        block_value: float | None,
+        slot_values: dict[str, float],
+    ) -> LandingLpEmReadBlock:
+        block_key = "|".join(
+            (
+                self.source_table_name,
+                meter_source_id,
+                source_business_hour,
+                channel_code,
+                str(row.get("WRITEDATE") or ""),
+            )
+        )
+        existing = session.scalar(
+            select(LandingLpEmReadBlock)
+            .where(
+                LandingLpEmReadBlock.source_system == instance.source_system,
+                LandingLpEmReadBlock.source_block_key == block_key,
+            )
+            .limit(1)
+        )
+        if existing is not None:
+            if existing.source_payload != row:
+                raise AdapterExecutionError(
+                    "source_block_replay_conflict",
+                    (
+                        f"LP_EM source block at index {row_index} reused an existing source_block_key "
+                        "with a different payload."
+                    ),
+                    details={"source_block_key": block_key},
+                )
+            return existing
+
+        landing_block = LandingLpEmReadBlock(
+            adapter_instance_id=instance.id,
+            adapter_run_id=run.id,
+            source_system=instance.source_system,
+            source_table_name=self.source_table_name,
+            source_block_key=block_key,
+            meter_source_id=meter_source_id,
+            device_source_id=str(row.get("DEVICE_ID") or "").strip() or None,
+            mdev_id=str(row.get("MDEV_ID") or "").strip() or None,
+            mdev_type=str(row.get("MDEV_TYPE") or "").strip() or None,
+            channel_code=channel_code,
+            source_business_hour=source_business_hour,
+            source_hour_component=str(row.get("HH") or "").strip() or None,
+            source_write_text=str(row.get("WRITEDATE") or "").strip() or None,
+            source_write_ts=source_write_ts,
+            location_source_id=str(row.get("LOCATION_ID") or "").strip() or None,
+            supplier_source_id=str(row.get("SUPPLIER_ID") or "").strip() or None,
+            enddevice_source_id=str(row.get("ENDDEVICE_ID") or "").strip() or None,
+            value_cnt=_parse_optional_positive_int(row.get("VALUE_CNT")),
+            block_value=block_value,
+            slot_values=slot_values,
+            slot_count=len(slot_values),
+            parsed_ok=True,
+            source_payload=row,
+        )
+        session.add(landing_block)
+        session.flush()
+        return landing_block
+
     def _load_source_blocks(
         self,
         *,
@@ -491,15 +564,6 @@ class NuriAimirHesLpEmPollRuntime:
             )
             expected_slot_codes = _expected_slot_codes(interval_size_minutes)
             slot_values = _extract_lp_em_slot_values(row, row_index=row_index)
-            block_key = "|".join(
-                (
-                    self.source_table_name,
-                    meter_source_id,
-                    source_business_hour,
-                    channel_code,
-                    str(row.get("WRITEDATE") or ""),
-                )
-            )
             block_value = None
             if row.get("VALUE") not in (None, ""):
                 try:
@@ -510,33 +574,20 @@ class NuriAimirHesLpEmPollRuntime:
                         f"LP_EM source block at index {row_index} contains a non-numeric VALUE column.",
                     ) from exc
 
-            landing_block = LandingLpEmReadBlock(
-                adapter_instance_id=instance.id,
-                adapter_run_id=run.id,
-                source_system=instance.source_system,
-                source_table_name=self.source_table_name,
-                source_block_key=block_key,
+            landing_block = self._get_or_create_landing_block(
+                session,
+                instance=instance,
+                run=run,
+                row=row,
+                row_index=row_index,
                 meter_source_id=meter_source_id,
-                device_source_id=str(row.get("DEVICE_ID") or "").strip() or None,
-                mdev_id=str(row.get("MDEV_ID") or "").strip() or None,
-                mdev_type=str(row.get("MDEV_TYPE") or "").strip() or None,
                 channel_code=channel_code,
                 source_business_hour=source_business_hour,
-                source_hour_component=str(row.get("HH") or "").strip() or None,
-                source_write_text=str(row.get("WRITEDATE") or "").strip() or None,
                 source_write_ts=source_write_ts,
-                location_source_id=str(row.get("LOCATION_ID") or "").strip() or None,
-                supplier_source_id=str(row.get("SUPPLIER_ID") or "").strip() or None,
-                enddevice_source_id=str(row.get("ENDDEVICE_ID") or "").strip() or None,
-                value_cnt=_parse_optional_positive_int(row.get("VALUE_CNT")),
                 block_value=block_value,
                 slot_values=slot_values,
-                slot_count=len(slot_values),
-                parsed_ok=True,
-                source_payload=row,
             )
-            session.add(landing_block)
-            session.flush()
+            block_key = landing_block.source_block_key
 
             for slot_code, reading_value in sorted(slot_values.items()):
                 interval_start = source_business_ts + timedelta(minutes=int(slot_code))

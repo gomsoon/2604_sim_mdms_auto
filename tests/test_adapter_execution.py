@@ -385,6 +385,12 @@ def test_execute_nuri_aimir_hes_lp_em_run_creates_landing_rows_raw_reads_and_par
     assert state.last_ingest_batch_id is not None
     assert watermark is not None
     assert watermark.cursor_value == "20240806030100|2024080603|32418|0"
+    raw_row = session.scalar(select(HesReadRaw).order_by(HesReadRaw.id.asc()).limit(1))
+    assert raw_row is not None
+    assert raw_row.landing_lp_em_read_block_id is not None
+    assert raw_row.source_block_key is not None
+    assert raw_row.source_record_key is not None
+    assert raw_row.source_write_ts == datetime(2024, 8, 5, 18, 1, tzinfo=timezone.utc)
 
 
 def test_execute_nuri_aimir_hes_lp_em_run_marks_complete_window_as_late_update_on_newer_source_write(
@@ -548,3 +554,97 @@ def test_execute_nuri_aimir_hes_lp_em_run_fails_for_mixed_sample_and_oracle_conf
     assert refreshed_run is not None
     assert refreshed_run.run_status == "failed"
     assert refreshed_run.error_code == "invalid_nuri_aimir_hes_runtime_configuration"
+
+
+def test_execute_nuri_aimir_hes_lp_em_run_replay_reuses_landing_and_skips_raw_duplicates(
+    session,
+):
+    instance = _seed_nuri_aimir_hes_runtime_prerequisites(session)
+    session.commit()
+
+    first_run = queue_adapter_run_once(session, instance)
+    first_result = execute_adapter_run(session, first_run.id)
+    assert first_result.run_status == "completed"
+
+    watermark = session.scalar(
+        select(AdapterWatermark)
+        .where(
+            AdapterWatermark.adapter_instance_id == instance.id,
+            AdapterWatermark.record_type == "hes_read_raw",
+        )
+        .limit(1)
+    )
+    assert watermark is not None
+    watermark.cursor_value = None
+    watermark.last_source_timestamp = None
+    session.flush()
+
+    second_run = queue_adapter_run_once(session, instance)
+    second_result = execute_adapter_run(session, second_run.id)
+    session.commit()
+
+    landing_count = session.scalar(select(func.count()).select_from(LandingLpEmReadBlock))
+    raw_count = session.scalar(select(func.count()).select_from(HesReadRaw))
+
+    assert second_result.run_status == "completed"
+    assert second_result.source_rows_fetched == 1
+    assert second_result.ingest_records_created == 0
+    assert landing_count == 1
+    assert raw_count == 2
+
+
+def test_execute_nuri_aimir_hes_lp_em_run_fails_when_same_source_block_key_has_different_payload(
+    session,
+):
+    instance = _seed_nuri_aimir_hes_runtime_prerequisites(session)
+    session.commit()
+
+    first_run = queue_adapter_run_once(session, instance)
+    first_result = execute_adapter_run(session, first_run.id)
+    assert first_result.run_status == "completed"
+
+    watermark = session.scalar(
+        select(AdapterWatermark)
+        .where(
+            AdapterWatermark.adapter_instance_id == instance.id,
+            AdapterWatermark.record_type == "hes_read_raw",
+        )
+        .limit(1)
+    )
+    assert watermark is not None
+    watermark.cursor_value = None
+    watermark.last_source_timestamp = None
+    instance.connection_config_masked = {
+        **dict(instance.connection_config_masked or {}),
+        "sample_blocks": [
+            {
+                "METER_ID": "32418",
+                "DEVICE_ID": "795",
+                "MDEV_ID": "32418",
+                "MDEV_TYPE": "EM",
+                "YYYYMMDDHH": "2024080603",
+                "HH": "03",
+                "WRITEDATE": "20240806030100",
+                "CHANNEL": "0",
+                "VALUE_CNT": 2,
+                "VALUE_00": 9.99,
+                "VALUE_15": 1.5,
+                "LOCATION_ID": "100",
+                "SUPPLIER_ID": "200",
+                "ENDDEVICE_ID": "300",
+            }
+        ],
+    }
+    session.flush()
+
+    second_run = queue_adapter_run_once(session, instance)
+    second_result = execute_adapter_run(session, second_run.id)
+    session.commit()
+
+    refreshed_run = session.get(AdapterRun, second_run.id)
+
+    assert second_result.run_status == "failed"
+    assert second_result.error_code == "source_block_replay_conflict"
+    assert refreshed_run is not None
+    assert refreshed_run.run_status == "failed"
+    assert refreshed_run.error_code == "source_block_replay_conflict"

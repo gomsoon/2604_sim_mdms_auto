@@ -234,6 +234,23 @@ def find_duplicate_hes_read_raw(session: Session, hes_read_raw: HesReadRaw) -> H
     )
 
 
+def find_replayed_hes_read_raw(
+    session: Session, *, source_system: str, source_record_key: str | None
+) -> HesReadRaw | None:
+    normalized_key = str(source_record_key or "").strip()
+    if not normalized_key:
+        return None
+    return session.scalar(
+        select(HesReadRaw)
+        .where(
+            HesReadRaw.source_system == source_system,
+            HesReadRaw.source_record_key == normalized_key,
+        )
+        .order_by(HesReadRaw.id.asc())
+        .limit(1)
+    )
+
+
 def ingest_reads(
     session: Session,
     payload: dict[str, Any],
@@ -304,6 +321,7 @@ def ingest_reads(
         "raw_reads_received": 0,
         "canonical_created": 0,
         "duplicates": 0,
+        "replayed_records": 0,
         "exceptions": 0,
     }
     validation_errors = 0
@@ -311,6 +329,15 @@ def ingest_reads(
 
     for item in reads:
         parsed = parse_hes_read_payload(item.normalized_payload)
+
+        replayed = find_replayed_hes_read_raw(
+            session,
+            source_system=source_system,
+            source_record_key=parsed.source_record_key,
+        )
+        if replayed is not None:
+            summary["replayed_records"] += 1
+            continue
 
         hes_read_raw = HesReadRaw(
             ingest_batch_id=batch.id,
@@ -396,6 +423,7 @@ def ingest_reads(
         "raw_reads_received": summary["raw_reads_received"],
         "canonical_created": summary["canonical_created"],
         "duplicates": summary["duplicates"],
+        "replayed_records": summary["replayed_records"],
         "mapping_errors": mapping_errors,
         "exceptions": summary["exceptions"],
     }
