@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import func, select
 
 from app.models import AdapterDefinition, AdapterInstance, AdapterRun
@@ -66,6 +68,24 @@ def test_run_adapter_once_via_web_creates_waiting_run_in_korean(client, session)
     assert "수동 어댑터 실행 요청이 대기열에 등록되었습니다." in text
     assert "대기" in text
     assert session.scalar(select(func.count()).select_from(AdapterRun)) == 2
+
+
+def test_adapters_page_shows_overdue_and_stale_badges_in_korean(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    instance = session.scalar(select(AdapterInstance).limit(1))
+    assert instance is not None
+
+    instance.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    instance.last_heartbeat_at = datetime.now(timezone.utc) - timedelta(minutes=20)
+    session.commit()
+
+    response = client.get("/adapters?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "실행 지연" in text
+    assert "신선도 저하" in text
 
 
 def test_new_adapter_page_renders_active_definition(client, session):

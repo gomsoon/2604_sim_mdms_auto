@@ -187,6 +187,30 @@ def test_dashboard_snapshot_derives_integration_card_from_adapter_runtime_states
     assert card.summary_rows[1].value == 1
 
 
+def test_dashboard_snapshot_summarizes_overdue_and_stale_adapter_counts(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(
+        select(AdapterInstance)
+        .where(AdapterInstance.instance_code == "demo_hes_poll_primary")
+        .limit(1)
+    )
+    assert instance is not None
+
+    reference_time = datetime.now(timezone.utc)
+    instance.next_run_at = reference_time - timedelta(minutes=10)
+    instance.last_heartbeat_at = reference_time - timedelta(minutes=20)
+    session.commit()
+
+    snapshot = build_dashboard_snapshot(session)
+    card = {row.title_key: row for row in snapshot.stage_cards}["dashboard.stage.integration"]
+    summary = {row.label_key: row.value for row in card.summary_rows}
+
+    assert summary["dashboard.integration.overdue_adapters"] == 1
+    assert summary["dashboard.integration.stale_adapters"] == 1
+
+
 def test_dashboard_snapshot_lists_open_alerts_and_recent_events_in_time_order(session):
     seed_demo_environment(session)
     session.commit()

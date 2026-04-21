@@ -24,6 +24,7 @@
             <th>{{ t("table.status") }}</th>
             <th>{{ t("table.latest_run_status") }}</th>
             <th>{{ t("table.last_success") }}</th>
+            <th>{{ t("table.last_heartbeat") }}</th>
             <th>{{ t("table.next_run") }}</th>
             <th>{{ t("table.actions") }}</th>
           </tr>
@@ -39,9 +40,17 @@
             <td>{{ t_or("adapter.delivery_mode." ~ row.instance.adapter_definition.delivery_mode, row.instance.adapter_definition.delivery_mode) }}</td>
             <td>{{ row.instance.adapter_definition.display_name }}</td>
             <td>
-              <span class="badge text-bg-{{ 'success' if row.effective_status == 'ready' else 'primary' if row.effective_status == 'running' else 'warning' if row.effective_status == 'paused' else 'danger' if row.effective_status == 'error' else 'secondary' }}">
-                {{ t_or("adapter_status." ~ row.effective_status, row.effective_status) }}
-              </span>
+              <div class="d-flex flex-wrap gap-2">
+                <span class="badge text-bg-{{ 'success' if row.effective_status == 'ready' else 'primary' if row.effective_status == 'running' else 'warning' if row.effective_status == 'paused' else 'danger' if row.effective_status == 'error' else 'secondary' }}">
+                  {{ t_or("adapter_status." ~ row.effective_status, row.effective_status) }}
+                </span>
+                {% if row.is_overdue %}
+                <span class="badge text-bg-danger">{{ t("adapter_health.overdue") }}</span>
+                {% endif %}
+                {% if row.is_stale %}
+                <span class="badge text-bg-warning">{{ t("adapter_health.stale") }}</span>
+                {% endif %}
+              </div>
             </td>
             <td>
               {% if row.latest_run %}
@@ -51,7 +60,15 @@
               {% endif %}
             </td>
             <td>{{ row.instance.last_success_at|dt }}</td>
-            <td>{{ row.instance.next_run_at|dt }}</td>
+            <td>{{ row.instance.last_heartbeat_at|dt }}</td>
+            <td>
+              <div>{{ row.instance.next_run_at|dt }}</div>
+              {% if row.is_overdue %}
+              <div class="small text-danger">{{ t("adapter_health.overdue") }}</div>
+              {% elif row.is_stale %}
+              <div class="small text-warning">{{ t("adapter_health.stale") }}</div>
+              {% endif %}
+            </td>
             <td>
               <div class="d-flex flex-wrap gap-2">
                 <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.adapter_detail', adapter_instance_id=row.instance.id, lang=current_locale) }}">
@@ -79,7 +96,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="9" class="text-secondary">{{ t("page.adapters.empty") }}</td>
+            <td colspan="10" class="text-secondary">{{ t("page.adapters.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

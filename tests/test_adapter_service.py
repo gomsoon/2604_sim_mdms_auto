@@ -9,6 +9,8 @@ from app.models import AdapterDefinition, AdapterInstance, AdapterRun, Operation
 from app.services.adapters import (
     AdapterValidationError,
     create_adapter_instance,
+    derive_is_overdue,
+    derive_is_stale,
     enqueue_scheduled_adapter_runs,
     list_adapter_instances,
     queue_adapter_run_once,
@@ -28,6 +30,49 @@ def test_list_adapter_instances_derives_ready_status_from_seeded_runtime(session
     assert rows[0].effective_status == "ready"
     assert rows[0].latest_run is not None
     assert rows[0].latest_run.run_status == "completed"
+    assert rows[0].is_overdue is False
+    assert rows[0].is_stale is False
+
+
+def test_list_adapter_instances_marks_enabled_poll_adapter_overdue_and_stale(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary"))
+    assert instance is not None
+
+    as_of = datetime(2026, 4, 21, 0, 0, tzinfo=timezone.utc)
+    instance.next_run_at = as_of - timedelta(minutes=20)
+    instance.last_heartbeat_at = as_of - timedelta(minutes=20)
+    session.commit()
+
+    rows = list_adapter_instances(session)
+
+    assert derive_is_overdue(instance, rows[0].latest_run, as_of=as_of) is True
+    assert derive_is_stale(instance, rows[0].latest_run, as_of=as_of) is True
+    assert rows[0].is_overdue is True
+    assert rows[0].is_stale is True
+
+
+def test_list_adapter_instances_does_not_mark_paused_adapter_overdue_or_stale(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary"))
+    assert instance is not None
+
+    as_of = datetime(2026, 4, 21, 0, 0, tzinfo=timezone.utc)
+    instance.admin_state = "paused"
+    instance.next_run_at = as_of - timedelta(minutes=20)
+    instance.last_heartbeat_at = as_of - timedelta(minutes=20)
+    session.commit()
+
+    rows = list_adapter_instances(session)
+
+    assert derive_is_overdue(instance, rows[0].latest_run, as_of=as_of) is False
+    assert derive_is_stale(instance, rows[0].latest_run, as_of=as_of) is False
+    assert rows[0].is_overdue is False
+    assert rows[0].is_stale is False
 
 
 def test_queue_adapter_run_once_allows_paused_instance(session):

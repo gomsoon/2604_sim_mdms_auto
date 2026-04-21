@@ -26,6 +26,8 @@ class AdapterInstanceSnapshot:
     instance: AdapterInstance
     effective_status: str
     latest_run: AdapterRun | None
+    is_overdue: bool
+    is_stale: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +144,76 @@ def derive_effective_status(
     return "ready"
 
 
+def _derive_stale_threshold(instance: AdapterInstance) -> timedelta:
+    if instance.adapter_definition.delivery_mode == "poll" and instance.poll_interval_minutes:
+        return timedelta(minutes=max(instance.poll_interval_minutes * 3, 15))
+    return timedelta(minutes=15)
+
+
+def _derive_last_activity_at(
+    instance: AdapterInstance, latest_run: AdapterRun | None = None
+) -> datetime | None:
+    if instance.last_heartbeat_at is not None:
+        return instance.last_heartbeat_at
+
+    candidates = [
+        instance.last_success_at,
+        instance.last_failure_at,
+    ]
+    if latest_run is not None:
+        candidates.extend(
+            [
+                latest_run.completed_at,
+                latest_run.started_at,
+                latest_run.requested_at,
+            ]
+        )
+
+    values = [value for value in candidates if value is not None]
+    if not values:
+        return None
+    return max(values)
+
+
+def derive_is_overdue(
+    instance: AdapterInstance,
+    latest_run: AdapterRun | None = None,
+    *,
+    as_of: datetime | None = None,
+) -> bool:
+    effective_as_of = as_of or datetime.now(timezone.utc)
+    if instance.admin_state != "enabled":
+        return False
+    if instance.adapter_definition.delivery_mode != "poll":
+        return False
+    if instance.next_run_at is None:
+        return False
+    if latest_run is not None and latest_run.run_status == "running":
+        return False
+    return instance.next_run_at <= effective_as_of
+
+
+def derive_is_stale(
+    instance: AdapterInstance,
+    latest_run: AdapterRun | None = None,
+    *,
+    as_of: datetime | None = None,
+) -> bool:
+    effective_as_of = as_of or datetime.now(timezone.utc)
+    if instance.admin_state != "enabled":
+        return False
+    if latest_run is not None and latest_run.run_status == "running":
+        return False
+
+    threshold = _derive_stale_threshold(instance)
+    last_activity_at = _derive_last_activity_at(instance, latest_run)
+    if last_activity_at is not None:
+        return last_activity_at + threshold <= effective_as_of
+    if instance.next_run_at is not None:
+        return instance.next_run_at + threshold <= effective_as_of
+    return False
+
+
 def list_adapter_instances(session: Session, *, limit: int = 100) -> list[AdapterInstanceSnapshot]:
     statement: Select[tuple[AdapterInstance]] = (
         select(AdapterInstance)
@@ -157,6 +229,8 @@ def list_adapter_instances(session: Session, *, limit: int = 100) -> list[Adapte
             instance=row,
             effective_status=derive_effective_status(row, latest_runs.get(row.id)),
             latest_run=latest_runs.get(row.id),
+            is_overdue=derive_is_overdue(row, latest_runs.get(row.id)),
+            is_stale=derive_is_stale(row, latest_runs.get(row.id)),
         )
         for row in instances
     ]
@@ -190,6 +264,8 @@ def get_adapter_instance_detail(
             instance=instance,
             effective_status=derive_effective_status(instance, latest_run),
             latest_run=latest_run,
+            is_overdue=derive_is_overdue(instance, latest_run),
+            is_stale=derive_is_stale(instance, latest_run),
         ),
         recent_runs=recent_runs,
         watermarks=sorted(instance.adapter_watermarks, key=lambda row: row.id, reverse=True),

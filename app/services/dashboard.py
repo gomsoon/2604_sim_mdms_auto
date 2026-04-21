@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     AdapterInstance,
@@ -20,6 +20,7 @@ from app.models import (
     ServicePoint,
 )
 from app.services.adapters import derive_effective_status
+from app.services.adapters import derive_is_overdue, derive_is_stale
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,14 +102,21 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         ),
     }
 
-    adapter_instances = session.scalars(select(AdapterInstance).order_by(AdapterInstance.id.asc())).all()
+    adapter_instances = session.scalars(
+        select(AdapterInstance)
+        .options(selectinload(AdapterInstance.adapter_definition))
+        .order_by(AdapterInstance.id.asc())
+    ).all()
     latest_adapter_runs = _load_latest_adapter_runs(session, [row.id for row in adapter_instances])
     integration_ready = 0
     integration_running = 0
     integration_paused = 0
     integration_error = 0
+    integration_overdue = 0
+    integration_stale = 0
     for instance in adapter_instances:
-        effective_status = derive_effective_status(instance, latest_adapter_runs.get(instance.id))
+        latest_run = latest_adapter_runs.get(instance.id)
+        effective_status = derive_effective_status(instance, latest_run)
         if effective_status == "ready":
             integration_ready += 1
         elif effective_status == "running":
@@ -117,6 +125,10 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
             integration_paused += 1
         elif effective_status == "error":
             integration_error += 1
+        if derive_is_overdue(instance, latest_run):
+            integration_overdue += 1
+        if derive_is_stale(instance, latest_run):
+            integration_stale += 1
 
     integration_last_success = session.scalar(select(func.max(AdapterInstance.last_success_at)))
     integration_pending_runs = _count(
@@ -248,6 +260,14 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
                 CardSummaryRow(
                     label_key="dashboard.integration.pending_runs",
                     value=integration_pending_runs,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.integration.overdue_adapters",
+                    value=integration_overdue,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.integration.stale_adapters",
+                    value=integration_stale,
                 ),
             ],
         ),

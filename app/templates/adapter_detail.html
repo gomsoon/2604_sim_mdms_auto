@@ -45,13 +45,25 @@
           <dt class="col-sm-4">{{ t("table.definition") }}</dt>
           <dd class="col-sm-8">{{ detail.snapshot.instance.adapter_definition.display_name }}</dd>
           <dt class="col-sm-4">{{ t("table.status") }}</dt>
-          <dd class="col-sm-8">{{ t_or("adapter_status." ~ detail.snapshot.effective_status, detail.snapshot.effective_status) }}</dd>
+          <dd class="col-sm-8">
+            <div class="d-flex flex-wrap gap-2">
+              <span>{{ t_or("adapter_status." ~ detail.snapshot.effective_status, detail.snapshot.effective_status) }}</span>
+              {% if detail.snapshot.is_overdue %}
+              <span class="badge text-bg-danger">{{ t("adapter_health.overdue") }}</span>
+              {% endif %}
+              {% if detail.snapshot.is_stale %}
+              <span class="badge text-bg-warning">{{ t("adapter_health.stale") }}</span>
+              {% endif %}
+            </div>
+          </dd>
           <dt class="col-sm-4">{{ t("field.status") }}</dt>
           <dd class="col-sm-8">{{ t_or("adapter_admin_state." ~ detail.snapshot.instance.admin_state, detail.snapshot.instance.admin_state) }}</dd>
           <dt class="col-sm-4">{{ t("table.last_success") }}</dt>
           <dd class="col-sm-8">{{ detail.snapshot.instance.last_success_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("table.last_failure") }}</dt>
           <dd class="col-sm-8">{{ detail.snapshot.instance.last_failure_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.last_heartbeat") }}</dt>
+          <dd class="col-sm-8">{{ detail.snapshot.instance.last_heartbeat_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("table.next_run") }}</dt>
           <dd class="col-sm-8">{{ detail.snapshot.instance.next_run_at|dt }}</dd>
         </dl>
