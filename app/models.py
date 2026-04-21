@@ -98,6 +98,9 @@ class AdapterInstance(TimestampMixin, Base):
         back_populates="adapter_instance"
     )
     ingest_batches: Mapped[list[IngestBatch]] = relationship(back_populates="adapter_instance")
+    landing_lp_em_read_blocks: Mapped[list["LandingLpEmReadBlock"]] = relationship(
+        back_populates="adapter_instance"
+    )
 
 
 class AdapterRun(TimestampMixin, Base):
@@ -123,6 +126,12 @@ class AdapterRun(TimestampMixin, Base):
 
     adapter_instance: Mapped[AdapterInstance] = relationship(back_populates="adapter_runs")
     ingest_batches: Mapped[list[IngestBatch]] = relationship(back_populates="adapter_run")
+    landing_lp_em_read_blocks: Mapped[list["LandingLpEmReadBlock"]] = relationship(
+        back_populates="adapter_run"
+    )
+    raw_interval_window_states: Mapped[list["RawIntervalWindowState"]] = relationship(
+        back_populates="last_adapter_run"
+    )
 
 
 class AdapterWatermark(TimestampMixin, Base):
@@ -147,6 +156,55 @@ class AdapterWatermark(TimestampMixin, Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     adapter_instance: Mapped[AdapterInstance] = relationship(back_populates="adapter_watermarks")
+
+
+class LandingLpEmReadBlock(TimestampMixin, Base):
+    __tablename__ = "landing_lp_em_read_block"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system",
+            "source_block_key",
+            name="uq_landing_lp_em_read_block_source_block",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    adapter_instance_id: Mapped[int] = mapped_column(
+        ForeignKey("adapter_instance.id"), nullable=False, index=True
+    )
+    adapter_run_id: Mapped[int] = mapped_column(
+        ForeignKey("adapter_run.id"), nullable=False, index=True
+    )
+    source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    source_table_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    source_block_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    meter_source_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    device_source_id: Mapped[str | None] = mapped_column(String(100))
+    mdev_id: Mapped[str | None] = mapped_column(String(100))
+    mdev_type: Mapped[str | None] = mapped_column(String(50))
+    channel_code: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_business_hour: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    source_hour_component: Mapped[str | None] = mapped_column(String(2))
+    source_write_text: Mapped[str | None] = mapped_column(String(14))
+    source_write_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    location_source_id: Mapped[str | None] = mapped_column(String(100))
+    supplier_source_id: Mapped[str | None] = mapped_column(String(100))
+    enddevice_source_id: Mapped[str | None] = mapped_column(String(100))
+    value_cnt: Mapped[int | None] = mapped_column(Integer)
+    block_value: Mapped[float | None] = mapped_column(Float)
+    slot_values: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    slot_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    parsed_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    parse_error_code: Mapped[str | None] = mapped_column(String(100))
+    source_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    adapter_instance: Mapped[AdapterInstance] = relationship(
+        back_populates="landing_lp_em_read_blocks"
+    )
+    adapter_run: Mapped[AdapterRun] = relationship(back_populates="landing_lp_em_read_blocks")
+    hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(
+        back_populates="landing_lp_em_read_block"
+    )
 
 
 class ServicePoint(TimestampMixin, Base):
@@ -223,14 +281,31 @@ class HesReadRaw(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ingest_batch_id: Mapped[int] = mapped_column(ForeignKey("ingest_batch.id"), nullable=False)
+    adapter_instance_id: Mapped[int | None] = mapped_column(
+        ForeignKey("adapter_instance.id"), index=True
+    )
+    adapter_run_id: Mapped[int | None] = mapped_column(ForeignKey("adapter_run.id"), index=True)
+    landing_lp_em_read_block_id: Mapped[int | None] = mapped_column(
+        ForeignKey("landing_lp_em_read_block.id"), index=True
+    )
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    source_table_name: Mapped[str | None] = mapped_column(String(150))
+    source_block_key: Mapped[str | None] = mapped_column(String(255))
+    source_record_key: Mapped[str | None] = mapped_column(String(255))
     meter_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
+    device_identifier: Mapped[str | None] = mapped_column(String(100))
     channel_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
+    source_slot_code: Mapped[str | None] = mapped_column(String(10))
+    source_slot_index: Mapped[int | None] = mapped_column(Integer)
     measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    interval_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    interval_size_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
     reading_value: Mapped[float | None] = mapped_column(Float)
     quality_code: Mapped[str | None] = mapped_column(String(40))
     status_code: Mapped[str | None] = mapped_column(String(40))
     unit_of_measure: Mapped[str | None] = mapped_column(String(20))
+    source_business_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_write_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     canonical_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     is_duplicate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -238,6 +313,11 @@ class HesReadRaw(TimestampMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     ingest_batch: Mapped[IngestBatch] = relationship(back_populates="hes_read_rows")
+    adapter_instance: Mapped["AdapterInstance | None"] = relationship()
+    adapter_run: Mapped["AdapterRun | None"] = relationship()
+    landing_lp_em_read_block: Mapped["LandingLpEmReadBlock | None"] = relationship(
+        back_populates="hes_read_rows"
+    )
     canonical_measurement: Mapped["CanonicalMeasurement | None"] = relationship(
         back_populates="hes_read_raw", uselist=False
     )
@@ -314,6 +394,43 @@ class FinalMeasurement(TimestampMixin, Base):
     canonical_measurement: Mapped[CanonicalMeasurement] = relationship(
         back_populates="final_measurement"
     )
+
+
+class RawIntervalWindowState(TimestampMixin, Base):
+    __tablename__ = "raw_interval_window_state"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system",
+            "meter_identifier",
+            "channel_identifier",
+            "window_start_at",
+            "window_size_minutes",
+            name="uq_raw_interval_window_state_scope",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    meter_identifier: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    channel_identifier: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    window_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    window_size_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    interval_size_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_slot_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    received_slot_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    received_slot_bitmap: Mapped[str | None] = mapped_column(String(256))
+    first_source_write_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_source_write_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    completion_status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    late_update_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_adapter_run_id: Mapped[int | None] = mapped_column(ForeignKey("adapter_run.id"))
+    last_ingest_batch_id: Mapped[int | None] = mapped_column(ForeignKey("ingest_batch.id"))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    last_adapter_run: Mapped["AdapterRun | None"] = relationship(
+        back_populates="raw_interval_window_states"
+    )
+    last_ingest_batch: Mapped["IngestBatch | None"] = relationship()
 
 
 class IngestErrorLog(TimestampMixin, Base):

@@ -55,12 +55,22 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "adapter_instance" in tables
         assert "adapter_run" in tables
         assert "adapter_watermark" in tables
+        assert "landing_lp_em_read_block" in tables
+        assert "raw_interval_window_state" in tables
 
         ingest_batch_columns = {
             column["name"] for column in inspector.get_columns("ingest_batch", schema=schema_name)
         }
+        hes_read_raw_columns = {
+            column["name"] for column in inspector.get_columns("hes_read_raw", schema=schema_name)
+        }
 
         assert "adapter_instance_id" in ingest_batch_columns
         assert "adapter_run_id" in ingest_batch_columns
+        assert "adapter_instance_id" in hes_read_raw_columns
+        assert "adapter_run_id" in hes_read_raw_columns
+        assert "landing_lp_em_read_block_id" in hes_read_raw_columns
+        assert "interval_size_minutes" in hes_read_raw_columns
+        assert "source_write_ts" in hes_read_raw_columns
     finally:
         drop_schema(test_database_url, schema_name)
