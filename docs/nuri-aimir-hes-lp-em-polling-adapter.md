@@ -58,6 +58,8 @@ The adapter instance should support at least:
 - source timezone
 - polling batch size
 - allowed channels
+- optional business-hour lower bound
+- optional business-hour upper bound
 - default interval minutes
 - slot-index mode
 - landing enabled flag
@@ -68,6 +70,7 @@ Recommended current baseline:
 - source timezone must be explicit
 - slot-index mode should default to `minute_offset`
 - watermark mode should start with `writedate`
+- smoke or controlled live verification may additionally constrain `YYYYMMDDHH` with optional business-hour bounds
 
 ## Recommended extraction boundary
 

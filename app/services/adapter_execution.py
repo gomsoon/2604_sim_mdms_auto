@@ -154,6 +154,12 @@ def _parse_optional_positive_int(value: Any) -> int | None:
     return parsed
 
 
+def _normalize_source_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 def _extract_lp_em_slot_values(row: dict[str, Any], *, row_index: int) -> dict[str, float]:
     slot_values: dict[str, float] = {}
     for slot_index in range(60):
@@ -326,10 +332,10 @@ class NuriAimirHesLpEmPollRuntime:
         )
 
     def _row_cursor(self, row: dict[str, Any]) -> NuriAimirHesLpEmCursor:
-        meter_source_id = str(row.get("METER_ID") or "").strip()
-        channel_code = str(row.get("CHANNEL") or "").strip()
-        source_business_hour = str(row.get("YYYYMMDDHH") or "").strip()
-        source_write_text = str(row.get("WRITEDATE") or "").strip()
+        meter_source_id = _normalize_source_text(row.get("METER_ID"))
+        channel_code = _normalize_source_text(row.get("CHANNEL"))
+        source_business_hour = _normalize_source_text(row.get("YYYYMMDDHH"))
+        source_write_text = _normalize_source_text(row.get("WRITEDATE"))
         if not all([meter_source_id, channel_code, source_business_hour, source_write_text]):
             raise AdapterExecutionError(
                 "invalid_source_row_cursor",
@@ -363,7 +369,7 @@ class NuriAimirHesLpEmPollRuntime:
                 meter_source_id,
                 source_business_hour,
                 channel_code,
-                str(row.get("WRITEDATE") or ""),
+                _normalize_source_text(row.get("WRITEDATE")),
             )
         )
         existing = session.scalar(
@@ -393,17 +399,17 @@ class NuriAimirHesLpEmPollRuntime:
             source_table_name=self.source_table_name,
             source_block_key=block_key,
             meter_source_id=meter_source_id,
-            device_source_id=str(row.get("DEVICE_ID") or "").strip() or None,
-            mdev_id=str(row.get("MDEV_ID") or "").strip() or None,
-            mdev_type=str(row.get("MDEV_TYPE") or "").strip() or None,
+            device_source_id=_normalize_source_text(row.get("DEVICE_ID")) or None,
+            mdev_id=_normalize_source_text(row.get("MDEV_ID")) or None,
+            mdev_type=_normalize_source_text(row.get("MDEV_TYPE")) or None,
             channel_code=channel_code,
             source_business_hour=source_business_hour,
-            source_hour_component=str(row.get("HH") or "").strip() or None,
-            source_write_text=str(row.get("WRITEDATE") or "").strip() or None,
+            source_hour_component=_normalize_source_text(row.get("HH")) or None,
+            source_write_text=_normalize_source_text(row.get("WRITEDATE")) or None,
             source_write_ts=source_write_ts,
-            location_source_id=str(row.get("LOCATION_ID") or "").strip() or None,
-            supplier_source_id=str(row.get("SUPPLIER_ID") or "").strip() or None,
-            enddevice_source_id=str(row.get("ENDDEVICE_ID") or "").strip() or None,
+            location_source_id=_normalize_source_text(row.get("LOCATION_ID")) or None,
+            supplier_source_id=_normalize_source_text(row.get("SUPPLIER_ID")) or None,
+            enddevice_source_id=_normalize_source_text(row.get("ENDDEVICE_ID")) or None,
             value_cnt=_parse_optional_positive_int(row.get("VALUE_CNT")),
             block_value=block_value,
             slot_values=slot_values,
@@ -441,10 +447,10 @@ class NuriAimirHesLpEmPollRuntime:
                     selected_blocks.append(dict(raw_row))
             selected_blocks.sort(
                 key=lambda row: (
-                    str(row.get("WRITEDATE") or ""),
-                    str(row.get("YYYYMMDDHH") or ""),
-                    str(row.get("METER_ID") or ""),
-                    str(row.get("CHANNEL") or ""),
+                    _normalize_source_text(row.get("WRITEDATE")),
+                    _normalize_source_text(row.get("YYYYMMDDHH")),
+                    _normalize_source_text(row.get("METER_ID")),
+                    _normalize_source_text(row.get("CHANNEL")),
                 )
             )
             batch_limit = (polling_config.batch_size if polling_config is not None else None) or len(
@@ -535,19 +541,19 @@ class NuriAimirHesLpEmPollRuntime:
         now = datetime.now(timezone.utc)
 
         for row_index, row in enumerate(selected_blocks):
-            meter_source_id = str(row.get("METER_ID") or "").strip()
+            meter_source_id = _normalize_source_text(row.get("METER_ID"))
             if not meter_source_id:
                 raise AdapterExecutionError(
                     "missing_meter_source_id",
                     f"LP_EM source block at index {row_index} is missing METER_ID.",
                 )
-            channel_code = str(row.get("CHANNEL") or "").strip()
+            channel_code = _normalize_source_text(row.get("CHANNEL"))
             if not channel_code:
                 raise AdapterExecutionError(
                     "missing_channel_code",
                     f"LP_EM source block at index {row_index} is missing CHANNEL.",
                 )
-            source_business_hour = str(row.get("YYYYMMDDHH") or "").strip()
+            source_business_hour = _normalize_source_text(row.get("YYYYMMDDHH"))
             source_business_ts = _parse_source_local_timestamp(
                 source_business_hour,
                 source_timezone=source_timezone,

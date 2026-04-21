@@ -477,19 +477,19 @@ def test_execute_nuri_aimir_hes_lp_em_run_supports_oracle_query_mode(
         assert cursor is None
         return [
             {
-                "METER_ID": "32418",
-                "DEVICE_ID": "795",
-                "MDEV_ID": "32418",
+                "METER_ID": 32418,
+                "DEVICE_ID": 795,
+                "MDEV_ID": 32418,
                 "MDEV_TYPE": "EM",
                 "YYYYMMDDHH": "2024080603",
                 "HH": "03",
                 "WRITEDATE": "20240806030100",
-                "CHANNEL": "0",
+                "CHANNEL": 0,
                 "VALUE_CNT": 1,
                 "VALUE_00": 1.25,
-                "LOCATION_ID": "100",
-                "SUPPLIER_ID": "200",
-                "ENDDEVICE_ID": "300",
+                "LOCATION_ID": 100,
+                "SUPPLIER_ID": 200,
+                "ENDDEVICE_ID": 300,
                 "LP_INTERVAL": 15,
             }
         ]
@@ -505,12 +505,19 @@ def test_execute_nuri_aimir_hes_lp_em_run_supports_oracle_query_mode(
 
     refreshed_run = session.get(AdapterRun, queued_run.id)
     state = session.scalar(select(RawIntervalWindowState).limit(1))
+    raw_read = session.scalar(select(HesReadRaw).limit(1))
+    landing_row = session.scalar(select(LandingLpEmReadBlock).limit(1))
 
     assert result.run_status == "completed"
     assert refreshed_run is not None
     assert refreshed_run.details["source_fetch_mode"] == "oracle_query"
     assert state is not None
     assert state.completion_status == "partial"
+    assert raw_read is not None
+    assert raw_read.meter_identifier == "32418"
+    assert raw_read.channel_identifier == "0"
+    assert landing_row is not None
+    assert landing_row.channel_code == "0"
 
 
 def test_execute_nuri_aimir_hes_lp_em_run_preserves_classified_source_failure(

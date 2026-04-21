@@ -44,6 +44,8 @@ def test_parse_nuri_aimir_hes_polling_config_reads_env_secret_and_channels(
             "oracle_sid": "HESDB",
             "oracle_username": "aimir",
             "allowed_channels": ["0", "98"],
+            "oracle_business_hour_from": "2024080600",
+            "oracle_business_hour_to": "2024080603",
         },
         secret_ref="env://MDMS_NURI_AIMIR_HES_DB_PASSWORD",
         batch_size=500,
@@ -57,6 +59,28 @@ def test_parse_nuri_aimir_hes_polling_config_reads_env_secret_and_channels(
     assert config.password == "oracle-secret"
     assert config.batch_size == 500
     assert config.allowed_channels == ("0", "98")
+    assert config.business_hour_from == "2024080600"
+    assert config.business_hour_to == "2024080603"
+
+
+def test_parse_nuri_aimir_hes_polling_config_rejects_invalid_business_hour_range(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("MDMS_NURI_AIMIR_HES_DB_PASSWORD", "oracle-secret")
+
+    with pytest.raises(ValueError):
+        parse_nuri_aimir_hes_polling_config(
+            {
+                "oracle_host": "172.16.10.111",
+                "oracle_port": 1521,
+                "oracle_sid": "HESDB",
+                "oracle_username": "aimir",
+                "oracle_business_hour_from": "2024080604",
+                "oracle_business_hour_to": "2024080603",
+            },
+            secret_ref="env://MDMS_NURI_AIMIR_HES_DB_PASSWORD",
+            batch_size=500,
+        )
 
 
 def test_parse_nuri_aimir_hes_runtime_config_supports_sample_mode():
@@ -121,13 +145,22 @@ def test_build_lp_em_query_includes_cursor_and_channel_filters():
     query, binds = _build_lp_em_query(
         batch_size=250,
         allowed_channels=("0", "98"),
+        business_hour_from="2024080600",
+        business_hour_to="2024080603",
         has_cursor=True,
     )
 
     assert "LP_EM.WRITEDATE > :cursor_writedate" in query
     assert "LP_EM.CHANNEL in (:channel_0, :channel_1)" in query
+    assert "LP_EM.YYYYMMDDHH >= :business_hour_from" in query
+    assert "LP_EM.YYYYMMDDHH <= :business_hour_to" in query
     assert "fetch first 250 rows only" in query.lower()
-    assert binds == {"channel_0": "0", "channel_1": "98"}
+    assert binds == {
+        "channel_0": "0",
+        "channel_1": "98",
+        "business_hour_from": "2024080600",
+        "business_hour_to": "2024080603",
+    }
 
 
 def test_fetch_nuri_aimir_hes_lp_em_rows_classifies_authentication_failure(

@@ -166,13 +166,14 @@ Introduce live polling in a way that is safe to inspect and easy to roll back.
 1. prepare one dedicated adapter instance
 2. use small batch size
 3. optionally restrict channels
-4. execute `Run Once`
-5. verify `adapter_run`
-6. verify watermark movement
-7. verify landing rows
-8. verify common raw rows
-9. verify completeness-state updates
-10. repeat once to confirm replay safety
+4. optionally constrain business-hour lower and upper bounds for smoke validation
+5. execute `Run Once`
+6. verify `adapter_run`
+7. verify watermark movement
+8. verify landing rows
+9. verify common raw rows
+10. verify completeness-state updates
+11. repeat once to confirm replay safety
 
 ### Recommended first live boundary
 

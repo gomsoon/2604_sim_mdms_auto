@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import re
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -24,6 +25,8 @@ class NuriAimirHesPollingConfig:
     service_name: str | None
     batch_size: int
     allowed_channels: tuple[str, ...]
+    business_hour_from: str | None
+    business_hour_to: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +99,15 @@ def _parse_optional_positive_int(value: Any, *, field_name: str) -> int | None:
     return parsed
 
 
+def _parse_optional_business_hour(value: Any, *, field_name: str) -> str | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    if not re.fullmatch(r"\d{10}", normalized):
+        raise ValueError(f"{field_name} must use YYYYMMDDHH format when provided.")
+    return normalized
+
+
 def parse_nuri_aimir_hes_lp_em_cursor(value: str | None) -> NuriAimirHesLpEmCursor | None:
     normalized = str(value or "").strip()
     if not normalized:
@@ -157,6 +169,22 @@ def parse_nuri_aimir_hes_polling_config(
         raise ValueError("Oracle polling allowed_channels must be a list when provided.")
 
     allowed_channels = tuple(str(value).strip() for value in raw_allowed_channels if str(value).strip())
+    business_hour_from = _parse_optional_business_hour(
+        runtime_config.get("oracle_business_hour_from"),
+        field_name="oracle_business_hour_from",
+    )
+    business_hour_to = _parse_optional_business_hour(
+        runtime_config.get("oracle_business_hour_to"),
+        field_name="oracle_business_hour_to",
+    )
+    if (
+        business_hour_from is not None
+        and business_hour_to is not None
+        and business_hour_from > business_hour_to
+    ):
+        raise ValueError(
+            "oracle_business_hour_from must be less than or equal to oracle_business_hour_to."
+        )
 
     return NuriAimirHesPollingConfig(
         host=host,
@@ -167,6 +195,8 @@ def parse_nuri_aimir_hes_polling_config(
         service_name=service_name,
         batch_size=effective_batch_size,
         allowed_channels=allowed_channels,
+        business_hour_from=business_hour_from,
+        business_hour_to=business_hour_to,
     )
 
 
@@ -251,14 +281,23 @@ def _build_lp_em_query(
     *,
     batch_size: int,
     allowed_channels: tuple[str, ...],
+    business_hour_from: str | None,
+    business_hour_to: str | None,
     has_cursor: bool,
 ) -> tuple[str, dict[str, Any]]:
     allowed_channel_sql, allowed_channel_binds = _build_allowed_channel_clause(allowed_channels)
     where_sql = "1 = 1"
     bind_values: dict[str, Any] = dict(allowed_channel_binds)
 
+    if business_hour_from is not None:
+        where_sql += "\n            and LP_EM.YYYYMMDDHH >= :business_hour_from"
+        bind_values["business_hour_from"] = business_hour_from
+    if business_hour_to is not None:
+        where_sql += "\n            and LP_EM.YYYYMMDDHH <= :business_hour_to"
+        bind_values["business_hour_to"] = business_hour_to
+
     if has_cursor:
-        where_sql = """
+        cursor_where_sql = """
             (
                 LP_EM.WRITEDATE > :cursor_writedate
                 or (
@@ -279,6 +318,7 @@ def _build_lp_em_query(
                 )
             )
         """.strip()
+        where_sql += f"\n            and {cursor_where_sql}"
 
     query = f"""
         select {", ".join(SELECT_COLUMNS)}
@@ -329,6 +369,8 @@ def fetch_nuri_aimir_hes_lp_em_rows(
     query, bind_values = _build_lp_em_query(
         batch_size=config.batch_size,
         allowed_channels=config.allowed_channels,
+        business_hour_from=config.business_hour_from,
+        business_hour_to=config.business_hour_to,
         has_cursor=cursor is not None,
     )
     if cursor is not None:
