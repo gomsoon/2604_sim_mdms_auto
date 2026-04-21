@@ -8,6 +8,7 @@ from app.services.nuri_aimir_hes_source import (
     format_nuri_aimir_hes_lp_em_cursor,
     parse_nuri_aimir_hes_lp_em_cursor,
     parse_nuri_aimir_hes_polling_config,
+    parse_nuri_aimir_hes_runtime_config,
     resolve_env_secret,
 )
 
@@ -51,6 +52,57 @@ def test_parse_nuri_aimir_hes_polling_config_reads_env_secret_and_channels(
     assert config.password == "oracle-secret"
     assert config.batch_size == 500
     assert config.allowed_channels == ("0", "98")
+
+
+def test_parse_nuri_aimir_hes_runtime_config_supports_sample_mode():
+    runtime_config = parse_nuri_aimir_hes_runtime_config(
+        {
+            "source_timezone": "Asia/Seoul",
+            "default_interval_minutes": 15,
+            "unit_of_measure": "kWh",
+            "sample_blocks": [{"METER_ID": "32418"}],
+        },
+        secret_ref=None,
+        batch_size=100,
+    )
+
+    assert runtime_config.source_fetch_mode == "sample_blocks"
+    assert runtime_config.source_timezone_name == "Asia/Seoul"
+    assert runtime_config.default_interval_minutes == 15
+    assert runtime_config.sample_blocks == ({"METER_ID": "32418"},)
+    assert runtime_config.polling_config is None
+
+
+def test_parse_nuri_aimir_hes_runtime_config_rejects_mixed_sample_and_oracle_modes(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("MDMS_NURI_AIMIR_HES_DB_PASSWORD", "oracle-secret")
+
+    with pytest.raises(ValueError):
+        parse_nuri_aimir_hes_runtime_config(
+            {
+                "source_timezone": "Asia/Seoul",
+                "sample_blocks": [{"METER_ID": "32418"}],
+                "oracle_host": "172.16.10.111",
+                "oracle_sid": "HESDB",
+                "oracle_username": "aimir",
+            },
+            secret_ref="env://MDMS_NURI_AIMIR_HES_DB_PASSWORD",
+            batch_size=100,
+        )
+
+
+def test_parse_nuri_aimir_hes_runtime_config_rejects_invalid_default_interval():
+    with pytest.raises(ValueError):
+        parse_nuri_aimir_hes_runtime_config(
+            {
+                "source_timezone": "Asia/Seoul",
+                "default_interval_minutes": 0,
+                "sample_blocks": [{"METER_ID": "32418"}],
+            },
+            secret_ref=None,
+            batch_size=100,
+        )
 
 
 def test_resolve_env_secret_rejects_missing_env(monkeypatch: pytest.MonkeyPatch):

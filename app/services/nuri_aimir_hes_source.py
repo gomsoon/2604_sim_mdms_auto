@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +24,16 @@ class NuriAimirHesPollingConfig:
     service_name: str | None
     batch_size: int
     allowed_channels: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class NuriAimirHesRuntimeConfig:
+    source_timezone_name: str
+    default_interval_minutes: int | None
+    unit_of_measure: str
+    source_fetch_mode: str
+    sample_blocks: tuple[dict[str, Any], ...]
+    polling_config: NuriAimirHesPollingConfig | None
 
 
 SELECT_COLUMNS = [
@@ -61,6 +72,18 @@ def resolve_env_secret(secret_ref: str | None) -> str:
             f"Oracle polling secret_ref points to environment variable '{env_name}', but it is not set."
         )
     return value
+
+
+def _parse_optional_positive_int(value: Any, *, field_name: str) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a positive integer when provided.") from exc
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be a positive integer when provided.")
+    return parsed
 
 
 def parse_nuri_aimir_hes_lp_em_cursor(value: str | None) -> NuriAimirHesLpEmCursor | None:
@@ -134,6 +157,70 @@ def parse_nuri_aimir_hes_polling_config(
         service_name=service_name,
         batch_size=effective_batch_size,
         allowed_channels=allowed_channels,
+    )
+
+
+def parse_nuri_aimir_hes_runtime_config(
+    runtime_config: dict[str, Any],
+    *,
+    secret_ref: str | None,
+    batch_size: int | None,
+) -> NuriAimirHesRuntimeConfig:
+    source_timezone_name = str(runtime_config.get("source_timezone") or "").strip()
+    if not source_timezone_name:
+        raise ValueError("The polling adapter requires an explicit source timezone.")
+    try:
+        ZoneInfo(source_timezone_name)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError("The configured source timezone is not recognized.") from exc
+
+    default_interval_minutes = _parse_optional_positive_int(
+        runtime_config.get("default_interval_minutes"),
+        field_name="default_interval_minutes",
+    )
+    unit_of_measure = str(runtime_config.get("unit_of_measure") or "kWh").strip() or "kWh"
+
+    raw_sample_blocks = runtime_config.get("sample_blocks")
+    has_sample_blocks = raw_sample_blocks is not None
+    if has_sample_blocks and not isinstance(raw_sample_blocks, list):
+        raise ValueError("sample_blocks must be a JSON array when provided.")
+    sample_blocks = tuple(raw_sample_blocks or [])
+    if any(not isinstance(row, dict) for row in sample_blocks):
+        raise ValueError("Every sample_blocks entry must be a JSON object.")
+
+    has_oracle_settings = any(
+        [
+            str(runtime_config.get("oracle_host") or "").strip(),
+            str(runtime_config.get("oracle_username") or "").strip(),
+            str(runtime_config.get("oracle_sid") or "").strip(),
+            str(runtime_config.get("oracle_service_name") or "").strip(),
+            str(secret_ref or "").strip(),
+        ]
+    )
+
+    if has_sample_blocks and has_oracle_settings:
+        raise ValueError(
+            "Choose exactly one NURI AIMIR HES source fetch mode: sample_blocks or Oracle polling."
+        )
+
+    if has_sample_blocks:
+        source_fetch_mode = "sample_blocks"
+        polling_config = None
+    else:
+        source_fetch_mode = "oracle_query"
+        polling_config = parse_nuri_aimir_hes_polling_config(
+            runtime_config,
+            secret_ref=secret_ref,
+            batch_size=batch_size,
+        )
+
+    return NuriAimirHesRuntimeConfig(
+        source_timezone_name=source_timezone_name,
+        default_interval_minutes=default_interval_minutes,
+        unit_of_measure=unit_of_measure,
+        source_fetch_mode=source_fetch_mode,
+        sample_blocks=sample_blocks,
+        polling_config=polling_config,
     )
 
 

@@ -17,10 +17,11 @@ from app.models import (
 )
 from app.services.nuri_aimir_hes_source import (
     NuriAimirHesLpEmCursor,
+    NuriAimirHesPollingConfig,
     fetch_nuri_aimir_hes_lp_em_rows,
     format_nuri_aimir_hes_lp_em_cursor,
     parse_nuri_aimir_hes_lp_em_cursor,
-    parse_nuri_aimir_hes_polling_config,
+    parse_nuri_aimir_hes_runtime_config,
 )
 from app.services.ingest_adapters import DEFAULT_ADAPTER_KEY
 from app.services.ingest_contract import coerce_numeric, parse_datetime
@@ -342,20 +343,15 @@ class NuriAimirHesLpEmPollRuntime:
 
     def _load_source_blocks(
         self,
-        instance: AdapterInstance,
         *,
-        runtime_config: dict[str, Any],
+        source_fetch_mode: str,
+        sample_blocks: tuple[dict[str, Any], ...],
+        polling_config: NuriAimirHesPollingConfig | None,
         watermark_cursor: NuriAimirHesLpEmCursor | None,
     ) -> tuple[list[dict[str, Any]], str, int]:
-        sample_blocks = runtime_config.get("sample_blocks")
-        if isinstance(sample_blocks, list):
+        if source_fetch_mode == "sample_blocks":
             selected_blocks: list[dict[str, Any]] = []
             for index, raw_row in enumerate(sample_blocks):
-                if not isinstance(raw_row, dict):
-                    raise AdapterExecutionError(
-                        "invalid_source_row",
-                        f"Sample source block at index {index} must be a JSON object.",
-                    )
                 row_cursor = self._row_cursor(raw_row)
                 if watermark_cursor is None or (
                     row_cursor.write_date,
@@ -377,23 +373,13 @@ class NuriAimirHesLpEmPollRuntime:
                     str(row.get("CHANNEL") or ""),
                 )
             )
-            batch_limit = instance.batch_size or len(selected_blocks)
+            batch_limit = (polling_config.batch_size if polling_config is not None else None) or len(
+                selected_blocks
+            )
             return selected_blocks[:batch_limit], "sample_blocks", len(sample_blocks)
 
         try:
-            config = parse_nuri_aimir_hes_polling_config(
-                runtime_config,
-                secret_ref=instance.secret_ref,
-                batch_size=instance.batch_size,
-            )
-        except ValueError as exc:
-            raise AdapterExecutionError(
-                "invalid_nuri_aimir_hes_runtime_configuration",
-                str(exc),
-            ) from exc
-
-        try:
-            rows = fetch_nuri_aimir_hes_lp_em_rows(config, cursor=watermark_cursor)
+            rows = fetch_nuri_aimir_hes_lp_em_rows(polling_config, cursor=watermark_cursor)
         except Exception as exc:
             raise AdapterExecutionError(
                 "nuri_aimir_hes_poll_failed",
@@ -421,9 +407,20 @@ class NuriAimirHesLpEmPollRuntime:
             )
 
         runtime_config = dict(instance.connection_config_masked or {})
-        source_timezone = _require_source_timezone(runtime_config.get("source_timezone"))
-        default_interval = _parse_optional_positive_int(runtime_config.get("default_interval_minutes"))
-        default_unit = str(runtime_config.get("unit_of_measure") or "kWh").strip() or "kWh"
+        try:
+            runtime_settings = parse_nuri_aimir_hes_runtime_config(
+                runtime_config,
+                secret_ref=instance.secret_ref,
+                batch_size=instance.batch_size,
+            )
+        except ValueError as exc:
+            raise AdapterExecutionError(
+                "invalid_nuri_aimir_hes_runtime_configuration",
+                str(exc),
+            ) from exc
+        source_timezone = _require_source_timezone(runtime_settings.source_timezone_name)
+        default_interval = runtime_settings.default_interval_minutes
+        default_unit = runtime_settings.unit_of_measure
 
         watermark = _load_adapter_watermark(
             session,
@@ -445,8 +442,9 @@ class NuriAimirHesLpEmPollRuntime:
             source_timezone=source_timezone,
         )
         selected_blocks, source_fetch_mode, source_block_count = self._load_source_blocks(
-            instance,
-            runtime_config=runtime_config,
+            source_fetch_mode=runtime_settings.source_fetch_mode,
+            sample_blocks=runtime_settings.sample_blocks,
+            polling_config=runtime_settings.polling_config,
             watermark_cursor=watermark_cursor,
         )
 

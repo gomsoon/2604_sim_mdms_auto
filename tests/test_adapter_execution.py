@@ -504,3 +504,47 @@ def test_execute_nuri_aimir_hes_lp_em_run_supports_oracle_query_mode(
     assert refreshed_run.details["source_fetch_mode"] == "oracle_query"
     assert state is not None
     assert state.completion_status == "partial"
+
+
+def test_execute_nuri_aimir_hes_lp_em_run_fails_for_mixed_sample_and_oracle_configuration(
+    session, monkeypatch
+):
+    instance = _seed_nuri_aimir_hes_runtime_prerequisites(session)
+    instance.connection_config_masked = {
+        "source_timezone": "Asia/Seoul",
+        "default_interval_minutes": 15,
+        "unit_of_measure": "kWh",
+        "sample_blocks": [
+            {
+                "METER_ID": "32418",
+                "DEVICE_ID": "795",
+                "MDEV_ID": "32418",
+                "MDEV_TYPE": "EM",
+                "YYYYMMDDHH": "2024080603",
+                "HH": "03",
+                "WRITEDATE": "20240806030100",
+                "CHANNEL": "0",
+                "VALUE_CNT": 1,
+                "VALUE_00": 1.25,
+            }
+        ],
+        "oracle_host": "172.16.10.111",
+        "oracle_sid": "HESDB",
+        "oracle_username": "aimir",
+    }
+    instance.secret_ref = "env://MDMS_NURI_AIMIR_HES_DB_PASSWORD"
+    session.commit()
+
+    monkeypatch.setenv("MDMS_NURI_AIMIR_HES_DB_PASSWORD", "oracle-secret")
+
+    queued_run = queue_adapter_run_once(session, instance)
+    result = execute_adapter_run(session, queued_run.id)
+    session.commit()
+
+    refreshed_run = session.get(AdapterRun, queued_run.id)
+
+    assert result.run_status == "failed"
+    assert result.error_code == "invalid_nuri_aimir_hes_runtime_configuration"
+    assert refreshed_run is not None
+    assert refreshed_run.run_status == "failed"
+    assert refreshed_run.error_code == "invalid_nuri_aimir_hes_runtime_configuration"
