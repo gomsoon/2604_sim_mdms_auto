@@ -313,4 +313,4 @@ Translate this document into:
 
 - [common-raw-interval-model.md](/home/tprover/2604_sim_mdms_auto/docs/common-raw-interval-model.md)
 - [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
-- [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+- [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)

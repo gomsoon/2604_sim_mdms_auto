@@ -24,7 +24,7 @@ from app.services.adapters import queue_adapter_run_once
 from app.services.seeds import seed_adapter_runtime, seed_master_data
 
 
-def _seed_oracle_runtime_prerequisites(session) -> AdapterInstance:
+def _seed_nuri_aimir_hes_runtime_prerequisites(session) -> AdapterInstance:
     service_point = ServicePoint(
         source_system="HES_OVERSEAS",
         external_id="SP-OVERSEAS-32418",
@@ -64,13 +64,13 @@ def _seed_oracle_runtime_prerequisites(session) -> AdapterInstance:
     session.flush()
 
     definition = AdapterDefinition(
-        adapter_code="oracle_lp_em_poll_v1",
-        display_name="Oracle LP_EM Poll",
+        adapter_code="nuri_aimir_hes_lp_em_poll_v1",
+        display_name="NURI AIMIR HES LP_EM Poll",
         delivery_mode="poll",
-        source_family="hes_overseas",
+        source_family="nuri_aimir_hes",
         record_type="hes_read_raw",
         adapter_profile_key="common_raw_v1",
-        implementation_key="oracle_lp_em_poll_v1",
+        implementation_key="nuri_aimir_hes_lp_em_poll_v1",
         status="active",
     )
     session.add(definition)
@@ -78,8 +78,8 @@ def _seed_oracle_runtime_prerequisites(session) -> AdapterInstance:
 
     instance = AdapterInstance(
         adapter_definition_id=definition.id,
-        instance_code="oracle_lp_em_primary",
-        display_name="Oracle LP_EM Primary",
+        instance_code="nuri_aimir_hes_lp_em_primary",
+        display_name="NURI AIMIR HES LP_EM Primary",
         source_system="HES_OVERSEAS",
         admin_state="enabled",
         poll_interval_minutes=5,
@@ -306,8 +306,10 @@ def test_process_waiting_adapter_runs_returns_empty_summary_when_queue_is_empty(
     assert summary.results == []
 
 
-def test_execute_oracle_lp_em_run_creates_landing_rows_raw_reads_and_partial_window_state(session):
-    instance = _seed_oracle_runtime_prerequisites(session)
+def test_execute_nuri_aimir_hes_lp_em_run_creates_landing_rows_raw_reads_and_partial_window_state(
+    session,
+):
+    instance = _seed_nuri_aimir_hes_runtime_prerequisites(session)
     session.commit()
 
     queued_run = queue_adapter_run_once(session, instance)
@@ -340,11 +342,13 @@ def test_execute_oracle_lp_em_run_creates_landing_rows_raw_reads_and_partial_win
     assert state.completion_status == "partial"
     assert state.last_ingest_batch_id is not None
     assert watermark is not None
-    assert watermark.cursor_value == "2024-08-05T18:01:00+00:00"
+    assert watermark.cursor_value == "20240806030100|2024080603|32418|0"
 
 
-def test_execute_oracle_lp_em_run_marks_complete_window_as_late_update_on_newer_source_write(session):
-    instance = _seed_oracle_runtime_prerequisites(session)
+def test_execute_nuri_aimir_hes_lp_em_run_marks_complete_window_as_late_update_on_newer_source_write(
+    session,
+):
+    instance = _seed_nuri_aimir_hes_runtime_prerequisites(session)
     session.commit()
 
     first_run = queue_adapter_run_once(session, instance)
@@ -394,3 +398,67 @@ def test_execute_oracle_lp_em_run_marks_complete_window_as_late_update_on_newer_
     assert refreshed_state.last_source_write_ts == datetime(
         2024, 8, 5, 18, 2, tzinfo=timezone.utc
     )
+
+
+def test_execute_nuri_aimir_hes_lp_em_run_supports_oracle_query_mode(
+    session, monkeypatch
+):
+    instance = _seed_nuri_aimir_hes_runtime_prerequisites(session)
+    instance.connection_config_masked = {
+        "source_timezone": "Asia/Seoul",
+        "default_interval_minutes": 15,
+        "unit_of_measure": "kWh",
+        "oracle_host": "172.16.10.111",
+        "oracle_port": 1521,
+        "oracle_sid": "HESDB",
+        "oracle_username": "aimir",
+        "allowed_channels": ["0"],
+    }
+    instance.secret_ref = "env://MDMS_NURI_AIMIR_HES_DB_PASSWORD"
+    session.commit()
+
+    monkeypatch.setenv("MDMS_NURI_AIMIR_HES_DB_PASSWORD", "oracle-secret")
+
+    def fake_fetch_nuri_aimir_hes_lp_em_rows(config, *, cursor):
+        assert config.host == "172.16.10.111"
+        assert config.sid == "HESDB"
+        assert config.username == "aimir"
+        assert config.password == "oracle-secret"
+        assert config.allowed_channels == ("0",)
+        assert cursor is None
+        return [
+            {
+                "METER_ID": "32418",
+                "DEVICE_ID": "795",
+                "MDEV_ID": "32418",
+                "MDEV_TYPE": "EM",
+                "YYYYMMDDHH": "2024080603",
+                "HH": "03",
+                "WRITEDATE": "20240806030100",
+                "CHANNEL": "0",
+                "VALUE_CNT": 1,
+                "VALUE_00": 1.25,
+                "LOCATION_ID": "100",
+                "SUPPLIER_ID": "200",
+                "ENDDEVICE_ID": "300",
+                "LP_INTERVAL": 15,
+            }
+        ]
+
+    monkeypatch.setattr(
+        "app.services.adapter_execution.fetch_nuri_aimir_hes_lp_em_rows",
+        fake_fetch_nuri_aimir_hes_lp_em_rows,
+    )
+
+    queued_run = queue_adapter_run_once(session, instance)
+    result = execute_adapter_run(session, queued_run.id)
+    session.commit()
+
+    refreshed_run = session.get(AdapterRun, queued_run.id)
+    state = session.scalar(select(RawIntervalWindowState).limit(1))
+
+    assert result.run_status == "completed"
+    assert refreshed_run is not None
+    assert refreshed_run.details["source_fetch_mode"] == "oracle_query"
+    assert state is not None
+    assert state.completion_status == "partial"

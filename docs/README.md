@@ -26,7 +26,7 @@ This directory captures the working engineering baseline for the `Minimal End-to
 20. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
 21. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
 22. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
-23. [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+23. [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
 24. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
 25. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
 26. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
@@ -67,7 +67,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `adapter-operations-ui.md` defines the recommended first operator actions and screen scope for runtime adapters.
 - `polling-adapter-baseline.md` defines the first practical polling-adapter implementation target and boundaries.
 - `lp-em-adapter-mapping.md` defines the current mapping baseline from the overseas HES `LP_EM` and `METER` tables into landing and common raw.
-- `oracle-lp-em-polling-adapter.md` defines the first source-specific Oracle polling adapter baseline for the overseas HES.
+- `nuri-aimir-hes-lp-em-polling-adapter.md` defines the first NURI AIMIR HES runtime polling adapter baseline for the overseas deployment on Oracle.
 - `adapter-data-model.md` defines the minimum persistent model for adapter definitions, instances, runs, and watermarks.
 - `adapter-gap-analysis.md` explains what is already implemented versus what is still missing before runtime adapters are execution-complete.
 - `adapter-implementation-sequence.md` defines the recommended order for closing the remaining runtime adapter gap.

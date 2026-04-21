@@ -1,8 +1,8 @@
-# Oracle LP_EM Polling Adapter
+# NURI AIMIR HES LP_EM Polling Adapter
 
 ## Purpose
 
-This document defines the first source-specific runtime adapter baseline for polling interval reads from the overseas Oracle-based HES.
+This document defines the first source-specific runtime adapter baseline for polling interval reads from the NURI AIMIR HES overseas deployment on Oracle.
 
 The target source tables are:
 
@@ -40,11 +40,11 @@ This adapter is a good first real source adapter because:
 
 Suggested identifiers:
 
-- `adapter_definition.adapter_code = oracle_lp_em_poll_v1`
+- `adapter_definition.adapter_code = nuri_aimir_hes_lp_em_poll_v1`
 - `adapter_definition.delivery_mode = poll`
 - `adapter_definition.record_type = hes_read_raw`
 - `adapter_definition.adapter_profile_key = lp_em_block_v1`
-- `adapter_definition.implementation_key = oracle_lp_em_poll_v1`
+- `adapter_definition.implementation_key = nuri_aimir_hes_lp_em_poll_v1`
 
 ## Recommended configuration
 

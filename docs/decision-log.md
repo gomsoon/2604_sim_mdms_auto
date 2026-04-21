@@ -116,7 +116,7 @@ This document records current architectural and process decisions so that the te
 - Why: This allows the project to support multiple HES layouts without forcing one vendor's block format into the internal MDM core
 - Related docs:
   - [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
-  - [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+  - [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
 
 ### D-013. Large append-only read tables should start with monthly time-based partitioning
 

@@ -15,6 +15,13 @@ from app.models import (
     LandingLpEmReadBlock,
     RawIntervalWindowState,
 )
+from app.services.nuri_aimir_hes_source import (
+    NuriAimirHesLpEmCursor,
+    fetch_nuri_aimir_hes_lp_em_rows,
+    format_nuri_aimir_hes_lp_em_cursor,
+    parse_nuri_aimir_hes_lp_em_cursor,
+    parse_nuri_aimir_hes_polling_config,
+)
 from app.services.ingest_adapters import DEFAULT_ADAPTER_KEY
 from app.services.ingest_contract import coerce_numeric, parse_datetime
 from app.services.ingestion import ingest_events, ingest_reads
@@ -90,6 +97,10 @@ def _parse_runtime_timestamp(value: Any, *, error_code: str, fallback_message: s
     if parsed is None:
         raise AdapterExecutionError(error_code, fallback_message)
     return parsed
+
+
+def _raise_configuration_error(code: str, message: str) -> None:
+    raise AdapterExecutionError(code, message)
 
 
 def _require_source_timezone(raw_value: Any) -> ZoneInfo:
@@ -291,11 +302,103 @@ class CompanyHesPollRuntime:
         )
 
 
-class OracleLpEmPollRuntime:
+class NuriAimirHesLpEmPollRuntime:
     record_type = "hes_read_raw"
     source_table_name = "LP_EM"
     source_business_hour_format = "%Y%m%d%H"
     source_write_format = "%Y%m%d%H%M%S"
+
+    def _parse_cursor_source_write_ts(
+        self, cursor: NuriAimirHesLpEmCursor | None, *, source_timezone: ZoneInfo
+    ) -> datetime | None:
+        if cursor is None:
+            return None
+        return _parse_source_local_timestamp(
+            cursor.write_date,
+            source_timezone=source_timezone,
+            source_format=self.source_write_format,
+            error_code="invalid_stored_watermark",
+            fallback_message="The stored Oracle adapter watermark is not valid.",
+        )
+
+    def _row_cursor(self, row: dict[str, Any]) -> NuriAimirHesLpEmCursor:
+        meter_source_id = str(row.get("METER_ID") or "").strip()
+        channel_code = str(row.get("CHANNEL") or "").strip()
+        source_business_hour = str(row.get("YYYYMMDDHH") or "").strip()
+        source_write_text = str(row.get("WRITEDATE") or "").strip()
+        if not all([meter_source_id, channel_code, source_business_hour, source_write_text]):
+            raise AdapterExecutionError(
+                "invalid_source_row_cursor",
+                "LP_EM source block is missing one of WRITEDATE, YYYYMMDDHH, METER_ID, or CHANNEL.",
+            )
+        return NuriAimirHesLpEmCursor(
+            write_date=source_write_text,
+            business_hour=source_business_hour,
+            meter_id=meter_source_id,
+            channel=channel_code,
+        )
+
+    def _load_source_blocks(
+        self,
+        instance: AdapterInstance,
+        *,
+        runtime_config: dict[str, Any],
+        watermark_cursor: NuriAimirHesLpEmCursor | None,
+    ) -> tuple[list[dict[str, Any]], str, int]:
+        sample_blocks = runtime_config.get("sample_blocks")
+        if isinstance(sample_blocks, list):
+            selected_blocks: list[dict[str, Any]] = []
+            for index, raw_row in enumerate(sample_blocks):
+                if not isinstance(raw_row, dict):
+                    raise AdapterExecutionError(
+                        "invalid_source_row",
+                        f"Sample source block at index {index} must be a JSON object.",
+                    )
+                row_cursor = self._row_cursor(raw_row)
+                if watermark_cursor is None or (
+                    row_cursor.write_date,
+                    row_cursor.business_hour,
+                    row_cursor.meter_id,
+                    row_cursor.channel,
+                ) > (
+                    watermark_cursor.write_date,
+                    watermark_cursor.business_hour,
+                    watermark_cursor.meter_id,
+                    watermark_cursor.channel,
+                ):
+                    selected_blocks.append(dict(raw_row))
+            selected_blocks.sort(
+                key=lambda row: (
+                    str(row.get("WRITEDATE") or ""),
+                    str(row.get("YYYYMMDDHH") or ""),
+                    str(row.get("METER_ID") or ""),
+                    str(row.get("CHANNEL") or ""),
+                )
+            )
+            batch_limit = instance.batch_size or len(selected_blocks)
+            return selected_blocks[:batch_limit], "sample_blocks", len(sample_blocks)
+
+        try:
+            config = parse_nuri_aimir_hes_polling_config(
+                runtime_config,
+                secret_ref=instance.secret_ref,
+                batch_size=instance.batch_size,
+            )
+        except ValueError as exc:
+            raise AdapterExecutionError(
+                "invalid_nuri_aimir_hes_runtime_configuration",
+                str(exc),
+            ) from exc
+
+        try:
+            rows = fetch_nuri_aimir_hes_lp_em_rows(config, cursor=watermark_cursor)
+        except Exception as exc:
+            raise AdapterExecutionError(
+                "nuri_aimir_hes_poll_failed",
+                "The NURI AIMIR HES LP_EM Oracle polling query failed.",
+                details={"exception_type": type(exc).__name__},
+            ) from exc
+        return rows, "oracle_query", len(rows)
 
     def build_ingest_envelope(
         self,
@@ -316,13 +419,6 @@ class OracleLpEmPollRuntime:
             )
 
         runtime_config = dict(instance.connection_config_masked or {})
-        sample_blocks = runtime_config.get("sample_blocks")
-        if not isinstance(sample_blocks, list):
-            raise AdapterExecutionError(
-                "sample_source_not_configured",
-                "This provisional Oracle polling adapter requires sample_blocks in the masked configuration.",
-            )
-
         source_timezone = _require_source_timezone(runtime_config.get("source_timezone"))
         default_interval = _parse_optional_positive_int(runtime_config.get("default_interval_minutes"))
         default_unit = str(runtime_config.get("unit_of_measure") or "kWh").strip() or "kWh"
@@ -333,36 +429,24 @@ class OracleLpEmPollRuntime:
             record_type=definition.record_type,
         )
         watermark_before = watermark.cursor_value if watermark is not None else None
-        watermark_before_dt = None
+        watermark_cursor = None
         if watermark_before is not None:
-            watermark_before_dt = _parse_runtime_timestamp(
-                watermark_before,
-                error_code="invalid_stored_watermark",
-                fallback_message="The stored adapter watermark is not a valid ISO timestamp.",
-            )
-
-        eligible_blocks: list[tuple[datetime, dict[str, Any]]] = []
-        for index, raw_row in enumerate(sample_blocks):
-            if not isinstance(raw_row, dict):
+            try:
+                watermark_cursor = parse_nuri_aimir_hes_lp_em_cursor(watermark_before)
+            except ValueError as exc:
                 raise AdapterExecutionError(
-                    "invalid_source_row",
-                    f"Sample source block at index {index} must be a JSON object.",
-                )
-            source_write_ts = _parse_source_local_timestamp(
-                raw_row.get("WRITEDATE"),
-                source_timezone=source_timezone,
-                source_format=self.source_write_format,
-                error_code="invalid_source_write_timestamp",
-                fallback_message=(
-                    f"LP_EM sample block at index {index} must include WRITEDATE in YYYYMMDDHHMMSS format."
-                ),
-            )
-            if watermark_before_dt is None or source_write_ts > watermark_before_dt:
-                eligible_blocks.append((source_write_ts, dict(raw_row)))
-
-        eligible_blocks.sort(key=lambda row: row[0])
-        batch_limit = instance.batch_size or len(eligible_blocks)
-        selected_blocks = eligible_blocks[:batch_limit]
+                    "invalid_stored_watermark",
+                    "The stored NURI AIMIR HES adapter watermark is not valid.",
+                ) from exc
+        watermark_before_dt = self._parse_cursor_source_write_ts(
+            watermark_cursor,
+            source_timezone=source_timezone,
+        )
+        selected_blocks, source_fetch_mode, source_block_count = self._load_source_blocks(
+            instance,
+            runtime_config=runtime_config,
+            watermark_cursor=watermark_cursor,
+        )
 
         reads: list[dict[str, Any]] = []
         window_updates: list[dict[str, Any]] = []
@@ -370,18 +454,18 @@ class OracleLpEmPollRuntime:
         watermark_after = watermark_before
         now = datetime.now(timezone.utc)
 
-        for row_index, (source_write_ts, row) in enumerate(selected_blocks):
+        for row_index, row in enumerate(selected_blocks):
             meter_source_id = str(row.get("METER_ID") or "").strip()
             if not meter_source_id:
                 raise AdapterExecutionError(
                     "missing_meter_source_id",
-                    f"LP_EM sample block at index {row_index} is missing METER_ID.",
+                    f"LP_EM source block at index {row_index} is missing METER_ID.",
                 )
             channel_code = str(row.get("CHANNEL") or "").strip()
             if not channel_code:
                 raise AdapterExecutionError(
                     "missing_channel_code",
-                    f"LP_EM sample block at index {row_index} is missing CHANNEL.",
+                    f"LP_EM source block at index {row_index} is missing CHANNEL.",
                 )
             source_business_hour = str(row.get("YYYYMMDDHH") or "").strip()
             source_business_ts = _parse_source_local_timestamp(
@@ -390,7 +474,16 @@ class OracleLpEmPollRuntime:
                 source_format=self.source_business_hour_format,
                 error_code="invalid_source_business_hour",
                 fallback_message=(
-                    f"LP_EM sample block at index {row_index} must include YYYYMMDDHH in YYYYMMDDHH format."
+                    f"LP_EM source block at index {row_index} must include YYYYMMDDHH in YYYYMMDDHH format."
+                ),
+            )
+            source_write_ts = _parse_source_local_timestamp(
+                row.get("WRITEDATE"),
+                source_timezone=source_timezone,
+                source_format=self.source_write_format,
+                error_code="invalid_source_write_timestamp",
+                fallback_message=(
+                    f"LP_EM source block at index {row_index} must include WRITEDATE in YYYYMMDDHHMMSS format."
                 ),
             )
             interval_size_minutes = (
@@ -414,7 +507,7 @@ class OracleLpEmPollRuntime:
                 except (TypeError, ValueError) as exc:
                     raise AdapterExecutionError(
                         "invalid_source_block_value",
-                        f"LP_EM sample block at index {row_index} contains a non-numeric VALUE column.",
+                        f"LP_EM source block at index {row_index} contains a non-numeric VALUE column.",
                     ) from exc
 
             landing_block = LandingLpEmReadBlock(
@@ -485,7 +578,7 @@ class OracleLpEmPollRuntime:
                 }
             )
             last_source_timestamp = source_write_ts
-            watermark_after = _serialize_datetime(source_write_ts)
+            watermark_after = format_nuri_aimir_hes_lp_em_cursor(self._row_cursor(row))
 
         return AdapterIngestEnvelope(
             record_type=definition.record_type,
@@ -500,14 +593,15 @@ class OracleLpEmPollRuntime:
             source_rows_fetched=len(selected_blocks),
             watermark_before=watermark_before,
             watermark_after=watermark_after,
-            cursor_type="timestamp",
+            cursor_type="lp_em_cursor",
             last_source_timestamp=last_source_timestamp,
             details={
                 "implementation_key": definition.implementation_key,
                 "delivery_mode": definition.delivery_mode,
                 "record_type": definition.record_type,
                 "adapter_key": DEFAULT_ADAPTER_KEY,
-                "source_fixture_rows": len(sample_blocks),
+                "source_fetch_mode": source_fetch_mode,
+                "source_block_count": source_block_count,
                 "landing_block_count": len(selected_blocks),
                 "expanded_interval_count": len(reads),
                 "window_updates": window_updates,
@@ -644,7 +738,7 @@ class OracleLpEmPollRuntime:
 
 RUNTIME_ADAPTERS: dict[str, RuntimeAdapter] = {
     "company_hes_poll_v1": CompanyHesPollRuntime(),
-    "oracle_lp_em_poll_v1": OracleLpEmPollRuntime(),
+    "nuri_aimir_hes_lp_em_poll_v1": NuriAimirHesLpEmPollRuntime(),
 }
 
 

@@ -41,7 +41,7 @@ The first polling baseline should prioritize:
 
 The first concrete source-specific design baseline is now captured in:
 
-- [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
+- [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
 
 Raw events can follow the same runtime pattern later, but the first implementation should focus on reads because the strongest current end-to-end path already depends on them.
 

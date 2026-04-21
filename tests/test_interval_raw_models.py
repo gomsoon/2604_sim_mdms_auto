@@ -18,13 +18,13 @@ from app.models import (
 
 def _create_adapter_runtime(session) -> tuple[AdapterInstance, AdapterRun]:
     definition = AdapterDefinition(
-        adapter_code="oracle_lp_em_poll_v1",
-        display_name="Oracle LP_EM Poll",
+        adapter_code="nuri_aimir_hes_lp_em_poll_v1",
+        display_name="NURI AIMIR HES LP_EM Poll",
         delivery_mode="poll",
-        source_family="hes_overseas",
+        source_family="nuri_aimir_hes",
         record_type="hes_read_raw",
         adapter_profile_key="common_raw_v1",
-        implementation_key="oracle_lp_em_poll_v1",
+        implementation_key="nuri_aimir_hes_lp_em_poll_v1",
         status="active",
     )
     session.add(definition)
@@ -32,8 +32,8 @@ def _create_adapter_runtime(session) -> tuple[AdapterInstance, AdapterRun]:
 
     instance = AdapterInstance(
         adapter_definition_id=definition.id,
-        instance_code="oracle_lp_em_primary",
-        display_name="Oracle LP_EM Primary",
+        instance_code="nuri_aimir_hes_lp_em_primary",
+        display_name="NURI AIMIR HES LP_EM Primary",
         source_system="HES_OVERSEAS",
         admin_state="enabled",
         poll_interval_minutes=5,
@@ -119,7 +119,7 @@ def test_landing_block_links_to_runtime_and_raw_interval(session):
     session.add(raw_row)
     session.commit()
 
-    assert landing_block.adapter_instance.instance_code == "oracle_lp_em_primary"
+    assert landing_block.adapter_instance.instance_code == "nuri_aimir_hes_lp_em_primary"
     assert landing_block.adapter_run.trigger_type == "manual"
     assert landing_block.hes_read_rows[0].source_record_key.endswith("|00|20240806030100")
     assert raw_row.landing_lp_em_read_block is not None
