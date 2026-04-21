@@ -19,9 +19,11 @@ from app.services.visibility import (
     build_canonical_filters,
     build_final_filters,
     build_ingest_batch_filters,
+    build_operational_event_filters,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
+    list_operational_events,
 )
 
 
@@ -284,6 +286,52 @@ def list_final_measurements_endpoint():
                 "finalized_at": row.finalized_at.isoformat(),
                 "service_point_id": row.service_point_id,
                 "device_id": row.device_id,
+            }
+            for row in rows
+        ]
+    )
+
+
+@bp.get("/operational-events")
+def list_operational_events_endpoint():
+    session = get_session()
+    try:
+        filters = build_operational_event_filters(request.args)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_operational_events(session, filters)
+    return jsonify(
+        [
+            {
+                "id": row.id,
+                "occurred_at": row.occurred_at.isoformat(),
+                "source_layer": row.source_layer,
+                "event_category": row.event_category,
+                "event_code": row.event_code,
+                "severity": row.severity,
+                "is_alert": row.is_alert,
+                "alert_status": row.alert_status,
+                "opened_at": row.opened_at.isoformat() if row.opened_at else None,
+                "acknowledged_at": row.acknowledged_at.isoformat() if row.acknowledged_at else None,
+                "closed_at": row.closed_at.isoformat() if row.closed_at else None,
+                "acknowledged_by": row.acknowledged_by,
+                "operator_memo": row.operator_memo,
+                "batch_id": row.batch_id,
+                "meter_id": row.meter_identifier,
+                "title_en": row.title_en,
+                "title_ko": row.title_ko,
+                "message_en": row.message_en,
+                "message_ko": row.message_ko,
             }
             for row in rows
         ]

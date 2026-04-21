@@ -10,11 +10,14 @@ from app.services.visibility import (
     build_canonical_filters,
     build_final_filters,
     build_ingest_batch_filters,
+    build_operational_event_filters,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
+    list_operational_events,
 )
 from app.services.finalization import finalize_canonical_measurements
+from app.services.operational_events import close_operational_alert
 
 
 def test_build_ingest_batch_filters_rejects_invalid_date_format():
@@ -118,3 +121,44 @@ def test_list_final_measurements_filters_by_batch_and_meter_id(session):
     assert matched_rows[0].canonical_measurement.hes_read_raw.ingest_batch.batch_id == "demo-read-batch"
     assert matched_rows[0].canonical_measurement.hes_read_raw.meter_identifier == "MTR-1001"
     assert unmatched_rows == []
+
+
+def test_build_operational_event_filters_rejects_invalid_stream_type():
+    with pytest.raises(VisibilityFilterError) as exc_info:
+        build_operational_event_filters({"stream_type": "alerts"})
+
+    assert exc_info.value.error_code == "invalid_stream_type"
+
+
+def test_list_operational_events_filters_by_alert_status_and_batch_id(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    alert = list_operational_events(
+        session,
+        build_operational_event_filters(
+            {
+                "stream_type": "alert",
+                "event_code": "canonical_failed",
+                "batch_id": "demo-read-batch",
+            }
+        ),
+    )[0]
+    close_operational_alert(session, alert.id)
+    session.commit()
+
+    rows = list_operational_events(
+        session,
+        build_operational_event_filters(
+            {
+                "stream_type": "alert",
+                "alert_status": "closed",
+                "batch_id": "demo-read-batch",
+            }
+        ),
+    )
+
+    assert len(rows) == 1
+    assert rows[0].event_code == "canonical_failed"
+    assert rows[0].alert_status == "closed"
+    assert rows[0].batch_id == "demo-read-batch"

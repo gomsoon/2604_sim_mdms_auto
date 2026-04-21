@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.operational_events.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.operational_events.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.stream_type") }}</label>
+        <select class="form-select" name="stream_type">
+          <option value="">{{ t("stream_type.all") }}</option>
+          {% for value in ["event", "alert"] %}
+          <option value="{{ value }}" {% if filters.stream_type == value %}selected{% endif %}>{{ t("stream_type." ~ value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("table.source_layer") }}</label>
+        <select class="form-select" name="source_layer">
+          <option value="">{{ t("common.none") }}</option>
+          {% for value in ["integration", "ingest", "processing", "system", "operator_action"] %}
+          <option value="{{ value }}" {% if filters.source_layer == value %}selected{% endif %}>{{ t_or("operational_event.source_layer." ~ value, value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.severity") }}</label>
+        <select class="form-select" name="severity">
+          <option value="">{{ t("common.none") }}</option>
+          {% for value in ["info", "warning", "error", "critical"] %}
+          <option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ t_or("operational_event.severity." ~ value, value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.status") }}</label>
+        <select class="form-select" name="alert_status">
+          <option value="">{{ t("common.none") }}</option>
+          {% for value in ["open", "acknowledged", "closed"] %}
+          <option value="{{ value }}" {% if filters.alert_status == value %}selected{% endif %}>{{ t_or("common.status." ~ value, value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.batch_id") }}</label>
+        <input class="form-control" name="batch_id" value="{{ filters.batch_id or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.meter_id") }}</label>
+        <input class="form-control" name="meter_id" value="{{ filters.meter_id or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.event_code") }}</label>
+        <input class="form-control" name="event_code" value="{{ filters.event_code or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.operational_events', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.occurred_at") }}</th>
+            <th>{{ t("table.severity") }}</th>
+            <th>{{ t("table.event") }}</th>
+            <th>{{ t("table.source_layer") }}</th>
+            <th>{{ t("table.batch_id") }}</th>
+            <th>{{ t("table.meter") }}</th>
+            <th>{{ t("table.alert_status") }}</th>
+            <th>{{ t("table.actions") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.occurred_at|dt }}</td>
+            <td>
+              <span class="badge text-bg-{{ 'danger' if row.severity in ['error', 'critical'] else 'warning' if row.severity == 'warning' else 'secondary' }}">
+                {{ t_or("operational_event.severity." ~ row.severity, row.severity) }}
+              </span>
+            </td>
+            <td>
+              <div class="fw-semibold">{{ t_event_title(row) }}</div>
+              <div class="small text-secondary mb-1">{{ t_event_message(row) }}</div>
+              <div class="small text-secondary">
+                <span>{{ t("table.event_code") }}: {{ row.event_code }}</span>
+                {% if row.opened_at %}
+                <span class="ms-2">{{ t("table.opened_at") }}: {{ row.opened_at|dt }}</span>
+                {% endif %}
+                {% if row.acknowledged_at %}
+                <span class="ms-2">{{ t("table.acknowledged_at") }}: {{ row.acknowledged_at|dt }}</span>
+                {% endif %}
+                {% if row.closed_at %}
+                <span class="ms-2">{{ t("table.closed_at") }}: {{ row.closed_at|dt }}</span>
+                {% endif %}
+              </div>
+              {% if row.operator_memo %}
+              <div class="small text-secondary">{{ t("field.operator_memo") }}: {{ row.operator_memo }}</div>
+              {% endif %}
+            </td>
+            <td>{{ t_or("operational_event.source_layer." ~ row.source_layer, row.source_layer) }}</td>
+            <td>{{ row.batch_id or t("common.none") }}</td>
+            <td>{{ row.meter_identifier or t("common.none") }}</td>
+            <td>
+              {% if row.is_alert %}
+              <span class="badge text-bg-light">
+                {{ t_or("common.status." ~ row.alert_status, row.alert_status or t("common.none")) }}
+              </span>
+              {% else %}
+              <span class="text-secondary">{{ t("stream_type.event") }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.is_alert and row.alert_status != "closed" %}
+              <div class="d-flex flex-column gap-2">
+                {% if row.alert_status == "open" %}
+                <form method="post" action="{{ url_for('web.acknowledge_operational_alert_view', event_id=row.id) }}">
+                  <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                  <button type="submit" class="btn btn-sm btn-outline-primary w-100">{{ t("button.acknowledge") }}</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('web.close_operational_alert_view', event_id=row.id) }}" class="d-flex flex-column gap-2">
+                  <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                  <input type="text" name="operator_memo" class="form-control form-control-sm" placeholder="{{ t('dashboard.alert_memo_placeholder') }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger w-100">{{ t("button.close_alert") }}</button>
+                </form>
+              </div>
+              {% else %}
+              <span class="text-secondary">{{ t("common.none") }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-secondary">{{ t("page.operational_events.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

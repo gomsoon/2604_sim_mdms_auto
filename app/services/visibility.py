@@ -8,7 +8,13 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_app_timezone_name
-from app.models import CanonicalMeasurement, FinalMeasurement, HesReadRaw, IngestBatch
+from app.models import (
+    CanonicalMeasurement,
+    FinalMeasurement,
+    HesReadRaw,
+    IngestBatch,
+    OperationalEvent,
+)
 
 
 @dataclass(slots=True)
@@ -39,6 +45,19 @@ class CanonicalMeasurementFilters:
 
 @dataclass(frozen=True, slots=True)
 class FinalMeasurementFilters:
+    batch_id: str | None = None
+    meter_id: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalEventFilters:
+    stream_type: str | None = None
+    source_layer: str | None = None
+    severity: str | None = None
+    event_code: str | None = None
+    alert_status: str | None = None
     batch_id: str | None = None
     meter_id: str | None = None
     date_from: datetime | None = None
@@ -133,6 +152,33 @@ def build_final_filters(args) -> FinalMeasurementFilters:
     )
 
 
+def build_operational_event_filters(args) -> OperationalEventFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    stream_type = _normalize_text(args.get("stream_type"))
+    if stream_type not in {None, "event", "alert"}:
+        raise VisibilityFilterError(
+            "invalid_stream_type", "Stream type must be event or alert when provided."
+        )
+
+    return OperationalEventFilters(
+        stream_type=stream_type,
+        source_layer=_normalize_text(args.get("source_layer")),
+        severity=_normalize_text(args.get("severity")),
+        event_code=_normalize_text(args.get("event_code")),
+        alert_status=_normalize_text(args.get("alert_status")),
+        batch_id=_normalize_text(args.get("batch_id")),
+        meter_id=_normalize_text(args.get("meter_id")),
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
 def list_ingest_batches(
     session: Session, filters: IngestBatchFilters, *, limit: int = 100
 ) -> list[IngestBatch]:
@@ -211,3 +257,35 @@ def list_final_measurements(
 
     statement = statement.order_by(FinalMeasurement.id.desc()).limit(limit)
     return session.execute(statement).scalars().unique().all()
+
+
+def list_operational_events(
+    session: Session, filters: OperationalEventFilters, *, limit: int = 200
+) -> list[OperationalEvent]:
+    statement: Select[tuple[OperationalEvent]] = select(OperationalEvent)
+
+    if filters.stream_type == "alert":
+        statement = statement.where(OperationalEvent.is_alert.is_(True))
+    elif filters.stream_type == "event":
+        statement = statement.where(OperationalEvent.is_alert.is_(False))
+    if filters.source_layer:
+        statement = statement.where(OperationalEvent.source_layer == filters.source_layer)
+    if filters.severity:
+        statement = statement.where(OperationalEvent.severity == filters.severity)
+    if filters.event_code:
+        statement = statement.where(OperationalEvent.event_code == filters.event_code)
+    if filters.alert_status:
+        statement = statement.where(OperationalEvent.alert_status == filters.alert_status)
+    if filters.batch_id:
+        statement = statement.where(OperationalEvent.batch_id == filters.batch_id)
+    if filters.meter_id:
+        statement = statement.where(OperationalEvent.meter_identifier == filters.meter_id)
+    if filters.date_from:
+        statement = statement.where(OperationalEvent.occurred_at >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(OperationalEvent.occurred_at <= filters.date_to)
+
+    statement = statement.order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc()).limit(
+        limit
+    )
+    return session.scalars(statement).all()

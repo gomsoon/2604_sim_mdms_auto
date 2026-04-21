@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from app.models import FinalMeasurement
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
+from app.services.operational_events import close_operational_alert
 from app.services.seeds import seed_demo_environment
 
 
@@ -171,3 +172,61 @@ def test_canonical_measurements_promote_final_rejects_invalid_date_range_in_kore
     assert response.status_code == 200
     assert "시작일은 종료일보다 늦을 수 없습니다." in text
     assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 0
+
+
+def test_operational_events_page_filters_closed_alerts_in_korean(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    response = client.get(
+        "/api/v1/operational-events?stream_type=alert&event_code=canonical_failed&batch_id=demo-read-batch"
+    )
+    alert_id = response.get_json()[0]["id"]
+    close_operational_alert(session, alert_id)
+    session.commit()
+
+    response = client.get(
+        "/operational-events?lang=ko&stream_type=alert&alert_status=closed&batch_id=demo-read-batch"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "운영 이벤트" in text
+    assert "표준화 주의 필요" in text
+    assert "종료됨" in text
+    assert "demo-read-batch" in text
+
+
+def test_operational_events_api_rejects_invalid_stream_type_in_korean(client):
+    response = client.get("/api/v1/operational-events?lang=ko&stream_type=alerts")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_stream_type",
+        "message": "조회 유형은 event 또는 alert 여야 합니다.",
+        "locale": "ko",
+    }
+
+
+def test_operational_events_api_returns_filtered_closed_alert(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    response = client.get(
+        "/api/v1/operational-events?stream_type=alert&event_code=canonical_failed&batch_id=demo-read-batch"
+    )
+    alert_id = response.get_json()[0]["id"]
+    close_operational_alert(session, alert_id)
+    session.commit()
+
+    response = client.get(
+        "/api/v1/operational-events?stream_type=alert&alert_status=closed&batch_id=demo-read-batch"
+    )
+
+    assert response.status_code == 200
+    assert len(response.get_json()) == 1
+
+    row = response.get_json()[0]
+
+    assert row["event_code"] == "canonical_failed"
+    assert row["is_alert"] is True
+    assert row["alert_status"] == "closed"
+    assert row["batch_id"] == "demo-read-batch"
