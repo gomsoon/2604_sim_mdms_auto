@@ -118,6 +118,24 @@ This document records current architectural and process decisions so that the te
   - [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
   - [oracle-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/oracle-lp-em-polling-adapter.md)
 
+### D-013. Large append-only read tables should start with monthly time-based partitioning
+
+- Status: locked
+- Summary: The initial PostgreSQL baseline for large append-only raw and final read tables should use monthly time-based partitioning
+- Why: This gives the project a practical balance of pruning effectiveness, retention management, and operational simplicity before scale grows further
+- Related docs:
+  - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
+  - [interval-raw-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/interval-raw-table-design.md)
+
+### D-014. `raw_interval_window_state` is a short-horizon operational table
+
+- Status: locked
+- Summary: `raw_interval_window_state` should retain only active and recent windows, sized roughly as `window period + operational alpha`, rather than behaving like a long-term archive
+- Why: Its purpose is fast completeness and late-arrival state management, not authoritative long-term audit storage
+- Related docs:
+  - [interval-raw-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/interval-raw-table-design.md)
+  - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

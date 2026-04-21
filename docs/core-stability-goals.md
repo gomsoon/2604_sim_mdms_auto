@@ -155,6 +155,10 @@ Weak reasons:
 - vendor-specific special case leaking upward
 - one-off experimental logic being made permanent too early
 
+Operational implication:
+
+- large append-only tables should be designed with partitioning and retention boundaries in mind before scale makes retrofitting painful
+
 ## Stability goal 10. The processing layer should become more declarative over time
 
 The project does not need a heavy workflow engine right now.
@@ -239,3 +243,4 @@ The project should aim for a system where:
 - [data-layer-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/data-layer-architecture.md)
 - [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
 - [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+- [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)

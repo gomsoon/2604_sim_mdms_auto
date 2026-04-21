@@ -4,6 +4,11 @@
 
 This document defines a provisional raw-table design for the minimal stage so development can continue before the real company HES schema is reviewed next week.
 
+For packed interval-read sources and the newer interval-granular raw direction, the more concrete follow-up design now lives in:
+
+- [common-raw-interval-model.md](/home/tprover/2604_sim_mdms_auto/docs/common-raw-interval-model.md)
+- [interval-raw-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/interval-raw-table-design.md)
+
 ## Design intent
 
 - Move forward now without pretending unknown details are already confirmed
@@ -244,4 +249,3 @@ When the company HES schema is available next week:
 2. compare actual HES fields to this provisional schema
 3. mark each provisional column as `confirmed`, `adjusted`, or `dropped`
 4. generate the first concrete PostgreSQL DDL and migration plan
-

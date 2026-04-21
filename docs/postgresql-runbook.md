@@ -149,3 +149,18 @@ The repository is considered PostgreSQL-aligned for the minimal stage only when:
 - A PostgreSQL driver is installed through project dependencies
 - Migration workflow is defined and documented
 
+## Large-table operational baseline
+
+For append-only meter-read tables, PostgreSQL alignment should also consider large-table operational behavior.
+
+Recommended baseline:
+
+- use time-based range partitioning
+- start with monthly partitions
+- ensure large-table queries include explicit time predicates
+- manage retention and archive at the partition level
+- keep volatile state tables such as `raw_interval_window_state` on a short rolling horizon rather than long-term retention
+
+The detailed operational strategy is documented in:
+
+- [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
