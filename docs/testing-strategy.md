@@ -88,9 +88,19 @@ As the repository grows, tests should evolve toward a structure like the followi
 
 - `pytest` is the baseline test runner for unit and integration tests.
 - `pytest-cov` should be used to collect branch coverage for the application package.
+- `pytest-xdist` should be evaluated for the main non-functional regression suite when the fixtures remain process-safe and schema-isolated.
 - `Playwright` should be evaluated for functional browser-driven testing.
 - Test data should be deterministic and easy to understand.
 - For integration adapters, bounded replay and repeated-run verification should remain part of the regression baseline.
+
+## Parallel execution status
+
+- `pytest-xdist` is now part of the development dependency set and remains a valid direction for future acceleration work.
+- A validation attempt with `n=4` workers was performed on the current 16-core environment.
+- Several fixture and harness variations were explored during the evaluation.
+- Even with those experiments, repeated `xdist` validation remains flaky enough that the repository baseline should stay serial for `make test`.
+- Browser-driven functional tests should continue to run in a separate serial command and should not be mixed into the main non-functional pytest session unless that path is explicitly hardened.
+- Future `xdist` enablement should be retried only after the PostgreSQL fixture path is tuned further for repeated parallel connection churn.
 
 ## Test design principles
 
@@ -114,3 +124,4 @@ A code change is not complete unless:
 - [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
 - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
 - [adapter-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-test-matrix.md)
+- [pytest-xdist-evaluation.md](/home/tprover/2604_sim_mdms_auto/docs/pytest-xdist-evaluation.md)
