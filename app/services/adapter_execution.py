@@ -393,6 +393,7 @@ class NuriAimirHesLpEmPollRuntime:
             return existing
 
         landing_block = LandingLpEmReadBlock(
+            hes_system_id=instance.hes_system_id,
             adapter_instance_id=instance.id,
             adapter_run_id=run.id,
             source_system=instance.source_system,
@@ -1125,6 +1126,7 @@ def execute_adapter_run(session: Session, run_id: int) -> AdapterRunExecutionRes
                     ingest_reads(
                         session,
                         envelope.payload,
+                        hes_system_id=run.adapter_instance.hes_system_id,
                         adapter_instance_id=run.adapter_instance_id,
                         adapter_run_id=run.id,
                     )
@@ -1136,6 +1138,7 @@ def execute_adapter_run(session: Session, run_id: int) -> AdapterRunExecutionRes
                     ingest_events(
                         session,
                         envelope.payload,
+                        hes_system_id=run.adapter_instance.hes_system_id,
                         adapter_instance_id=run.adapter_instance_id,
                         adapter_run_id=run.id,
                     )
@@ -1219,6 +1222,7 @@ def process_waiting_adapter_runs(
                         ingest_reads(
                             session,
                             envelope.payload,
+                            hes_system_id=claimed_run.adapter_instance.hes_system_id,
                             adapter_instance_id=claimed_run.adapter_instance_id,
                             adapter_run_id=claimed_run.id,
                         )
@@ -1230,6 +1234,7 @@ def process_waiting_adapter_runs(
                         ingest_events(
                             session,
                             envelope.payload,
+                            hes_system_id=claimed_run.adapter_instance.hes_system_id,
                             adapter_instance_id=claimed_run.adapter_instance_id,
                             adapter_run_id=claimed_run.id,
                         )

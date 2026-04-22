@@ -31,10 +31,34 @@ class TimestampMixin:
     )
 
 
+class HesSystem(TimestampMixin, Base):
+    __tablename__ = "hes_system"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hes_code: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    vendor_name: Mapped[str | None] = mapped_column(String(100))
+    source_family: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    default_delivery_mode: Mapped[str | None] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="active", index=True)
+    timezone_name: Mapped[str | None] = mapped_column(String(50))
+    description: Mapped[str | None] = mapped_column(Text)
+    connection_config_masked: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+
+    adapter_instances: Mapped[list["AdapterInstance"]] = relationship(back_populates="hes_system")
+    ingest_batches: Mapped[list["IngestBatch"]] = relationship(back_populates="hes_system")
+    hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="hes_system")
+    hes_event_rows: Mapped[list["HesEventRaw"]] = relationship(back_populates="hes_system")
+    landing_lp_em_read_blocks: Mapped[list["LandingLpEmReadBlock"]] = relationship(
+        back_populates="hes_system"
+    )
+
+
 class IngestBatch(TimestampMixin, Base):
     __tablename__ = "ingest_batch"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"), index=True)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     batch_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     record_type: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -48,6 +72,7 @@ class IngestBatch(TimestampMixin, Base):
     hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="ingest_batch")
     hes_event_rows: Mapped[list["HesEventRaw"]] = relationship(back_populates="ingest_batch")
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(back_populates="ingest_batch")
+    hes_system: Mapped["HesSystem | None"] = relationship(back_populates="ingest_batches")
     adapter_instance: Mapped["AdapterInstance | None"] = relationship(back_populates="ingest_batches")
     adapter_run: Mapped["AdapterRun | None"] = relationship(back_populates="ingest_batches")
 
@@ -75,6 +100,7 @@ class AdapterInstance(TimestampMixin, Base):
     __tablename__ = "adapter_instance"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"), index=True)
     adapter_definition_id: Mapped[int] = mapped_column(
         ForeignKey("adapter_definition.id"), nullable=False, index=True
     )
@@ -94,6 +120,7 @@ class AdapterInstance(TimestampMixin, Base):
     connection_config_masked: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     secret_ref: Mapped[str | None] = mapped_column(String(200))
 
+    hes_system: Mapped["HesSystem | None"] = relationship(back_populates="adapter_instances")
     adapter_definition: Mapped[AdapterDefinition] = relationship(back_populates="adapter_instances")
     adapter_runs: Mapped[list["AdapterRun"]] = relationship(back_populates="adapter_instance")
     adapter_watermarks: Mapped[list["AdapterWatermark"]] = relationship(
@@ -179,6 +206,7 @@ class LandingLpEmReadBlock(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"), index=True)
     adapter_instance_id: Mapped[int] = mapped_column(
         ForeignKey("adapter_instance.id"), nullable=False, index=True
     )
@@ -208,6 +236,7 @@ class LandingLpEmReadBlock(TimestampMixin, Base):
     parse_error_code: Mapped[str | None] = mapped_column(String(100))
     source_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
+    hes_system: Mapped["HesSystem | None"] = relationship(back_populates="landing_lp_em_read_blocks")
     adapter_instance: Mapped[AdapterInstance] = relationship(
         back_populates="landing_lp_em_read_blocks"
     )
@@ -309,6 +338,7 @@ class HesReadRaw(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ingest_batch_id: Mapped[int] = mapped_column(ForeignKey("ingest_batch.id"), nullable=False)
+    hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"), index=True)
     adapter_instance_id: Mapped[int | None] = mapped_column(
         ForeignKey("adapter_instance.id"), index=True
     )
@@ -341,6 +371,7 @@ class HesReadRaw(TimestampMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     ingest_batch: Mapped[IngestBatch] = relationship(back_populates="hes_read_rows")
+    hes_system: Mapped["HesSystem | None"] = relationship(back_populates="hes_read_rows")
     adapter_instance: Mapped["AdapterInstance | None"] = relationship()
     adapter_run: Mapped["AdapterRun | None"] = relationship()
     landing_lp_em_read_block: Mapped["LandingLpEmReadBlock | None"] = relationship(
@@ -361,6 +392,7 @@ class HesEventRaw(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ingest_batch_id: Mapped[int] = mapped_column(ForeignKey("ingest_batch.id"), nullable=False)
+    hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"), index=True)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     meter_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
     event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
@@ -369,6 +401,7 @@ class HesEventRaw(TimestampMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     ingest_batch: Mapped[IngestBatch] = relationship(back_populates="hes_event_rows")
+    hes_system: Mapped["HesSystem | None"] = relationship(back_populates="hes_event_rows")
     error_logs: Mapped[list["IngestErrorLog"]] = relationship(back_populates="hes_event_raw")
 
 

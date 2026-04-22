@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import func, select
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun, OperationalEvent
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun, HesSystem, OperationalEvent
 from app.services.adapters import (
     ADAPTER_HEALTH_ALERT_RULES,
     AdapterValidationError,
@@ -219,6 +219,10 @@ def test_create_adapter_instance_creates_enabled_poll_runtime(session):
     assert instance.secret_ref == "env://SECONDARY"
     assert instance.connection_config_masked == {"host": "hes-db-2.internal"}
     assert instance.next_run_at is not None
+    assert instance.hes_system_id is not None
+    hes_system = session.get(HesSystem, instance.hes_system_id)
+    assert hes_system is not None
+    assert hes_system.hes_code == "HES"
 
 
 def test_create_adapter_instance_rejects_zero_poll_interval(session):

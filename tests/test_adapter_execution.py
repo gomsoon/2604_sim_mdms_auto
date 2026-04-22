@@ -215,6 +215,7 @@ def test_execute_adapter_run_consumes_waiting_run_and_creates_ingest_lineage(ses
     assert watermark is not None
     assert watermark.cursor_value == "2026-04-18T01:00:00+09:00"
     assert batch is not None
+    assert batch.hes_system_id == instance.hes_system_id
     assert batch.adapter_instance_id == instance.id
     assert batch.adapter_run_id == queued_run.id
     assert refreshed_instance is not None

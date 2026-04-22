@@ -53,6 +53,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "pipeline_run" in tables
         assert "processing_watermark" in tables
         assert "adapter_definition" in tables
+        assert "hes_system" in tables
         assert "adapter_instance" in tables
         assert "adapter_run" in tables
         assert "adapter_watermark" in tables
@@ -63,20 +64,35 @@ def test_alembic_upgrade_creates_expected_tables():
         ingest_batch_columns = {
             column["name"] for column in inspector.get_columns("ingest_batch", schema=schema_name)
         }
+        adapter_instance_columns = {
+            column["name"] for column in inspector.get_columns("adapter_instance", schema=schema_name)
+        }
         hes_read_raw_columns = {
             column["name"] for column in inspector.get_columns("hes_read_raw", schema=schema_name)
+        }
+        hes_event_raw_columns = {
+            column["name"] for column in inspector.get_columns("hes_event_raw", schema=schema_name)
+        }
+        landing_columns = {
+            column["name"]
+            for column in inspector.get_columns("landing_lp_em_read_block", schema=schema_name)
         }
         operational_event_columns = {
             column["name"] for column in inspector.get_columns("operational_event", schema=schema_name)
         }
 
+        assert "hes_system_id" in ingest_batch_columns
+        assert "hes_system_id" in adapter_instance_columns
         assert "adapter_instance_id" in ingest_batch_columns
         assert "adapter_run_id" in ingest_batch_columns
+        assert "hes_system_id" in hes_read_raw_columns
         assert "adapter_instance_id" in hes_read_raw_columns
         assert "adapter_run_id" in hes_read_raw_columns
         assert "landing_lp_em_read_block_id" in hes_read_raw_columns
         assert "interval_size_minutes" in hes_read_raw_columns
         assert "source_write_ts" in hes_read_raw_columns
+        assert "hes_system_id" in hes_event_raw_columns
+        assert "hes_system_id" in landing_columns
         assert "is_alert" in operational_event_columns
         assert "alert_status" in operational_event_columns
         assert "opened_at" in operational_event_columns
@@ -113,5 +129,10 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "running" in index_defs[
             "uq_adapter_run_single_running_per_instance"
         ]
+
+        hes_system_indexes = inspector.get_indexes("hes_system", schema=schema_name)
+        hes_system_index_names = {row["name"] for row in hes_system_indexes}
+        assert "ix_hes_system_source_family" in hes_system_index_names
+        assert "ix_hes_system_status" in hes_system_index_names
     finally:
         drop_schema(test_database_url, schema_name)

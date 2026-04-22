@@ -5,7 +5,14 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun, AdapterWatermark, IngestBatch
+from app.models import (
+    AdapterDefinition,
+    AdapterInstance,
+    AdapterRun,
+    AdapterWatermark,
+    HesSystem,
+    IngestBatch,
+)
 
 
 def _create_adapter_definition(session) -> AdapterDefinition:
@@ -25,8 +32,22 @@ def _create_adapter_definition(session) -> AdapterDefinition:
     return definition
 
 
+def _create_hes_system(session, *, hes_code: str) -> HesSystem:
+    hes_system = HesSystem(
+        hes_code=hes_code,
+        display_name=hes_code,
+        source_family="hes",
+        status="active",
+    )
+    session.add(hes_system)
+    session.flush()
+    return hes_system
+
+
 def _create_adapter_instance(session, definition: AdapterDefinition, *, instance_code: str) -> AdapterInstance:
+    hes_system = _create_hes_system(session, hes_code="HES")
     instance = AdapterInstance(
+        hes_system_id=hes_system.id,
         adapter_definition_id=definition.id,
         instance_code=instance_code,
         display_name="Company HES Primary",
@@ -73,6 +94,7 @@ def test_adapter_runtime_models_link_instances_runs_watermarks_and_batches(sessi
         details={"column": "measured_at"},
     )
     batch = IngestBatch(
+        hes_system_id=instance.hes_system_id,
         source_system="HES",
         batch_id="adapter-batch-001",
         record_type="hes_read_raw",
@@ -85,11 +107,15 @@ def test_adapter_runtime_models_link_instances_runs_watermarks_and_batches(sessi
     session.commit()
 
     assert instance.adapter_definition.adapter_code == "company_hes_poll_v1"
+    assert instance.hes_system is not None
+    assert instance.hes_system.hes_code == "HES"
     assert instance.adapter_runs[0].trigger_type == "manual"
     assert instance.adapter_watermarks[0].record_type == "hes_read_raw"
     assert instance.ingest_batches[0].batch_id == "adapter-batch-001"
     assert batch.adapter_run is not None
     assert batch.adapter_run.adapter_instance_id == instance.id
+    assert batch.hes_system is not None
+    assert batch.hes_system.hes_code == "HES"
 
 
 def test_adapter_instance_code_must_be_unique(session):

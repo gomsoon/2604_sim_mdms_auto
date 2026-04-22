@@ -10,6 +10,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import AdapterDefinition, AdapterInstance, AdapterRun, AdapterWatermark, OperationalEvent
+from app.services.hes_systems import ensure_hes_system
 from app.services.operational_events import close_operational_alerts, record_operational_event
 
 
@@ -390,7 +391,10 @@ def sync_adapter_health_alerts(
 def list_adapter_instances(session: Session, *, limit: int = 100) -> list[AdapterInstanceSnapshot]:
     statement: Select[tuple[AdapterInstance]] = (
         select(AdapterInstance)
-        .options(selectinload(AdapterInstance.adapter_definition))
+        .options(
+            selectinload(AdapterInstance.adapter_definition),
+            selectinload(AdapterInstance.hes_system),
+        )
         .order_by(AdapterInstance.id.desc())
         .limit(limit)
     )
@@ -415,6 +419,7 @@ def get_adapter_instance_detail(
     instance = session.scalar(
         select(AdapterInstance)
         .options(
+            selectinload(AdapterInstance.hes_system),
             selectinload(AdapterInstance.adapter_definition),
             selectinload(AdapterInstance.adapter_watermarks),
         )
@@ -520,8 +525,16 @@ def create_adapter_instance(
         next_run_at = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(
             minutes=parsed_poll_interval
         )
+    hes_system = ensure_hes_system(
+        session,
+        hes_code=normalized_source_system,
+        display_name=normalized_source_system,
+        source_family=definition.source_family,
+        default_delivery_mode=definition.delivery_mode,
+    )
 
     instance = AdapterInstance(
+        hes_system_id=hes_system.id,
         adapter_definition_id=definition.id,
         instance_code=normalized_instance_code,
         display_name=normalized_display_name,

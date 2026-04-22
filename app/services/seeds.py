@@ -15,6 +15,7 @@ from app.models import (
     MeasuringComponent,
     ServicePoint,
 )
+from app.services.hes_systems import ensure_hes_system
 from app.services.ingestion import ingest_events, ingest_reads
 
 
@@ -154,7 +155,16 @@ def seed_adapter_runtime(session: Session) -> bool:
     session.add(definition)
     session.flush()
 
+    hes_system = ensure_hes_system(
+        session,
+        hes_code="HES",
+        display_name="Demo HES",
+        source_family=definition.source_family,
+        default_delivery_mode=definition.delivery_mode,
+    )
+
     instance = AdapterInstance(
+        hes_system_id=hes_system.id,
         adapter_definition_id=definition.id,
         instance_code="demo_hes_poll_primary",
         display_name="Demo HES Poll Primary",

@@ -255,6 +255,7 @@ def ingest_reads(
     session: Session,
     payload: dict[str, Any],
     *,
+    hes_system_id: int | None = None,
     adapter_instance_id: int | None = None,
     adapter_run_id: int | None = None,
 ) -> dict[str, int]:
@@ -265,6 +266,7 @@ def ingest_reads(
     adapter_key, reads = adapt_read_records(payload)
 
     batch = IngestBatch(
+        hes_system_id=hes_system_id,
         source_system=source_system,
         batch_id=batch_reference,
         record_type="hes_read_raw",
@@ -341,6 +343,7 @@ def ingest_reads(
 
         hes_read_raw = HesReadRaw(
             ingest_batch_id=batch.id,
+            hes_system_id=hes_system_id,
             adapter_instance_id=adapter_instance_id,
             adapter_run_id=adapter_run_id,
             source_system=source_system,
@@ -485,6 +488,7 @@ def ingest_events(
     session: Session,
     payload: dict[str, Any],
     *,
+    hes_system_id: int | None = None,
     adapter_instance_id: int | None = None,
     adapter_run_id: int | None = None,
 ) -> dict[str, int]:
@@ -495,6 +499,7 @@ def ingest_events(
     adapter_key, events = adapt_event_records(payload)
 
     batch = IngestBatch(
+        hes_system_id=hes_system_id,
         source_system=source_system,
         batch_id=batch_reference,
         record_type="hes_event_raw",
@@ -546,6 +551,7 @@ def ingest_events(
 
         hes_event_raw = HesEventRaw(
             ingest_batch_id=batch.id,
+            hes_system_id=hes_system_id,
             source_system=source_system,
             meter_identifier=parsed.meter_identifier,
             event_time=parsed.event_time,
