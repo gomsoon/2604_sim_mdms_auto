@@ -322,6 +322,7 @@ def _adapter_redirect(adapter_instance_id: int) -> str:
 
 def _adapter_form_defaults() -> dict[str, str]:
     return {
+        "hes_system_id": "",
         "adapter_definition_id": "",
         "instance_code": "",
         "display_name": "",
@@ -339,6 +340,17 @@ def _adapter_form_values() -> dict[str, str]:
     for key in values:
         values[key] = request.form.get(key, "")
     return values
+
+
+def _resolve_selected_hes_system(session, raw_hes_system_id: str | None) -> HesSystem | None:
+    normalized = (raw_hes_system_id or "").strip()
+    if not normalized:
+        return None
+    try:
+        hes_system_id = int(normalized)
+    except ValueError:
+        return None
+    return session.get(HesSystem, hes_system_id)
 
 
 def _hes_system_form_defaults() -> dict[str, str]:
@@ -483,13 +495,29 @@ def update_hes_system_view(hes_system_id: int):
 
 
 @bp.get("/adapters/new")
-def new_adapter():
+@bp.get("/hes-systems/<int:hes_system_id>/adapters/new")
+def new_adapter(hes_system_id: int | None = None):
     session = get_session()
     definitions = list_active_adapter_definitions(session)
+    selected_hes_system = None
+    if hes_system_id is not None:
+        selected_hes_system = session.get(HesSystem, hes_system_id)
+        if selected_hes_system is None:
+            abort(404)
+    elif request.args.get("hes_system_id"):
+        selected_hes_system = _resolve_selected_hes_system(session, request.args.get("hes_system_id"))
+        if selected_hes_system is None:
+            flash(translate_hes_system_error("hes_system_not_found", "The selected HES system does not exist."), "danger")
+
+    form_data = _adapter_form_defaults()
+    if selected_hes_system is not None:
+        form_data["hes_system_id"] = str(selected_hes_system.id)
+        form_data["source_system"] = selected_hes_system.hes_code
     return render_template(
         "adapter_new.html",
         definitions=definitions,
-        form_data=_adapter_form_defaults(),
+        form_data=form_data,
+        selected_hes_system=selected_hes_system,
     )
 
 
@@ -498,11 +526,13 @@ def create_adapter_view():
     session = get_session()
     definitions = list_active_adapter_definitions(session)
     form_data = _adapter_form_values()
+    selected_hes_system = _resolve_selected_hes_system(session, form_data["hes_system_id"])
 
     try:
         instance = create_adapter_instance(
             session,
             adapter_definition_id=form_data["adapter_definition_id"],
+            hes_system_id=form_data["hes_system_id"],
             instance_code=form_data["instance_code"],
             display_name=form_data["display_name"],
             source_system=form_data["source_system"],
@@ -522,6 +552,7 @@ def create_adapter_view():
             "adapter_new.html",
             definitions=definitions,
             form_data=form_data,
+            selected_hes_system=selected_hes_system,
         )
 
 

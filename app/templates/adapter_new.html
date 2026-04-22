@@ -6,15 +6,30 @@
     <h1 class="h3 mb-1">{{ t("page.adapter_new.title") }}</h1>
     <p class="text-secondary mb-0">{{ t("page.adapter_new.description") }}</p>
   </div>
+  {% if selected_hes_system %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_system_detail', hes_system_id=selected_hes_system.id, lang=current_locale) }}">
+    {{ selected_hes_system.display_name }}
+  </a>
+  {% else %}
   <a class="btn btn-outline-secondary" href="{{ url_for('web.adapters', lang=current_locale) }}">
     {{ t("page.adapters.title") }}
   </a>
+  {% endif %}
 </div>
 
 <div class="card shadow-sm">
   <div class="card-body">
     {% if definitions %}
     <form method="post" action="{{ url_for('web.create_adapter_view', lang=current_locale) }}" class="row g-3">
+      {% if selected_hes_system %}
+      <div class="col-12">
+        <div class="alert alert-secondary mb-0">
+          <div class="fw-semibold">{{ t("field.hes_system") }}</div>
+          <div>{{ selected_hes_system.display_name }} ({{ selected_hes_system.hes_code }})</div>
+        </div>
+        <input type="hidden" name="hes_system_id" value="{{ form_data.hes_system_id }}">
+      </div>
+      {% endif %}
       <div class="col-md-6">
         <label class="form-label" for="adapter_definition_id">{{ t("field.adapter_definition") }}</label>
         <select class="form-select" id="adapter_definition_id" name="adapter_definition_id" required>
@@ -28,7 +43,7 @@
       </div>
       <div class="col-md-6">
         <label class="form-label" for="source_system">{{ t("field.source_system") }}</label>
-        <input class="form-control" id="source_system" name="source_system" required value="{{ form_data.source_system }}">
+        <input class="form-control" id="source_system" name="source_system" {% if not selected_hes_system %}required{% else %}readonly{% endif %} value="{{ form_data.source_system }}">
       </div>
       <div class="col-md-6">
         <label class="form-label" for="instance_code">{{ t("field.instance_code") }}</label>

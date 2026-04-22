@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun, HesSystem
 from app.services.seeds import seed_demo_environment
 
 
@@ -100,6 +100,30 @@ def test_new_adapter_page_renders_active_definition(client, session):
     assert "Company HES Poll" in text
 
 
+def test_new_adapter_page_from_hes_context_prefills_parent_hes(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert hes_system is not None
+
+    response = client.get(f"/hes-systems/{hes_system.id}/adapters/new?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "HES 시스템" in text
+    assert "Demo HES (HES)" in text
+
+
+def test_new_adapter_page_from_missing_hes_context_returns_404(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/hes-systems/999999/adapters/new")
+
+    assert response.status_code == 404
+
+
 def test_create_adapter_via_web_creates_runtime_instance(client, session):
     seed_demo_environment(session)
     session.commit()
@@ -132,6 +156,79 @@ def test_create_adapter_via_web_creates_runtime_instance(client, session):
     assert instance is not None
     assert instance.landing_enabled is True
     assert instance.poll_interval_minutes == 15
+
+
+def test_create_adapter_via_hes_context_keeps_parent_hes_lineage(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    definition = session.scalar(select(AdapterDefinition).limit(1))
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert definition is not None
+    assert hes_system is not None
+
+    response = client.post(
+        "/adapters",
+        data={
+            "hes_system_id": str(hes_system.id),
+            "adapter_definition_id": str(definition.id),
+            "instance_code": "company_hes_poll_hes_context",
+            "display_name": "Company HES Poll HES Context",
+            "source_system": "HES",
+            "poll_interval_minutes": "15",
+            "batch_size": "300",
+            "secret_ref": "env://WEB",
+            "connection_config_masked": '{"host": "hes-web.internal"}',
+        },
+        follow_redirects=True,
+    )
+
+    instance = session.scalar(
+        select(AdapterInstance).where(AdapterInstance.instance_code == "company_hes_poll_hes_context").limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "Adapter instance created successfully." in response.get_data(as_text=True)
+    assert instance is not None
+    assert instance.hes_system_id == hes_system.id
+    assert instance.source_system == "HES"
+
+
+def test_create_adapter_via_hes_context_rejects_source_system_mismatch_in_korean(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    client.get("/hes-systems?lang=ko")
+
+    definition = session.scalar(select(AdapterDefinition).limit(1))
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert definition is not None
+    assert hes_system is not None
+
+    response = client.post(
+        "/adapters",
+        data={
+            "hes_system_id": str(hes_system.id),
+            "adapter_definition_id": str(definition.id),
+            "instance_code": "company_hes_poll_hes_context_mismatch",
+            "display_name": "Company HES Poll HES Context Mismatch",
+            "source_system": "OTHER_HES",
+            "poll_interval_minutes": "15",
+            "batch_size": "300",
+            "secret_ref": "",
+            "connection_config_masked": "",
+        },
+        follow_redirects=True,
+    )
+
+    instance = session.scalar(
+        select(AdapterInstance)
+        .where(AdapterInstance.instance_code == "company_hes_poll_hes_context_mismatch")
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "출처 시스템은 선택한 HES 코드와 일치해야 합니다." in response.get_data(as_text=True)
+    assert instance is None
 
 
 def test_create_adapter_via_web_rejects_invalid_json_in_korean(client, session):

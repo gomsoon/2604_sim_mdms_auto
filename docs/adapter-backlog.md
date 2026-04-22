@@ -238,7 +238,37 @@ The current runtime adapter model lacks a parent operator-managed HES object. As
 - one HES can own multiple runtime adapters
 - batch and raw records can be traced by HES as well as adapter
 
-### A10. Scheduled-run test baseline
+#### Current status
+
+- delivered as registry baseline
+
+#### Evidence
+
+- [app/models.py](/home/tprover/2604_sim_mdms_auto/app/models.py)
+- [app/services/hes_systems.py](/home/tprover/2604_sim_mdms_auto/app/services/hes_systems.py)
+- [app/templates/hes_systems.html](/home/tprover/2604_sim_mdms_auto/app/templates/hes_systems.html)
+- [app/templates/hes_system_detail.html](/home/tprover/2604_sim_mdms_auto/app/templates/hes_system_detail.html)
+
+### A10. HES-centric operator flow completion
+
+#### Why it matters
+
+The registry baseline exists now, but operators still need a stronger HES-first operating flow so that adapter creation and troubleshooting begin from the HES rather than from a detached runtime screen.
+
+#### Scope
+
+- HES detail should be the parent navigation surface
+- adapter registration should work directly from an HES context
+- `source_system` and `hes_system.hes_code` alignment should be enforced
+- HES detail should remain the main drill-down page into linked adapters and recent batches
+
+#### Acceptance criteria
+
+- operators can create an adapter under one HES without re-entering a conflicting source identity
+- adapter instances created from an HES context keep explicit parent lineage
+- HES remains the natural entry point for operator investigation
+
+### A11. Scheduled-run test baseline
 
 #### Why it matters
 

@@ -8,6 +8,7 @@
   </div>
   <div class="d-flex gap-2 flex-wrap">
     <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_systems', lang=current_locale) }}">{{ t("dashboard.view_all") }}</a>
+    <a class="btn btn-primary" href="{{ url_for('web.new_adapter', hes_system_id=detail.hes_system.id, lang=current_locale) }}">{{ t("button.register_adapter") }}</a>
     <a class="btn btn-outline-primary" href="{{ url_for('web.adapters', lang=current_locale) }}">{{ t("nav.adapters") }}</a>
   </div>
 </div>

@@ -9,7 +9,14 @@ from typing import Any
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun, AdapterWatermark, OperationalEvent
+from app.models import (
+    AdapterDefinition,
+    AdapterInstance,
+    AdapterRun,
+    AdapterWatermark,
+    HesSystem,
+    OperationalEvent,
+)
 from app.services.hes_systems import ensure_hes_system
 from app.services.operational_events import close_operational_alerts, record_operational_event
 
@@ -108,6 +115,25 @@ def _parse_optional_positive_int(
         raise AdapterValidationError(error_code, fallback_message) from exc
     if parsed <= 0:
         raise AdapterValidationError(error_code, fallback_message)
+    return parsed
+
+
+def _parse_optional_hes_system_id(raw_value: str | None) -> int | None:
+    normalized = (raw_value or "").strip()
+    if not normalized:
+        return None
+    try:
+        parsed = int(normalized)
+    except ValueError as exc:
+        raise AdapterValidationError(
+            "invalid_hes_system_id",
+            "HES system selection is invalid.",
+        ) from exc
+    if parsed <= 0:
+        raise AdapterValidationError(
+            "invalid_hes_system_id",
+            "HES system selection is invalid.",
+        )
     return parsed
 
 
@@ -457,6 +483,7 @@ def create_adapter_instance(
     session: Session,
     *,
     adapter_definition_id: str | None,
+    hes_system_id: str | None = None,
     instance_code: str | None,
     display_name: str | None,
     source_system: str | None,
@@ -500,11 +527,28 @@ def create_adapter_instance(
         "missing_display_name",
         "Adapter display name is required.",
     )
-    normalized_source_system = _normalize_required_text(
-        source_system,
-        "missing_source_system",
-        "Source system is required.",
-    )
+    parsed_hes_system_id = _parse_optional_hes_system_id(hes_system_id)
+    selected_hes_system: HesSystem | None = None
+    normalized_source_system: str | None = (source_system or "").strip() or None
+    if parsed_hes_system_id is not None:
+        selected_hes_system = session.get(HesSystem, parsed_hes_system_id)
+        if selected_hes_system is None:
+            raise AdapterValidationError(
+                "hes_system_not_found",
+                "The selected HES system does not exist.",
+            )
+        if normalized_source_system and normalized_source_system != selected_hes_system.hes_code:
+            raise AdapterValidationError(
+                "source_system_hes_mismatch",
+                "Source system must match the selected HES code.",
+            )
+        normalized_source_system = selected_hes_system.hes_code
+    else:
+        normalized_source_system = _normalize_required_text(
+            normalized_source_system,
+            "missing_source_system",
+            "Source system is required.",
+        )
     parsed_poll_interval = _parse_optional_positive_int(
         poll_interval_minutes,
         error_code="invalid_poll_interval_minutes",
@@ -528,7 +572,7 @@ def create_adapter_instance(
         next_run_at = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(
             minutes=parsed_poll_interval
         )
-    hes_system = ensure_hes_system(
+    hes_system = selected_hes_system or ensure_hes_system(
         session,
         hes_code=normalized_source_system,
         display_name=normalized_source_system,

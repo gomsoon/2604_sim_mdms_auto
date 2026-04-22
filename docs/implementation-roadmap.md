@@ -249,6 +249,31 @@ Introduce the first source-specific adapter path for packed HES read blocks whil
 - [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
 - [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
 
+### Stage 9. HES-centric operator flow completion
+
+#### Goal
+
+Shift integration operations from an adapter-first posture to an HES-first posture without removing the existing runtime adapter model.
+
+#### Key tasks
+
+- complete HES-scoped adapter registration
+- align `source_system` with `hes_system.hes_code`
+- make HES detail the main drill-down anchor into adapters and recent ingest activity
+- improve HES-level summaries and navigation across the integration layer
+
+#### Test gate
+
+- operators can create an adapter directly from an HES context
+- adapter creation keeps parent HES lineage explicit
+- HES detail remains a stable entry point into adapter and ingest investigation
+
+#### Related documents
+
+- [hes-system-management.md](/home/tprover/2604_sim_mdms_auto/docs/hes-system-management.md)
+- [hes-centric-operations-plan.md](/home/tprover/2604_sim_mdms_auto/docs/hes-centric-operations-plan.md)
+- [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

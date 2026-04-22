@@ -150,6 +150,31 @@ Recommended first screens:
 - adapter list filtered by HES
 - recent runs and alerts for one HES
 
+## Current status after the registry baseline
+
+The project now already has:
+
+- `hes_system` persistence
+- `hes_system_id` lineage in adapter, batch, landing, and raw tables
+- HES list and detail screens
+- adapter screens that show the parent HES
+
+That means the original registry baseline is no longer a future-only design target.
+
+What remains is to make the operator workflow itself more strongly HES-centric.
+
+The next focus should therefore shift from:
+
+- "introduce the HES object"
+
+to:
+
+- "make HES the primary operator control surface above adapters"
+
+Recommended next document:
+
+- [hes-centric-operations-plan.md](/home/tprover/2604_sim_mdms_auto/docs/hes-centric-operations-plan.md)
+
 ## Current implementation gap
 
 Today the project already has:

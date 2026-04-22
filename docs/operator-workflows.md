@@ -58,6 +58,26 @@ Confirm that each runtime adapter is in an expected operational state before rel
 - The operator can stop scheduled collection safely without deleting the adapter instance
 - The operator can validate one adapter without changing the whole system state
 
+## Workflow 1A-1. Register and manage HES systems
+
+### Goal
+
+Treat the upstream HES itself as the stable operating object above runtime adapters.
+
+### Typical steps
+
+1. Open the HES management screen
+2. Register a new HES or open an existing HES
+3. Review HES metadata, timezone, delivery mode, and masked connection context
+4. Attach one or more runtime adapters under that HES
+5. Use the HES detail page to inspect linked adapters, recent batches, and open alerts
+
+### Expected operator outcome
+
+- The operator can distinguish the upstream HES identity from the runtime adapter identity
+- One HES can own more than one adapter without confusion
+- Source lineage can be traced by HES as well as by adapter
+
 ## Workflow 1B. Review operational events and alerts
 
 ### Goal

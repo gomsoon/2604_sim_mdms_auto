@@ -225,6 +225,86 @@ def test_create_adapter_instance_creates_enabled_poll_runtime(session):
     assert hes_system.hes_code == "HES"
 
 
+def test_create_adapter_instance_under_existing_hes_system_uses_parent_hes_code(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    definition = session.scalar(select(AdapterDefinition).limit(1))
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert definition is not None
+    assert hes_system is not None
+
+    instance = create_adapter_instance(
+        session,
+        adapter_definition_id=str(definition.id),
+        hes_system_id=str(hes_system.id),
+        instance_code="company_hes_poll_under_hes",
+        display_name="Company HES Poll Under HES",
+        source_system="",
+        poll_interval_minutes="15",
+        batch_size="200",
+        landing_enabled=False,
+        secret_ref="",
+        connection_config_masked="",
+    )
+    session.commit()
+
+    assert instance.hes_system_id == hes_system.id
+    assert instance.source_system == "HES"
+
+
+def test_create_adapter_instance_rejects_source_system_mismatch_for_selected_hes(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    definition = session.scalar(select(AdapterDefinition).limit(1))
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert definition is not None
+    assert hes_system is not None
+
+    with pytest.raises(AdapterValidationError) as exc_info:
+        create_adapter_instance(
+            session,
+            adapter_definition_id=str(definition.id),
+            hes_system_id=str(hes_system.id),
+            instance_code="company_hes_poll_mismatch",
+            display_name="Mismatch",
+            source_system="OTHER_HES",
+            poll_interval_minutes="15",
+            batch_size="100",
+            landing_enabled=False,
+            secret_ref="",
+            connection_config_masked="",
+        )
+
+    assert exc_info.value.error_code == "source_system_hes_mismatch"
+
+
+def test_create_adapter_instance_rejects_invalid_hes_system_id(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    definition = session.scalar(select(AdapterDefinition).limit(1))
+    assert definition is not None
+
+    with pytest.raises(AdapterValidationError) as exc_info:
+        create_adapter_instance(
+            session,
+            adapter_definition_id=str(definition.id),
+            hes_system_id="invalid",
+            instance_code="company_hes_poll_invalid_hes_id",
+            display_name="Invalid HES ID",
+            source_system="HES",
+            poll_interval_minutes="15",
+            batch_size="100",
+            landing_enabled=False,
+            secret_ref="",
+            connection_config_masked="",
+        )
+
+    assert exc_info.value.error_code == "invalid_hes_system_id"
+
+
 def test_create_adapter_instance_rejects_zero_poll_interval(session):
     seed_demo_environment(session)
     session.commit()
