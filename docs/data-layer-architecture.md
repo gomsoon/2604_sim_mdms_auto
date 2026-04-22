@@ -69,6 +69,13 @@ Core tables:
 - `hes_event_raw`
 - `ingest_error_log`
 
+Common master context that the raw layer depends on:
+
+- `service_point`
+- `device`
+- `measuring_component`
+- `installation_history`
+
 Key rule:
 
 Even if there are multiple HES vendors, the MDM should avoid vendor-specific branching after the common raw layer unless absolutely necessary.
@@ -159,6 +166,48 @@ Examples:
 Key rule:
 
 Downstream systems should consume standardized business outputs, not source-specific raw records.
+
+## HES meter reference vs canonical MDM master
+
+The project should distinguish between two kinds of meter-related data:
+
+### HES-side meter reference
+
+Examples:
+
+- vendor `METER` tables
+- interval settings
+- source meter status
+- source device model or meter type
+- source channel definitions
+
+These are source-oriented reference structures.
+
+They may need to be ingested or synchronized because they help:
+
+- adapter configuration
+- source-side troubleshooting
+- mapping bootstrap
+- operator comparison between HES and MDM
+
+### Canonical MDM meter-related master
+
+Examples:
+
+- `service_point`
+- `device`
+- `measuring_component`
+- `installation_history`
+
+These are the internal normalized master structures that MDM processing should depend on.
+
+Recommended rule:
+
+- do not treat an HES vendor `METER` table as the canonical master model of the MDM
+- ingest HES meter reference only as source reference data
+- normalize the needed subset into MDM canonical master structures
+
+This distinction matters because more HES sources are expected over time, while the internal mapping and processing core should stay vendor-neutral.
 
 ## Recommended source handling policy
 

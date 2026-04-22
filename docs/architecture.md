@@ -32,6 +32,7 @@ The minimal system should be small in scope but not short-sighted in shape. The 
 
 - The minimal architecture must assume real HES connectivity later.
 - Persistence and service boundaries should be designed around PostgreSQL from the start, while remaining compatible with external APIs and background processing.
+- The architecture should assume that some HES integrations will eventually require source-side meter reference synchronization in addition to raw read intake.
 
 ### Design for localization
 
@@ -101,6 +102,7 @@ flowchart LR
 - Source-specific landing structures are allowed when a vendor cannot be mapped safely into the common raw model immediately.
 - The common raw layer should remain the earliest shared standard for all compatible HES sources.
 - Canonical, VEE-oriented, final, and downstream business layers should remain vendor-neutral.
+- Meter-related canonical master structures inside MDM should remain independent from any one HES vendor `METER` table or equivalent.
 
 More detail is defined in [data-layer-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/data-layer-architecture.md).
 

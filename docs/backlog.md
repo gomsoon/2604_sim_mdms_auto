@@ -51,6 +51,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 - `installation_history` API
 - Meter identifier mapping rules
 - HES meter ID to device mapping
+- HES meter reference review and minimal sync strategy
+- canonical meter-related master governance in MDM
 
 ### M5. Canonical measurement conversion
 
@@ -257,6 +259,12 @@ These items are not blockers for the current minimal baseline, but they should r
 - Review how `hes_read_raw` row identity should remain referenceable once the table is partitioned by `measured_at`
 - Review downstream references such as canonical, error, reprocess, and duplicate lineage so the first raw partition rollout is structurally safe
 - Include `DEFAULT` partition behavior for null `measured_at` rows and the later row-movement path when `measured_at` becomes known
+
+### X7. HES meter reference and canonical master split
+
+- Review which HES-side meter attributes should be synchronized as source reference data
+- Keep vendor `METER` tables or equivalents distinct from MDM canonical master structures
+- Define how HES meter reference supports mapping bootstrap, operator comparison, and troubleshooting without turning HES vendor schema into the MDM core model
 
 ## Recommended execution waves
 

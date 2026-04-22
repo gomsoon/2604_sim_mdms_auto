@@ -40,6 +40,12 @@ The channel or measurement-producing component associated with a device and serv
 
 The time-bounded record describing how a device is installed, moved, or removed relative to a service point.
 
+### HES meter reference
+
+Source-side meter metadata held by an upstream HES, such as source meter identifiers, interval settings, source status, or vendor-specific meter attributes.
+
+This is useful for source operations and mapping bootstrap, but it is not the same thing as the MDM canonical master model.
+
 ### ingest_batch
 
 The envelope-level persistence record for a set of incoming raw messages or records, including source metadata and lineage-supporting context.
@@ -105,6 +111,10 @@ The process of identifying repeated raw read submissions without deleting the or
 ### mapping
 
 The process of relating source identifiers such as meter or channel IDs to internal entities such as device, service point, and measuring component.
+
+### canonical meter-related master
+
+The normalized internal master context used by the MDM to map and process measurements, represented in the current project by `service_point`, `device`, `measuring_component`, and `installation_history`.
 
 ### normalization
 

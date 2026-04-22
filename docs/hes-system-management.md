@@ -35,6 +35,7 @@ Typical responsibilities:
 - hold operator-facing registration and descriptive information
 - define the parent source object above one or more runtime adapters
 - provide a stable lineage reference for batches and raw records
+- anchor later HES-side reference synchronization such as source meter metadata
 
 ### Runtime adapter
 
@@ -120,6 +121,60 @@ Why:
 - `hes_system_id` gives stable upstream source lineage
 
 All three are useful and should not be treated as duplicates.
+
+## Relationship to HES meter reference data
+
+An upstream HES is usually not only a producer of raw reads and events.
+
+In practice it may also hold source-side meter reference data such as:
+
+- source meter identifiers
+- interval configuration
+- device model or meter type indicators
+- source status flags
+- source-to-channel relationships
+
+That means HES registration should be understood as covering:
+
+- raw read and event connectivity
+- and, later, HES-side reference-data synchronization where needed
+
+However, the project should avoid treating the vendor `METER` table or its equivalent as the direct canonical master model of the MDM.
+
+Recommended rule:
+
+- preserve or ingest HES-specific meter reference data when it is operationally useful
+- but normalize only the needed subset into the MDM canonical master context
+
+## Canonical meter-related master context in MDM
+
+The MDM still needs its own stable meter-related master context even if downstream billing or CIS systems exist.
+
+Why:
+
+- raw reads cannot be mapped to canonical measurements without stable device and channel identity
+- installation windows and device movement matter for historical correctness
+- reprocessing and audit need a persistent internal mapping target
+- downstream billing-ready outputs should not depend on vendor-specific HES tables directly
+
+In the current project, that canonical meter-related master context is represented by:
+
+- `service_point`
+- `device`
+- `measuring_component`
+- `installation_history`
+
+These should continue to be treated as MDM-owned canonical master structures, not as a direct mirror of one HES vendor table.
+
+## Recommended long-term split
+
+The recommended long-term split is:
+
+- `hes_system` and adapter layers manage source connectivity and HES-side reference acquisition
+- source-specific HES meter reference can be preserved in a source-reference or landing-oriented layer
+- MDM canonical master tables remain the normalized internal source of truth for mapping and processing
+
+This split becomes more important as more HES vendors are added.
 
 ## Relationship with `source_system`
 

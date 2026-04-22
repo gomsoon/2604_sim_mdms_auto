@@ -38,6 +38,7 @@ Typical responsibilities:
 
 - HES registry and source identity management
 - HES connectors
+- HES meter and source-reference synchronization when needed
 - adapter runtime lifecycle control
 - adapter health and heartbeat tracking
 - source-specific parsing
@@ -192,6 +193,7 @@ The system should be designed so that:
 - explicit state boundaries between raw, canonical, and later stages
 - clear lineage from source to downstream business state
 - minimal vendor-specific branching after common raw
+- stable canonical meter-related master context independent from any one HES vendor schema
 
 ### Processing layer goals
 
