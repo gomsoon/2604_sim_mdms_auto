@@ -46,6 +46,10 @@ Source-side meter metadata held by an upstream HES, such as source meter identif
 
 This is useful for source operations and mapping bootstrap, but it is not the same thing as the MDM canonical master model.
 
+### hes_meter_reference
+
+The proposed persistent normalized record used by MDM to store a minimal synchronized subset of HES-side meter reference data for operator comparison, tracing, and mapping support.
+
 ### ingest_batch
 
 The envelope-level persistence record for a set of incoming raw messages or records, including source metadata and lineage-supporting context.

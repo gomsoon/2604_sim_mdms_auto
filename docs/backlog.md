@@ -53,6 +53,9 @@ This document captures the staged backlog derived from the reference PDF backlog
 - HES meter ID to device mapping
 - HES meter reference review and minimal sync strategy
 - canonical meter-related master governance in MDM
+- minimal `hes_meter_reference` persistence baseline
+- AIMIR `METER` subset mapping for source reference
+- operator comparison between HES meter reference and MDM canonical master
 
 ### M5. Canonical measurement conversion
 
@@ -265,6 +268,7 @@ These items are not blockers for the current minimal baseline, but they should r
 - Review which HES-side meter attributes should be synchronized as source reference data
 - Keep vendor `METER` tables or equivalents distinct from MDM canonical master structures
 - Define how HES meter reference supports mapping bootstrap, operator comparison, and troubleshooting without turning HES vendor schema into the MDM core model
+- Revisit which source-side attributes should stay as raw source reference only versus which should influence canonical master governance
 
 ## Recommended execution waves
 

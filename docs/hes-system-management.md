@@ -176,6 +176,10 @@ The recommended long-term split is:
 
 This split becomes more important as more HES vendors are added.
 
+Recommended detail document:
+
+- [hes-meter-reference-design.md](/home/tprover/2604_sim_mdms_auto/docs/hes-meter-reference-design.md)
+
 ## Relationship with `source_system`
 
 The project already uses `source_system` in contracts, persistence, and runtime logic.
