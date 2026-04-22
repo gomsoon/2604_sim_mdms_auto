@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.hes_systems.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.hes_systems.description") }}</p>
+  </div>
+  <a class="btn btn-primary" href="#hes-system-create-form">{{ t("button.register_hes_system") }}</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.name") }}</th>
+                <th>{{ t("table.hes_code") }}</th>
+                <th>{{ t("table.vendor_name") }}</th>
+                <th>{{ t("table.source_family") }}</th>
+                <th>{{ t("table.default_delivery_mode") }}</th>
+                <th>{{ t("table.status") }}</th>
+                <th>{{ t("table.adapter_count") }}</th>
+                <th>{{ t("table.open_alerts") }}</th>
+                <th>{{ t("table.last_success") }}</th>
+                <th>{{ t("table.actions") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ row.hes_system.display_name }}</div>
+                  {% if row.hes_system.description %}
+                  <div class="small text-secondary">{{ row.hes_system.description }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ row.hes_system.hes_code }}</td>
+                <td>{{ row.hes_system.vendor_name or t("common.none") }}</td>
+                <td>{{ row.hes_system.source_family }}</td>
+                <td>
+                  {% if row.hes_system.default_delivery_mode %}
+                  {{ t_or("adapter.delivery_mode." ~ row.hes_system.default_delivery_mode, row.hes_system.default_delivery_mode) }}
+                  {% else %}
+                  {{ t("common.none") }}
+                  {% endif %}
+                </td>
+                <td>{{ t_or("common.status." ~ row.hes_system.status, row.hes_system.status) }}</td>
+                <td>
+                  <div>{{ row.adapter_count }}</div>
+                  <div class="small text-secondary">{{ t("page.hes_systems.enabled_adapter_count", count=row.enabled_adapter_count) }}</div>
+                </td>
+                <td>{{ row.open_alert_count }}</td>
+                <td>{{ row.latest_success_at|dt }}</td>
+                <td>
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.hes_system_detail', hes_system_id=row.hes_system.id, lang=current_locale) }}">
+                    {{ t("button.view") }}
+                  </a>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="10" class="text-secondary">{{ t("page.hes_systems.empty") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm" id="hes-system-create-form">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.hes_systems.create_title") }}</h2>
+        <form method="post" action="{{ url_for('web.create_hes_system_view', lang=current_locale) }}" class="d-grid gap-3">
+          <div>
+            <label class="form-label" for="hes_code">{{ t("field.hes_code") }}</label>
+            <input class="form-control" id="hes_code" name="hes_code" value="{{ form_data.hes_code }}" required>
+          </div>
+          <div>
+            <label class="form-label" for="display_name">{{ t("field.display_name") }}</label>
+            <input class="form-control" id="display_name" name="display_name" value="{{ form_data.display_name }}" required>
+          </div>
+          <div>
+            <label class="form-label" for="vendor_name">{{ t("field.vendor_name") }}</label>
+            <input class="form-control" id="vendor_name" name="vendor_name" value="{{ form_data.vendor_name }}">
+          </div>
+          <div>
+            <label class="form-label" for="source_family">{{ t("field.source_family") }}</label>
+            <input class="form-control" id="source_family" name="source_family" value="{{ form_data.source_family }}" required>
+          </div>
+          <div>
+            <label class="form-label" for="default_delivery_mode">{{ t("field.default_delivery_mode") }}</label>
+            <select class="form-select" id="default_delivery_mode" name="default_delivery_mode">
+              <option value="">{{ t("common.none") }}</option>
+              {% for value in ("poll", "receive") %}
+              <option value="{{ value }}" {% if form_data.default_delivery_mode == value %}selected{% endif %}>
+                {{ t_or("adapter.delivery_mode." ~ value, value) }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="status">{{ t("field.status") }}</label>
+            <select class="form-select" id="status" name="status">
+              {% for value in ("active", "inactive") %}
+              <option value="{{ value }}" {% if form_data.status == value %}selected{% endif %}>
+                {{ t_or("common.status." ~ value, value) }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="timezone_name">{{ t("field.timezone_name") }}</label>
+            <input class="form-control" id="timezone_name" name="timezone_name" value="{{ form_data.timezone_name }}">
+          </div>
+          <div>
+            <label class="form-label" for="description">{{ t("field.description") }}</label>
+            <textarea class="form-control" id="description" name="description" rows="3">{{ form_data.description }}</textarea>
+          </div>
+          <div>
+            <label class="form-label" for="connection_config_masked">{{ t("field.connection_config_masked") }}</label>
+            <textarea class="form-control font-monospace" id="connection_config_masked" name="connection_config_masked" rows="6">{{ form_data.connection_config_masked }}</textarea>
+            <div class="form-text">{{ t("page.hes_systems.masked_config_help") }}</div>
+          </div>
+          <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

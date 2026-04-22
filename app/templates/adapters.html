@@ -18,6 +18,7 @@
         <thead>
           <tr>
             <th>{{ t("table.name") }}</th>
+            <th>{{ t("table.hes_system") }}</th>
             <th>{{ t("table.source") }}</th>
             <th>{{ t("table.mode") }}</th>
             <th>{{ t("table.definition") }}</th>
@@ -35,6 +36,16 @@
             <td>
               <div class="fw-semibold">{{ row.instance.display_name }}</div>
               <div class="small text-secondary">{{ row.instance.instance_code }}</div>
+            </td>
+            <td>
+              {% if row.instance.hes_system %}
+              <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=row.instance.hes_system.id, lang=current_locale) }}">
+                {{ row.instance.hes_system.display_name }}
+              </a>
+              <div class="small text-secondary">{{ row.instance.hes_system.hes_code }}</div>
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
             </td>
             <td>{{ row.instance.source_system }}</td>
             <td>{{ t_or("adapter.delivery_mode." ~ row.instance.adapter_definition.delivery_mode, row.instance.adapter_definition.delivery_mode) }}</td>
@@ -96,7 +107,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="10" class="text-secondary">{{ t("page.adapters.empty") }}</td>
+            <td colspan="11" class="text-secondary">{{ t("page.adapters.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

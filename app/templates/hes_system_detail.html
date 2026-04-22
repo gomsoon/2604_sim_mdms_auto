@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ detail.hes_system.display_name }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.hes_system_detail.description") }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_systems', lang=current_locale) }}">{{ t("dashboard.view_all") }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('web.adapters', lang=current_locale) }}">{{ t("nav.adapters") }}</a>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.hes_system_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-5">{{ t("field.hes_code") }}</dt>
+          <dd class="col-sm-7">{{ detail.hes_system.hes_code }}</dd>
+          <dt class="col-sm-5">{{ t("field.display_name") }}</dt>
+          <dd class="col-sm-7">{{ detail.hes_system.display_name }}</dd>
+          <dt class="col-sm-5">{{ t("field.vendor_name") }}</dt>
+          <dd class="col-sm-7">{{ detail.hes_system.vendor_name or t("common.none") }}</dd>
+          <dt class="col-sm-5">{{ t("field.source_family") }}</dt>
+          <dd class="col-sm-7">{{ detail.hes_system.source_family }}</dd>
+          <dt class="col-sm-5">{{ t("field.default_delivery_mode") }}</dt>
+          <dd class="col-sm-7">
+            {% if detail.hes_system.default_delivery_mode %}
+            {{ t_or("adapter.delivery_mode." ~ detail.hes_system.default_delivery_mode, detail.hes_system.default_delivery_mode) }}
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-5">{{ t("field.status") }}</dt>
+          <dd class="col-sm-7">{{ t_or("common.status." ~ detail.hes_system.status, detail.hes_system.status) }}</dd>
+          <dt class="col-sm-5">{{ t("field.timezone_name") }}</dt>
+          <dd class="col-sm-7">{{ detail.hes_system.timezone_name or t("common.none") }}</dd>
+          <dt class="col-sm-5">{{ t("field.description") }}</dt>
+          <dd class="col-sm-7">{{ detail.hes_system.description or t("common.none") }}</dd>
+          <dt class="col-sm-5">{{ t("table.adapter_count") }}</dt>
+          <dd class="col-sm-7">{{ detail.adapter_rows|length }}</dd>
+          <dt class="col-sm-5">{{ t("table.open_alerts") }}</dt>
+          <dd class="col-sm-7">{{ detail.open_alert_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.raw_reads_count") }}</dt>
+          <dd class="col-sm-7">{{ detail.raw_reads_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.raw_events_count") }}</dt>
+          <dd class="col-sm-7">{{ detail.raw_events_count }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.hes_system_detail.edit_title") }}</h2>
+        <form method="post" action="{{ url_for('web.update_hes_system_view', hes_system_id=detail.hes_system.id, lang=current_locale) }}" class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="hes_code">{{ t("field.hes_code") }}</label>
+            <input class="form-control" id="hes_code" name="hes_code" value="{{ form_data.hes_code }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="display_name">{{ t("field.display_name") }}</label>
+            <input class="form-control" id="display_name" name="display_name" value="{{ form_data.display_name }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="vendor_name">{{ t("field.vendor_name") }}</label>
+            <input class="form-control" id="vendor_name" name="vendor_name" value="{{ form_data.vendor_name }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="source_family">{{ t("field.source_family") }}</label>
+            <input class="form-control" id="source_family" name="source_family" value="{{ form_data.source_family }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="default_delivery_mode">{{ t("field.default_delivery_mode") }}</label>
+            <select class="form-select" id="default_delivery_mode" name="default_delivery_mode">
+              <option value="">{{ t("common.none") }}</option>
+              {% for value in ("poll", "receive") %}
+              <option value="{{ value }}" {% if form_data.default_delivery_mode == value %}selected{% endif %}>
+                {{ t_or("adapter.delivery_mode." ~ value, value) }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="status">{{ t("field.status") }}</label>
+            <select class="form-select" id="status" name="status">
+              {% for value in ("active", "inactive") %}
+              <option value="{{ value }}" {% if form_data.status == value %}selected{% endif %}>
+                {{ t_or("common.status." ~ value, value) }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="timezone_name">{{ t("field.timezone_name") }}</label>
+            <input class="form-control" id="timezone_name" name="timezone_name" value="{{ form_data.timezone_name }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="description">{{ t("field.description") }}</label>
+            <textarea class="form-control" id="description" name="description" rows="3">{{ form_data.description }}</textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="connection_config_masked">{{ t("field.connection_config_masked") }}</label>
+            <textarea class="form-control font-monospace" id="connection_config_masked" name="connection_config_masked" rows="6">{{ form_data.connection_config_masked }}</textarea>
+            <div class="form-text">{{ t("page.hes_systems.masked_config_help") }}</div>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary" type="submit">{{ t("button.save") }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.hes_system_detail.linked_adapters") }}</h2>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.name") }}</th>
+                <th>{{ t("table.instance_code") }}</th>
+                <th>{{ t("table.mode") }}</th>
+                <th>{{ t("table.status") }}</th>
+                <th>{{ t("table.last_success") }}</th>
+                <th>{{ t("table.actions") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.adapter_rows %}
+              <tr>
+                <td>{{ row.instance.display_name }}</td>
+                <td>{{ row.instance.instance_code }}</td>
+                <td>{{ t_or("adapter.delivery_mode." ~ row.instance.adapter_definition.delivery_mode, row.instance.adapter_definition.delivery_mode) }}</td>
+                <td>{{ t_or("adapter_status." ~ row.effective_status, row.effective_status) }}</td>
+                <td>{{ row.instance.last_success_at|dt }}</td>
+                <td>
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.adapter_detail', adapter_instance_id=row.instance.id, lang=current_locale) }}">
+                    {{ t("button.view") }}
+                  </a>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="text-secondary">{{ t("page.hes_system_detail.no_linked_adapters") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.hes_system_detail.recent_batches") }}</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.batch_id") }}</th>
+                <th>{{ t("table.record_type") }}</th>
+                <th>{{ t("table.source") }}</th>
+                <th>{{ t("table.received_at") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.recent_batches %}
+              <tr>
+                <td>
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.ingest_batches', batch_id=row.batch_id, lang=current_locale) }}">
+                    {{ row.batch_id }}
+                  </a>
+                </td>
+                <td>{{ t_or("record_type." ~ row.record_type, row.record_type) }}</td>
+                <td>{{ row.source_system }}</td>
+                <td>{{ row.received_at|dt }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="4" class="text-secondary">{{ t("page.hes_system_detail.no_recent_batches") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

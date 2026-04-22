@@ -38,6 +38,17 @@
           <dd class="col-sm-8">{{ detail.snapshot.instance.display_name }}</dd>
           <dt class="col-sm-4">{{ t("table.instance_code") }}</dt>
           <dd class="col-sm-8">{{ detail.snapshot.instance.instance_code }}</dd>
+          <dt class="col-sm-4">{{ t("table.hes_system") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.snapshot.instance.hes_system %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=detail.snapshot.instance.hes_system.id, lang=current_locale) }}">
+              {{ detail.snapshot.instance.hes_system.display_name }}
+            </a>
+            <div class="small text-secondary">{{ detail.snapshot.instance.hes_system.hes_code }}</div>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
           <dt class="col-sm-4">{{ t("table.source") }}</dt>
           <dd class="col-sm-8">{{ detail.snapshot.instance.source_system }}</dd>
           <dt class="col-sm-4">{{ t("table.mode") }}</dt>

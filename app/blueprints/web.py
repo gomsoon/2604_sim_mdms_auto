@@ -8,6 +8,7 @@ from app.db import get_session
 from app.i18n import (
     translate_adapter_error,
     get_locale,
+    translate_hes_system_error,
     translate,
     translate_operational_alert_error,
     translate_finalization_result,
@@ -21,6 +22,7 @@ from app.models import (
     Device,
     HesEventRaw,
     HesReadRaw,
+    HesSystem,
     MeasuringComponent,
     ServicePoint,
     InstallationHistory,
@@ -49,6 +51,13 @@ from app.services.installations import (
     InstallationValidationError,
     create_installation_history,
     update_installation_history,
+)
+from app.services.hes_systems import (
+    HesSystemValidationError,
+    create_hes_system,
+    get_hes_system_detail,
+    list_hes_systems,
+    update_hes_system,
 )
 from app.services.master_data import (
     MasterDataValidationError,
@@ -332,11 +341,145 @@ def _adapter_form_values() -> dict[str, str]:
     return values
 
 
+def _hes_system_form_defaults() -> dict[str, str]:
+    return {
+        "hes_code": "",
+        "display_name": "",
+        "vendor_name": "",
+        "source_family": "hes",
+        "default_delivery_mode": "",
+        "status": "active",
+        "timezone_name": "",
+        "description": "",
+        "connection_config_masked": "",
+    }
+
+
+def _hes_system_form_values() -> dict[str, str]:
+    values = _hes_system_form_defaults()
+    for key in values:
+        values[key] = request.form.get(key, "")
+    return values
+
+
+def _hes_system_form_from_model(hes_system: HesSystem) -> dict[str, str]:
+    import json
+
+    return {
+        "hes_code": hes_system.hes_code,
+        "display_name": hes_system.display_name,
+        "vendor_name": hes_system.vendor_name or "",
+        "source_family": hes_system.source_family,
+        "default_delivery_mode": hes_system.default_delivery_mode or "",
+        "status": hes_system.status,
+        "timezone_name": hes_system.timezone_name or "",
+        "description": hes_system.description or "",
+        "connection_config_masked": (
+            json.dumps(hes_system.connection_config_masked, ensure_ascii=False, indent=2)
+            if hes_system.connection_config_masked
+            else ""
+        ),
+    }
+
+
 @bp.get("/adapters")
 def adapters():
     session = get_session()
     rows = list_adapter_instances(session)
     return render_template("adapters.html", rows=rows)
+
+
+@bp.get("/hes-systems")
+def hes_systems():
+    session = get_session()
+    rows = list_hes_systems(session)
+    return render_template(
+        "hes_systems.html",
+        rows=rows,
+        form_data=_hes_system_form_defaults(),
+    )
+
+
+@bp.post("/hes-systems")
+def create_hes_system_view():
+    session = get_session()
+    form_data = _hes_system_form_values()
+    try:
+        hes_system = create_hes_system(
+            session,
+            hes_code=form_data["hes_code"],
+            display_name=form_data["display_name"],
+            vendor_name=form_data["vendor_name"],
+            source_family=form_data["source_family"],
+            default_delivery_mode=form_data["default_delivery_mode"],
+            status=form_data["status"],
+            timezone_name=form_data["timezone_name"],
+            description=form_data["description"],
+            connection_config_masked=form_data["connection_config_masked"],
+        )
+        session.commit()
+        flash(translate("hes_system.flash.created"), "success")
+        return redirect(url_for("web.hes_system_detail", hes_system_id=hes_system.id, lang=get_locale()))
+    except HesSystemValidationError as exc:
+        session.rollback()
+        flash(translate_hes_system_error(exc.error_code, exc.fallback_message), "danger")
+        rows = list_hes_systems(session)
+        return render_template(
+            "hes_systems.html",
+            rows=rows,
+            form_data=form_data,
+        )
+
+
+@bp.get("/hes-systems/<int:hes_system_id>")
+def hes_system_detail(hes_system_id: int):
+    session = get_session()
+    detail = get_hes_system_detail(session, hes_system_id)
+    if detail is None:
+        abort(404)
+    return render_template(
+        "hes_system_detail.html",
+        detail=detail,
+        form_data=_hes_system_form_from_model(detail.hes_system),
+    )
+
+
+@bp.post("/hes-systems/<int:hes_system_id>")
+def update_hes_system_view(hes_system_id: int):
+    session = get_session()
+    hes_system = session.get(HesSystem, hes_system_id)
+    if hes_system is None:
+        abort(404)
+
+    form_data = _hes_system_form_values()
+    try:
+        update_hes_system(
+            session,
+            hes_system,
+            hes_code=form_data["hes_code"],
+            display_name=form_data["display_name"],
+            vendor_name=form_data["vendor_name"],
+            source_family=form_data["source_family"],
+            default_delivery_mode=form_data["default_delivery_mode"],
+            status=form_data["status"],
+            timezone_name=form_data["timezone_name"],
+            description=form_data["description"],
+            connection_config_masked=form_data["connection_config_masked"],
+        )
+        session.commit()
+        flash(translate("hes_system.flash.updated"), "success")
+        return redirect(url_for("web.hes_system_detail", hes_system_id=hes_system.id, lang=get_locale()))
+    except HesSystemValidationError as exc:
+        session.rollback()
+        flash(translate_hes_system_error(exc.error_code, exc.fallback_message), "danger")
+        detail = get_hes_system_detail(session, hes_system_id)
+        if detail is None:
+            abort(404)
+        return render_template(
+            "hes_system_detail.html",
+            detail=detail,
+            form_data=form_data,
+        )
 
 
 @bp.get("/adapters/new")

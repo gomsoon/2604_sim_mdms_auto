@@ -388,16 +388,19 @@ def sync_adapter_health_alerts(
     )
 
 
-def list_adapter_instances(session: Session, *, limit: int = 100) -> list[AdapterInstanceSnapshot]:
+def list_adapter_instances(
+    session: Session, *, limit: int = 100, hes_system_id: int | None = None
+) -> list[AdapterInstanceSnapshot]:
     statement: Select[tuple[AdapterInstance]] = (
         select(AdapterInstance)
         .options(
             selectinload(AdapterInstance.adapter_definition),
             selectinload(AdapterInstance.hes_system),
         )
-        .order_by(AdapterInstance.id.desc())
-        .limit(limit)
     )
+    if hes_system_id is not None:
+        statement = statement.where(AdapterInstance.hes_system_id == hes_system_id)
+    statement = statement.order_by(AdapterInstance.id.desc()).limit(limit)
     instances = session.scalars(statement).all()
     latest_runs = _load_latest_runs(session, [row.id for row in instances])
 

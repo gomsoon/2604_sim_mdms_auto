@@ -22,6 +22,13 @@ from app.services.ingestion import ingest_events, ingest_reads
 def seed_demo_environment(session: Session) -> dict:
     created = seed_master_data(session)
     adapter_runtime_created = seed_adapter_runtime(session)
+    hes_system = ensure_hes_system(
+        session,
+        hes_code="HES",
+        display_name="Demo HES",
+        source_family="hes",
+        default_delivery_mode="poll",
+    )
     read_summary = ingest_reads(
         session,
         {
@@ -58,6 +65,7 @@ def seed_demo_environment(session: Session) -> dict:
                 },
             ],
         },
+        hes_system_id=hes_system.id,
     )
     event_summary = ingest_events(
         session,
@@ -74,6 +82,7 @@ def seed_demo_environment(session: Session) -> dict:
                 }
             ],
         },
+        hes_system_id=hes_system.id,
     )
 
     return {
