@@ -36,6 +36,7 @@ Purpose:
 
 Typical responsibilities:
 
+- HES registry and source identity management
 - HES connectors
 - adapter runtime lifecycle control
 - adapter health and heartbeat tracking
@@ -180,6 +181,7 @@ The system should be designed so that:
 ### Integration layer goals
 
 - flexible source intake
+- clear parent HES registration above technical runtime adapters
 - isolated vendor-specific logic
 - strong traceability to upstream deliveries
 - optional landing layer support when needed
@@ -210,7 +212,7 @@ The system should be designed so that:
 
 At the present stage, the current system can be read like this:
 
-- integration layer: ingest APIs and lightweight adapter profiles now, with future runtime HES adapters later
+- integration layer: ingest APIs and lightweight adapter profiles now, with future HES registry management and runtime HES adapters later
 - data layer: `ingest_batch`, `hes_read_raw`, `hes_event_raw`, `canonical_measurement`, `ingest_error_log`, and master data tables
 - processing layer: raw ingest validation, duplicate detection, mapping, canonical conversion, and dashboard status derivation
 - presentation layer: Flask blueprints, Jinja screens, localized UI, and query endpoints

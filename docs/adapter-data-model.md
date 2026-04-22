@@ -31,8 +31,9 @@ If the data model is vague, implementation risks include:
 
 ## Core recommendation
 
-The first runtime adapter persistence model should include four adapter-specific concepts:
+The first runtime adapter persistence model should include one parent source concept and four adapter-specific concepts:
 
+- `hes_system`
 - `adapter_definition`
 - `adapter_instance`
 - `adapter_run`
@@ -51,6 +52,7 @@ Recommended minimal rule:
 
 ```mermaid
 flowchart LR
+    H["hes_system"] --> I["adapter_instance"]
     D["adapter_definition"] --> I["adapter_instance"]
     I --> R["adapter_run"]
     I --> W["adapter_watermark"]
@@ -60,7 +62,40 @@ flowchart LR
 
 ## Recommended tables
 
-### 1. `adapter_definition`
+### 1. `hes_system`
+
+Purpose:
+
+- represent one operator-managed upstream HES registration
+- keep stable source identity separate from runtime adapter execution
+
+Recommended columns:
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | bigint PK | Yes | surrogate key |
+| `hes_code` | varchar(100) | Yes | stable machine-readable HES key, unique |
+| `display_name` | varchar(150) | Yes | operator-friendly label |
+| `vendor_name` | varchar(100) | No | example: `NURI AIMIR HES` |
+| `source_family` | varchar(50) | Yes | example: `hes`, `vendor_api` |
+| `default_delivery_mode` | varchar(20) | No | example: `poll`, `receive` |
+| `status` | varchar(30) | Yes | recommended: `active`, `inactive` |
+| `timezone_name` | varchar(50) | No | example: `Asia/Seoul` |
+| `description` | text | No | short operator-facing description |
+| `connection_config_masked` | jsonb | No | safe high-level connection summary |
+| `created_at` | timestamptz | Yes | standard timestamp |
+| `updated_at` | timestamptz | Yes | standard timestamp |
+
+Recommended constraints:
+
+- unique on `hes_code`
+
+Recommended first use:
+
+- operators register one HES system first
+- runtime adapters are then attached to that HES
+
+### 2. `adapter_definition`
 
 Purpose:
 
@@ -99,7 +134,7 @@ Recommended first use:
 - seed this table from code-backed definitions
 - do not require the operator to create new definitions in the first UI
 
-### 2. `adapter_instance`
+### 3. `adapter_instance`
 
 Purpose:
 
@@ -111,6 +146,7 @@ Recommended columns:
 | Column | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | bigint PK | Yes | surrogate key |
+| `hes_system_id` | bigint FK | Yes | references `hes_system.id` |
 | `adapter_definition_id` | bigint FK | Yes | references `adapter_definition.id` |
 | `instance_code` | varchar(100) | Yes | stable machine-readable instance key, unique |
 | `display_name` | varchar(150) | Yes | operator-visible name |
@@ -138,6 +174,7 @@ Important note:
 Recommended constraints:
 
 - unique on `instance_code`
+- index on `hes_system_id`
 - index on `source_system`
 - index on `admin_state`
 - index on `(admin_state, next_run_at)` for polling selection
@@ -147,7 +184,7 @@ Why store summary timestamps here even if runs exist:
 - they make list views fast and simple
 - they avoid repeatedly scanning the `adapter_run` table for every screen load
 
-### 3. `adapter_run`
+### 4. `adapter_run`
 
 Purpose:
 
@@ -192,7 +229,7 @@ Why `details` is still useful even with explicit columns:
 - allows small implementation growth without immediate schema churn
 - keeps the first model practical while still giving core counts explicit columns
 
-### 4. `adapter_watermark`
+### 5. `adapter_watermark`
 
 Purpose:
 
@@ -232,6 +269,7 @@ When runtime adapters are implemented, `ingest_batch` should later gain optional
 
 | Column | Type | Required | Notes |
 | --- | --- | --- | --- |
+| `hes_system_id` | bigint FK | No | stable upstream HES lineage |
 | `adapter_instance_id` | bigint FK | No | source runtime adapter instance |
 | `adapter_run_id` | bigint FK | No | specific runtime execution that created the batch |
 
@@ -245,6 +283,12 @@ Recommended rule:
 
 - API-direct ingest may leave these columns null
 - runtime-adapter-driven ingest should populate them
+
+The same lineage direction should later be applied to:
+
+- `hes_read_raw`
+- `hes_event_raw`
+- source-specific landing tables when used
 
 ## Recommended derived fields
 
@@ -318,8 +362,10 @@ This keeps the first operator UI safer and simpler.
 
 The first implementation will likely benefit from these indexes:
 
+- `hes_system(hes_code)`
 - `adapter_definition(adapter_code)`
 - `adapter_instance(instance_code)`
+- `adapter_instance(hes_system_id)`
 - `adapter_instance(source_system)`
 - `adapter_instance(admin_state, next_run_at)`
 - `adapter_run(adapter_instance_id, created_at desc)`
@@ -332,6 +378,7 @@ The first implementation will likely benefit from these indexes:
 
 If the team wants the smallest credible adapter persistence answer now, the recommendation is:
 
+- persist `hes_system`
 - persist `adapter_definition`
 - persist `adapter_instance`
 - persist `adapter_run`
@@ -341,6 +388,8 @@ If the team wants the smallest credible adapter persistence answer now, the reco
 
 This gives the project enough structure for:
 
+- operator-managed HES registration
+- multiple runtime adapters under one HES when needed
 - operator-controlled runtime adapters
 - first polling baseline
 - auditable run history
@@ -362,6 +411,7 @@ These can be added later if real operational need appears.
 ## Relationship to other documents
 
 - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+- [hes-system-management.md](/home/tprover/2604_sim_mdms_auto/docs/hes-system-management.md)
 - [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
 - [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
 - [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)

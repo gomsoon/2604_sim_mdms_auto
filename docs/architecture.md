@@ -63,6 +63,7 @@ The minimal system should be small in scope but not short-sighted in shape. The 
 
 ### Integration layer
 
+- operator-managed HES system registration and source identity
 - External source adapters
 - Lightweight adapter profiles for field normalization
 - Future runtime adapter instances for polling and receive lifecycle control
@@ -127,7 +128,7 @@ The team should perform structural improvement before adding new features when a
 - HES-specific payload contracts should be versioned and isolated.
 - The system should assume missing fields, duplicate delivery, retries, and inconsistent upstream timing.
 - Future connectors should be added through service or adapter boundaries rather than embedding source-specific parsing throughout the codebase.
-- The architecture should distinguish between payload-normalization adapter profiles and runtime adapters that manage actual source connectivity.
+- The architecture should distinguish between operator-managed HES systems, payload-normalization adapter profiles, and runtime adapters that manage actual source connectivity.
 
 More detail is defined in [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md).
 

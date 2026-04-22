@@ -218,7 +218,27 @@ Operators needed to distinguish a paused adapter from one that is enabled but fa
 
 ## Next
 
-### A9. Scheduled-run test baseline
+### A9. HES system registry baseline
+
+#### Why it matters
+
+The current runtime adapter model lacks a parent operator-managed HES object. As soon as one HES needs multiple runtime adapters, the source identity and the technical execution unit should no longer be treated as the same thing.
+
+#### Scope
+
+- `hes_system` persistence baseline
+- `adapter_instance.hes_system_id`
+- `hes_system_id` lineage in `ingest_batch`, `hes_read_raw`, and `hes_event_raw`
+- first HES list and detail screens
+- adapter screens updated to show the parent HES clearly
+
+#### Acceptance criteria
+
+- operators can register one upstream HES explicitly
+- one HES can own multiple runtime adapters
+- batch and raw records can be traced by HES as well as adapter
+
+### A10. Scheduled-run test baseline
 
 #### Why it matters
 
@@ -238,7 +258,7 @@ Once schedule-driven enqueueing exists, manual-only tests are no longer enough.
 
 ## Deferred
 
-### A10. Receive adapter runtime baseline
+### A11. Receive adapter runtime baseline
 
 #### Why deferred
 
@@ -250,7 +270,7 @@ The lifecycle model supports `receive`, but polling should be stabilized first.
 - heartbeat and delivery visibility
 - failure handling aligned with the existing adapter model
 
-### A11. Hard stop or cancel for active adapter runs
+### A12. Hard stop or cancel for active adapter runs
 
 #### Why deferred
 
@@ -261,7 +281,7 @@ This increases safety and transaction-boundary complexity too early.
 - `Pause` prevents future work
 - active runs are usually allowed to finish
 
-### A12. In-process scheduler or heavy task framework
+### A13. In-process scheduler or heavy task framework
 
 #### Why deferred
 
@@ -274,7 +294,7 @@ The minimal stage intentionally prefers a lightweight worker and external schedu
 - `Dramatiq`
 - embedded `APScheduler` as primary orchestration engine
 
-### A13. UI-driven adapter code creation
+### A14. UI-driven adapter code creation
 
 #### Why deferred
 
@@ -286,7 +306,7 @@ The project should manage adapter instances operationally, while adapter impleme
 - dynamic adapter code generation
 - code-free connector authoring
 
-### A14. Database-backed adapter alert condition table
+### A15. Database-backed adapter alert condition table
 
 #### Why deferred
 
@@ -309,9 +329,10 @@ The current alert set is still intentionally small, and the first operational ne
 
 The recommended next adapter backlog order is:
 
-1. `A9. Scheduled-run test baseline`
-2. `A10. Receive adapter runtime baseline`
-3. `A14. Database-backed adapter alert condition table`
+1. `A9. HES system registry baseline`
+2. `A10. Scheduled-run test baseline`
+3. `A11. Receive adapter runtime baseline`
+4. `A15. Database-backed adapter alert condition table`
 
 ## Related documents
 

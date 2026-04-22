@@ -68,6 +68,10 @@ An optional source-specific layer used when incoming HES data cannot be mapped s
 
 The earliest vendor-neutral raw layer in the MDM, intended to unify raw reads and events across compatible HES sources.
 
+### hes_system
+
+The persistent operator-managed representation of one upstream HES, used as the parent source object above one or more runtime adapters and as a stable lineage anchor for batches and raw records.
+
 ### adapter_definition
 
 The persistent definition of a runtime adapter type or family, including delivery mode, supported record type, and implementation identity.

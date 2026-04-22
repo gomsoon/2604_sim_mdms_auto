@@ -6,6 +6,7 @@ This document defines how the project should think about HES adapters from an op
 
 The goal is to avoid confusion between:
 
+- an operator-managed upstream HES system
 - a lightweight field-normalization adapter profile
 - a runtime adapter that actually connects to an external HES and moves data into the MDM system
 
@@ -17,6 +18,7 @@ If the project treats every adapter concern as one vague concept, implementation
 
 Typical failure modes are:
 
+- no stable parent object representing one registered HES
 - source field mapping logic mixed with connection lifecycle control
 - polling code embedded directly in web routes
 - no clear place to represent adapter status, last success, or last failure
@@ -26,7 +28,24 @@ This document separates those concerns so that the integration layer can evolve 
 
 ## Core distinction
 
-### 1. Adapter profile
+### 1. HES system
+
+An HES system is the persistent operator-managed representation of one upstream source system.
+
+Typical responsibilities:
+
+- provide a stable source identity
+- hold operator-facing source metadata
+- act as the parent object above one or more runtime adapters
+- give batches and raw records a durable upstream lineage reference
+
+Examples:
+
+- `aimir_overseas_prod`
+- `company_hes_primary`
+- `vendor_b_receive_gateway`
+
+### 2. Adapter profile
 
 An adapter profile is a normalization rule set applied before common raw persistence.
 
@@ -43,7 +62,7 @@ Examples:
 
 This kind of adapter is lightweight and declarative.
 
-### 2. Runtime adapter
+### 3. Runtime adapter
 
 A runtime adapter is a controllable integration unit that actually connects to an upstream HES or other source.
 
@@ -122,13 +141,15 @@ The exact minimal operational boundary is defined in [minimal-adapter-operations
 
 ## Recommended architectural rule
 
-The integration layer should contain two explicit sub-concepts:
+The integration layer should contain three explicit sub-concepts:
 
+- HES system
 - adapter profile
 - adapter runtime
 
 Recommended rule:
 
+- HES systems represent operator-managed upstream sources
 - adapter profiles normalize payload shape
 - adapter runtimes control source connectivity and collection lifecycle
 - neither concept should leak vendor-specific behavior into common raw, canonical, or final business layers
@@ -151,12 +172,30 @@ The proposed minimal lifecycle model is defined in [adapter-runtime-lifecycle.md
 The recommended first operator control scope is defined in [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md).
 The recommended first polling implementation scope is defined in [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md).
 The recommended minimum persistent shape is defined in [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md).
+The recommended operator-facing HES registry concept is defined in [hes-system-management.md](/home/tprover/2604_sim_mdms_auto/docs/hes-system-management.md).
 The current implementation gap is summarized in [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md).
 The recommended next implementation order is defined in [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md).
 
 ## Recommended persistence concepts
 
 The exact table names can be decided later, but the following concepts are recommended.
+
+### HES system
+
+Represents one operator-managed upstream HES.
+
+Useful fields:
+
+- stable HES code
+- display name
+- vendor name
+- source family
+- default delivery mode
+- status
+- timezone
+- masked connection summary
+
+This is the parent operational source object above runtime adapters.
 
 ### Adapter definition
 
@@ -179,6 +218,7 @@ Represents one real external connection or configured source.
 
 Useful fields:
 
+- HES system reference
 - adapter definition reference
 - display name
 - source system
@@ -188,7 +228,7 @@ Useful fields:
 - masked connection settings
 - landing enabled flag when needed
 
-This is the main operational object an administrator would manage.
+This is the main technical operational object an administrator would manage under one HES system.
 
 ### Adapter run
 
@@ -225,7 +265,10 @@ The frontend should eventually expose runtime adapters as operational objects.
 
 Recommended minimal screen capabilities:
 
+- HES system list
+- HES system detail
 - adapter list
+- adapter list filtered by parent HES
 - source system and mode display
 - current status badge
 - last success and last failure timestamps
@@ -235,7 +278,7 @@ Recommended minimal screen capabilities:
 - `Run Once`
 - recent run history drill-down
 
-This UI should manage adapter instances, not code-defined adapter profiles.
+This UI should manage operator-facing HES systems and runtime adapter instances, not code-defined adapter profiles alone.
 
 ## Recommended dashboard relationship
 

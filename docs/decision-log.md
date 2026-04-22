@@ -176,6 +176,16 @@ This document records current architectural and process decisions so that the te
   - [adapter-live-hardening-plan.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-live-hardening-plan.md)
   - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
 
+### D-019. HES systems should be modeled separately from runtime adapters
+
+- Status: locked
+- Summary: The project should model an operator-managed `hes_system` as the parent source object above runtime adapters, rather than treating `adapter_instance` as both the HES and the execution unit
+- Why: One upstream HES can require multiple runtime adapters over time, and operators need a stable HES registry concept for source management, lineage, and UI grouping
+- Related docs:
+  - [hes-system-management.md](/home/tprover/2604_sim_mdms_auto/docs/hes-system-management.md)
+  - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
+  - [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape
