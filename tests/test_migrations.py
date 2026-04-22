@@ -98,6 +98,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "opened_at" in operational_event_columns
         assert "acknowledged_at" in operational_event_columns
         assert "closed_at" in operational_event_columns
+        assert "hes_system_id" in operational_event_columns
 
         engine = create_engine(schema_url)
         with engine.connect() as connection:
@@ -107,7 +108,7 @@ def test_alembic_upgrade_creates_expected_tables():
                     select indexname, indexdef
                     from pg_indexes
                     where schemaname = :schema_name
-                      and tablename in ('hes_read_raw', 'adapter_run')
+                      and tablename in ('hes_read_raw', 'adapter_run', 'operational_event')
                     order by tablename, indexname
                     """
                 ),
@@ -129,6 +130,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "running" in index_defs[
             "uq_adapter_run_single_running_per_instance"
         ]
+        assert "ix_operational_event_hes_system_id" in index_defs
 
         hes_system_indexes = inspector.get_indexes("hes_system", schema=schema_name)
         hes_system_index_names = {row["name"] for row in hes_system_indexes}

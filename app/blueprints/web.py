@@ -313,7 +313,15 @@ def operational_events():
         filters = build_operational_event_filters({})
 
     rows = list_operational_events(session, filters)
-    return render_template("operational_events.html", rows=rows, filters=filters)
+    hes_system_options = session.scalars(
+        select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
+    ).all()
+    return render_template(
+        "operational_events.html",
+        rows=rows,
+        filters=filters,
+        hes_system_options=hes_system_options,
+    )
 
 
 def _adapter_redirect(adapter_instance_id: int) -> str:

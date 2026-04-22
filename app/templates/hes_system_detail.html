@@ -197,4 +197,99 @@
     </div>
   </div>
 </div>
+
+<div class="row g-4 mt-1">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">{{ t("page.hes_system_detail.recent_alerts") }}</h2>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.operational_events', hes_system_id=detail.hes_system.id, stream_type='alert', lang=current_locale) }}">
+            {{ t("button.view") }}
+          </a>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for row in detail.open_alerts %}
+          <div class="list-group-item px-0">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div class="fw-semibold">{{ t_event_title(row) }}</div>
+                <div class="small text-secondary">{{ t_event_message(row) }}</div>
+                <div class="small text-secondary mt-1">
+                  <span>{{ row.occurred_at|dt }}</span>
+                  <span class="ms-2">{{ t("table.event_code") }}: {{ row.event_code }}</span>
+                  <span class="ms-2">{{ t_or("common.status." ~ row.alert_status, row.alert_status or t("common.none")) }}</span>
+                </div>
+                <div class="small text-secondary mt-1 d-flex gap-2 flex-wrap">
+                  {% if row.adapter_instance_id %}
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.adapter_detail', adapter_instance_id=row.adapter_instance_id, lang=current_locale) }}">
+                    {{ t("nav.adapters") }}
+                  </a>
+                  {% endif %}
+                  {% if row.batch_id %}
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.ingest_batches', batch_id=row.batch_id, lang=current_locale) }}">
+                    {{ t("table.batch_id") }}: {{ row.batch_id }}
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+              <span class="badge text-bg-{{ 'danger' if row.severity in ['error', 'critical'] else 'warning' }}">
+                {{ t_or("operational_event.severity." ~ row.severity, row.severity) }}
+              </span>
+            </div>
+          </div>
+          {% else %}
+          <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_alerts") }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">{{ t("page.hes_system_detail.recent_events") }}</h2>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.operational_events', hes_system_id=detail.hes_system.id, lang=current_locale) }}">
+            {{ t("button.view") }}
+          </a>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for row in detail.recent_events %}
+          <div class="list-group-item px-0">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div class="fw-semibold">{{ t_event_title(row) }}</div>
+                <div class="small text-secondary">{{ t_event_message(row) }}</div>
+                <div class="small text-secondary mt-1">
+                  <span>{{ row.occurred_at|dt }}</span>
+                  <span class="ms-2">{{ t_or("operational_event.source_layer." ~ row.source_layer, row.source_layer) }}</span>
+                  <span class="ms-2">{{ t("table.event_code") }}: {{ row.event_code }}</span>
+                </div>
+                <div class="small text-secondary mt-1 d-flex gap-2 flex-wrap">
+                  {% if row.adapter_instance_id %}
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.adapter_detail', adapter_instance_id=row.adapter_instance_id, lang=current_locale) }}">
+                    {{ t("nav.adapters") }}
+                  </a>
+                  {% endif %}
+                  {% if row.batch_id %}
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.ingest_batches', batch_id=row.batch_id, lang=current_locale) }}">
+                    {{ t("table.batch_id") }}: {{ row.batch_id }}
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+              <span class="badge text-bg-{{ 'danger' if row.severity in ['error', 'critical'] else 'warning' if row.severity == 'warning' else 'secondary' }}">
+                {{ t_or("operational_event.severity." ~ row.severity, row.severity) }}
+              </span>
+            </div>
+          </div>
+          {% else %}
+          <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_events") }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     AdapterInstance,
     AdapterRun,
+    HesSystem,
     IngestBatch,
     IngestErrorLog,
     OperationalEvent,
@@ -223,6 +224,44 @@ def _format_message(template: str, **kwargs: object) -> str:
         return template
 
 
+def _infer_hes_system_id(
+    *,
+    hes_system: HesSystem | None,
+    adapter_instance: AdapterInstance | None,
+    adapter_run: AdapterRun | None,
+    pipeline_run: PipelineRun | None,
+    ingest_batch: IngestBatch | None,
+    ingest_error_log: IngestErrorLog | None,
+    reprocess_request: ReprocessRequest | None,
+) -> int | None:
+    if hes_system is not None:
+        return hes_system.id
+    if ingest_batch is not None and ingest_batch.hes_system_id is not None:
+        return ingest_batch.hes_system_id
+    if adapter_instance is not None and adapter_instance.hes_system_id is not None:
+        return adapter_instance.hes_system_id
+    if adapter_run is not None:
+        if adapter_run.adapter_instance is not None and adapter_run.adapter_instance.hes_system_id is not None:
+            return adapter_run.adapter_instance.hes_system_id
+    if pipeline_run is not None:
+        if pipeline_run.ingest_batch is not None and pipeline_run.ingest_batch.hes_system_id is not None:
+            return pipeline_run.ingest_batch.hes_system_id
+        if (
+            pipeline_run.reprocess_request is not None
+            and pipeline_run.reprocess_request.hes_read_raw is not None
+            and pipeline_run.reprocess_request.hes_read_raw.hes_system_id is not None
+        ):
+            return pipeline_run.reprocess_request.hes_read_raw.hes_system_id
+    if reprocess_request is not None and reprocess_request.hes_read_raw.hes_system_id is not None:
+        return reprocess_request.hes_read_raw.hes_system_id
+    if ingest_error_log is not None:
+        if ingest_error_log.hes_read_raw is not None and ingest_error_log.hes_read_raw.hes_system_id is not None:
+            return ingest_error_log.hes_read_raw.hes_system_id
+        if ingest_error_log.hes_event_raw is not None and ingest_error_log.hes_event_raw.hes_system_id is not None:
+            return ingest_error_log.hes_event_raw.hes_system_id
+    return None
+
+
 def record_operational_event(
     session: Session,
     event_code: str,
@@ -245,6 +284,7 @@ def record_operational_event(
     message_ko: str | None = None,
     entity_type: str | None = None,
     entity_id: int | None = None,
+    hes_system: HesSystem | None = None,
     adapter_instance: AdapterInstance | None = None,
     adapter_run: AdapterRun | None = None,
     pipeline_run: PipelineRun | None = None,
@@ -299,6 +339,16 @@ def record_operational_event(
             entity_type = entity_type or "reprocess_request"
             entity_id = entity_id or reprocess_request.id
 
+    hes_system_id = _infer_hes_system_id(
+        hes_system=hes_system,
+        adapter_instance=adapter_instance,
+        adapter_run=adapter_run,
+        pipeline_run=pipeline_run,
+        ingest_batch=ingest_batch,
+        ingest_error_log=ingest_error_log,
+        reprocess_request=reprocess_request,
+    )
+
     event = OperationalEvent(
         occurred_at=effective_occurred_at,
         source_layer=source_layer or spec.source_layer,
@@ -318,6 +368,7 @@ def record_operational_event(
         message_ko=effective_message_ko,
         entity_type=entity_type,
         entity_id=entity_id,
+        hes_system_id=hes_system_id,
         adapter_instance_id=adapter_instance.id if adapter_instance is not None else None,
         adapter_run_id=adapter_run.id if adapter_run is not None else None,
         pipeline_run_id=pipeline_run.id if pipeline_run is not None else None,

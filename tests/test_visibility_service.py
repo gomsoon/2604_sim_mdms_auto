@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
+from sqlalchemy import select
 
+from app.models import HesSystem
 from app.services.seeds import seed_demo_environment
 from app.services.visibility import (
     VisibilityFilterError,
@@ -130,6 +132,13 @@ def test_build_operational_event_filters_rejects_invalid_stream_type():
     assert exc_info.value.error_code == "invalid_stream_type"
 
 
+def test_build_operational_event_filters_rejects_invalid_hes_system_id():
+    with pytest.raises(VisibilityFilterError) as exc_info:
+        build_operational_event_filters({"hes_system_id": "0"})
+
+    assert exc_info.value.error_code == "invalid_hes_system_filter"
+
+
 def test_list_operational_events_filters_by_alert_status_and_batch_id(session):
     seed_demo_environment(session)
     session.commit()
@@ -162,3 +171,38 @@ def test_list_operational_events_filters_by_alert_status_and_batch_id(session):
     assert rows[0].event_code == "canonical_failed"
     assert rows[0].alert_status == "closed"
     assert rows[0].batch_id == "demo-read-batch"
+
+
+def test_list_operational_events_filters_by_hes_system(session):
+    from app.services.operational_events import record_operational_event
+
+    seed_demo_environment(session)
+    session.commit()
+
+    demo_hes = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert demo_hes is not None
+
+    other_hes = HesSystem(
+        hes_code="OTHER_HES",
+        display_name="Other HES",
+        source_family="hes",
+        status="active",
+    )
+    session.add(other_hes)
+    session.flush()
+    record_operational_event(
+        session,
+        "adapter_enabled",
+        hes_system=other_hes,
+        details={},
+        instance_code="other_hes_adapter",
+    )
+    session.commit()
+
+    rows = list_operational_events(
+        session,
+        build_operational_event_filters({"hes_system_id": str(demo_hes.id)}),
+    )
+
+    assert rows
+    assert all(row.hes_system_id == demo_hes.id for row in rows)

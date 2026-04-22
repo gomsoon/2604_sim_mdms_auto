@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import AdapterInstance, HesSystem
+from app.models import AdapterInstance, HesSystem, OperationalEvent
 from app.services.seeds import seed_demo_environment
 
 
@@ -92,6 +92,43 @@ def test_hes_system_detail_page_renders_linked_adapter_and_recent_batch(client, 
     assert "연결된 어댑터" in text
     assert "Demo HES Poll Primary" in text
     assert "demo-read-batch" in text
+
+
+def test_hes_system_detail_page_renders_recent_alerts_and_events(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    recent_event = session.scalar(
+        select(OperationalEvent)
+        .where(OperationalEvent.hes_system_id == hes_system.id)
+        .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
+        .limit(1)
+    )
+    open_alert = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.hes_system_id == hes_system.id,
+            OperationalEvent.is_alert.is_(True),
+            OperationalEvent.alert_status.in_(("open", "acknowledged")),
+        )
+        .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
+        .limit(1)
+    )
+
+    assert hes_system is not None
+    assert recent_event is not None
+    assert open_alert is not None
+
+    response = client.get(f"/hes-systems/{hes_system.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "최근 알림" in text
+    assert "최근 이벤트" in text
+    assert open_alert.event_code in text
+    assert recent_event.event_code in text
+    assert f"/operational-events?hes_system_id={hes_system.id}" in text
 
 
 def test_update_hes_system_via_web_updates_registry(client, session):

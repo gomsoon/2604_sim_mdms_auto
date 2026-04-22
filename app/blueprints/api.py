@@ -315,6 +315,11 @@ def list_operational_events_endpoint():
             {
                 "id": row.id,
                 "occurred_at": row.occurred_at.isoformat(),
+                "hes_system_id": row.hes_system_id,
+                "hes_code": row.hes_system.hes_code if row.hes_system is not None else None,
+                "hes_display_name": (
+                    row.hes_system.display_name if row.hes_system is not None else None
+                ),
                 "source_layer": row.source_layer,
                 "event_category": row.event_category,
                 "event_code": row.event_code,

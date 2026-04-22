@@ -52,6 +52,9 @@ class HesSystem(TimestampMixin, Base):
     landing_lp_em_read_blocks: Mapped[list["LandingLpEmReadBlock"]] = relationship(
         back_populates="hes_system"
     )
+    operational_events: Mapped[list["OperationalEvent"]] = relationship(
+        back_populates="hes_system"
+    )
 
 
 class IngestBatch(TimestampMixin, Base):
@@ -590,6 +593,7 @@ class OperationalEvent(Base):
     message_ko: Mapped[str] = mapped_column(Text, nullable=False)
     entity_type: Mapped[str | None] = mapped_column(String(40))
     entity_id: Mapped[int | None] = mapped_column(Integer)
+    hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"), index=True)
     adapter_instance_id: Mapped[int | None] = mapped_column(ForeignKey("adapter_instance.id"), index=True)
     adapter_run_id: Mapped[int | None] = mapped_column(ForeignKey("adapter_run.id"), index=True)
     pipeline_run_id: Mapped[int | None] = mapped_column(ForeignKey("pipeline_run.id"), index=True)
@@ -606,3 +610,5 @@ class OperationalEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    hes_system: Mapped["HesSystem | None"] = relationship(back_populates="operational_events")

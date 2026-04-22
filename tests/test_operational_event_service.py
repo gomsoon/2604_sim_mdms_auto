@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from app.models import OperationalEvent
+from app.models import IngestBatch, OperationalEvent
 from app.services.operational_events import (
     OperationalAlertError,
     acknowledge_operational_alert,
@@ -12,6 +12,7 @@ from app.services.operational_events import (
     close_operational_alerts,
     record_operational_event,
 )
+from app.services.seeds import seed_demo_environment
 
 
 def test_record_operational_event_creates_open_alert_with_lifecycle_fields(session):
@@ -33,6 +34,30 @@ def test_record_operational_event_creates_open_alert_with_lifecycle_fields(sessi
     assert stored.opened_at == datetime(2026, 4, 21, 12, 0, tzinfo=timezone.utc)
     assert stored.closed_at is None
     assert stored.title_en == "Adapter run failed"
+
+
+def test_record_operational_event_infers_hes_system_from_ingest_batch(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    ingest_batch = session.scalar(
+        select(IngestBatch).where(IngestBatch.batch_id == "demo-read-batch").limit(1)
+    )
+    assert ingest_batch is not None
+    assert ingest_batch.hes_system_id is not None
+
+    event = record_operational_event(
+        session,
+        "raw_ingest_completed",
+        ingest_batch=ingest_batch,
+    )
+    session.commit()
+
+    stored = session.get(OperationalEvent, event.id)
+
+    assert stored is not None
+    assert stored.hes_system_id == ingest_batch.hes_system_id
+    assert stored.batch_id == "demo-read-batch"
 
 
 def test_close_operational_alerts_marks_matching_rows_closed(session):

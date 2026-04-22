@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import AdapterInstance, HesEventRaw, HesReadRaw, HesSystem, IngestBatch, OperationalEvent
@@ -33,6 +33,8 @@ class HesSystemDetail:
     recent_batches: list[IngestBatch]
     adapter_rows: list[Any]
     open_alert_count: int
+    open_alerts: list[OperationalEvent]
+    recent_events: list[OperationalEvent]
     raw_reads_count: int
     raw_events_count: int
 
@@ -144,21 +146,18 @@ def list_hes_systems(session: Session, *, limit: int = 100) -> list[HesSystemSum
 
     summaries: list[HesSystemSummary] = []
     for row in rows:
-        adapter_ids = [adapter.id for adapter in row.adapter_instances]
-        open_alert_count = 0
-        if adapter_ids:
-            open_alert_count = int(
-                session.scalar(
-                    select(func.count())
-                    .select_from(OperationalEvent)
-                    .where(
-                        OperationalEvent.is_alert.is_(True),
-                        OperationalEvent.alert_status.in_(("open", "acknowledged")),
-                        OperationalEvent.adapter_instance_id.in_(adapter_ids),
-                    )
+        open_alert_count = int(
+            session.scalar(
+                select(func.count())
+                .select_from(OperationalEvent)
+                .where(
+                    OperationalEvent.hes_system_id == row.id,
+                    OperationalEvent.is_alert.is_(True),
+                    OperationalEvent.alert_status.in_(("open", "acknowledged")),
                 )
-                or 0
             )
+            or 0
+        )
         latest_success_candidates = [
             adapter.last_success_at for adapter in row.adapter_instances if adapter.last_success_at is not None
         ]
@@ -286,24 +285,34 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         .limit(20)
     ).all()
 
-    adapter_ids = [row.instance.id for row in adapter_rows]
-    open_alert_count = 0
-    if adapter_ids:
-        open_alert_count = int(
-            session.scalar(
-                select(func.count())
-                .select_from(OperationalEvent)
-                .where(
-                    OperationalEvent.is_alert.is_(True),
-                    OperationalEvent.alert_status.in_(("open", "acknowledged")),
-                    or_(
-                        OperationalEvent.adapter_instance_id.in_(adapter_ids),
-                        OperationalEvent.ingest_batch_id.in_([row.id for row in recent_batches]) if recent_batches else False,
-                    ),
-                )
+    open_alert_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(OperationalEvent)
+            .where(
+                OperationalEvent.hes_system_id == hes_system.id,
+                OperationalEvent.is_alert.is_(True),
+                OperationalEvent.alert_status.in_(("open", "acknowledged")),
             )
-            or 0
         )
+        or 0
+    )
+    open_alerts = session.scalars(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.hes_system_id == hes_system.id,
+            OperationalEvent.is_alert.is_(True),
+            OperationalEvent.alert_status.in_(("open", "acknowledged")),
+        )
+        .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
+        .limit(10)
+    ).all()
+    recent_events = session.scalars(
+        select(OperationalEvent)
+        .where(OperationalEvent.hes_system_id == hes_system.id)
+        .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
+        .limit(20)
+    ).all()
 
     raw_reads_count = int(
         session.scalar(
@@ -323,6 +332,8 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         recent_batches=recent_batches,
         adapter_rows=adapter_rows,
         open_alert_count=open_alert_count,
+        open_alerts=open_alerts,
+        recent_events=recent_events,
         raw_reads_count=raw_reads_count,
         raw_events_count=raw_events_count,
     )

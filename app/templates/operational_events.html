@@ -21,6 +21,17 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("field.hes_system") }}</label>
+        <select class="form-select" name="hes_system_id">
+          <option value="">{{ t("common.none") }}</option>
+          {% for hes_system in hes_system_options %}
+          <option value="{{ hes_system.id }}" {% if filters.hes_system_id == hes_system.id %}selected{% endif %}>
+            {{ hes_system.display_name }} ({{ hes_system.hes_code }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="col-md-2">
         <label class="form-label">{{ t("table.source_layer") }}</label>
         <select class="form-select" name="source_layer">
@@ -85,6 +96,7 @@
             <th>{{ t("table.occurred_at") }}</th>
             <th>{{ t("table.severity") }}</th>
             <th>{{ t("table.event") }}</th>
+            <th>{{ t("table.hes_system") }}</th>
             <th>{{ t("table.source_layer") }}</th>
             <th>{{ t("table.batch_id") }}</th>
             <th>{{ t("table.meter") }}</th>
@@ -118,6 +130,16 @@
               </div>
               {% if row.operator_memo %}
               <div class="small text-secondary">{{ t("field.operator_memo") }}: {{ row.operator_memo }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.hes_system %}
+              <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=row.hes_system.id, lang=current_locale) }}">
+                {{ row.hes_system.display_name }}
+              </a>
+              <div class="small text-secondary">{{ row.hes_system.hes_code }}</div>
+              {% else %}
+              {{ t("common.none") }}
               {% endif %}
             </td>
             <td>{{ t_or("operational_event.source_layer." ~ row.source_layer, row.source_layer) }}</td>
@@ -154,7 +176,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="8" class="text-secondary">{{ t("page.operational_events.empty") }}</td>
+            <td colspan="9" class="text-secondary">{{ t("page.operational_events.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

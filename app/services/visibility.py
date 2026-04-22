@@ -54,6 +54,7 @@ class FinalMeasurementFilters:
 @dataclass(frozen=True, slots=True)
 class OperationalEventFilters:
     stream_type: str | None = None
+    hes_system_id: int | None = None
     source_layer: str | None = None
     severity: str | None = None
     event_code: str | None = None
@@ -70,6 +71,19 @@ def _normalize_text(value: str | None) -> str | None:
 
     stripped = str(value).strip()
     return stripped or None
+
+
+def _parse_optional_int(value: str | None, *, error_code: str, fallback_message: str) -> int | None:
+    normalized = _normalize_text(value)
+    if normalized is None:
+        return None
+    try:
+        parsed = int(normalized)
+    except ValueError as exc:
+        raise VisibilityFilterError(error_code, fallback_message) from exc
+    if parsed <= 0:
+        raise VisibilityFilterError(error_code, fallback_message)
+    return parsed
 
 
 def _parse_filter_datetime(value: str | None, *, end_of_day: bool = False) -> datetime | None:
@@ -168,6 +182,11 @@ def build_operational_event_filters(args) -> OperationalEventFilters:
 
     return OperationalEventFilters(
         stream_type=stream_type,
+        hes_system_id=_parse_optional_int(
+            args.get("hes_system_id"),
+            error_code="invalid_hes_system_filter",
+            fallback_message="HES system filter must be a positive integer.",
+        ),
         source_layer=_normalize_text(args.get("source_layer")),
         severity=_normalize_text(args.get("severity")),
         event_code=_normalize_text(args.get("event_code")),
@@ -262,12 +281,16 @@ def list_final_measurements(
 def list_operational_events(
     session: Session, filters: OperationalEventFilters, *, limit: int = 200
 ) -> list[OperationalEvent]:
-    statement: Select[tuple[OperationalEvent]] = select(OperationalEvent)
+    statement: Select[tuple[OperationalEvent]] = select(OperationalEvent).options(
+        selectinload(OperationalEvent.hes_system)
+    )
 
     if filters.stream_type == "alert":
         statement = statement.where(OperationalEvent.is_alert.is_(True))
     elif filters.stream_type == "event":
         statement = statement.where(OperationalEvent.is_alert.is_(False))
+    if filters.hes_system_id is not None:
+        statement = statement.where(OperationalEvent.hes_system_id == filters.hes_system_id)
     if filters.source_layer:
         statement = statement.where(OperationalEvent.source_layer == filters.source_layer)
     if filters.severity:
