@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 
 from app.models import AdapterInstance, HesSystem, OperationalEvent
@@ -92,6 +94,8 @@ def test_hes_system_detail_page_renders_linked_adapter_and_recent_batch(client, 
     assert "연결된 어댑터" in text
     assert "Demo HES Poll Primary" in text
     assert "demo-read-batch" in text
+    assert "최근 적재" in text
+    assert "최근 이벤트" in text
 
 
 def test_hes_system_detail_page_renders_recent_alerts_and_events(client, session):
@@ -176,3 +180,25 @@ def test_adapters_page_shows_parent_hes_link(client, session):
     assert response.status_code == 200
     assert "Demo HES" in text
     assert f"/hes-systems/{instance.hes_system_id}" in text
+
+
+def test_hes_systems_page_renders_runtime_health_summary(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary"))
+    assert instance is not None
+
+    as_of = datetime.now(timezone.utc)
+    instance.next_run_at = as_of - timedelta(minutes=30)
+    instance.last_heartbeat_at = as_of - timedelta(minutes=30)
+    session.commit()
+
+    response = client.get("/hes-systems?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "상태 요약" in text
+    assert "실행 중: 0" in text
+    assert "실행 지연: 1" in text
+    assert "신선도 저하: 1" in text

@@ -6,7 +6,15 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import AdapterInstance, HesEventRaw, HesReadRaw, HesSystem, IngestBatch, OperationalEvent
+from app.models import (
+    AdapterInstance,
+    AdapterRun,
+    HesEventRaw,
+    HesReadRaw,
+    HesSystem,
+    IngestBatch,
+    OperationalEvent,
+)
 
 
 @dataclass(slots=True)
@@ -23,8 +31,12 @@ class HesSystemSummary:
     hes_system: HesSystem
     adapter_count: int
     enabled_adapter_count: int
+    running_adapter_count: int
+    overdue_adapter_count: int
+    stale_adapter_count: int
     open_alert_count: int
     latest_success_at: object | None
+    latest_ingest_at: object | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +44,13 @@ class HesSystemDetail:
     hes_system: HesSystem
     recent_batches: list[IngestBatch]
     adapter_rows: list[Any]
+    running_adapter_count: int
+    overdue_adapter_count: int
+    stale_adapter_count: int
     open_alert_count: int
+    latest_success_at: object | None
+    latest_ingest_at: object | None
+    latest_event_at: object | None
     open_alerts: list[OperationalEvent]
     recent_events: list[OperationalEvent]
     raw_reads_count: int
@@ -103,6 +121,48 @@ def _normalize_optional_delivery_mode(value: str | None) -> str | None:
     return normalized
 
 
+def _load_latest_runs(session: Session, adapter_instance_ids: list[int]) -> dict[int, AdapterRun]:
+    if not adapter_instance_ids:
+        return {}
+
+    runs = session.scalars(
+        select(AdapterRun)
+        .where(AdapterRun.adapter_instance_id.in_(adapter_instance_ids))
+        .order_by(AdapterRun.adapter_instance_id.asc(), AdapterRun.id.desc())
+    ).all()
+
+    latest_runs: dict[int, AdapterRun] = {}
+    for run in runs:
+        latest_runs.setdefault(run.adapter_instance_id, run)
+    return latest_runs
+
+
+def _summarize_adapter_runtime(
+    adapter_instances: list[AdapterInstance],
+    latest_runs: dict[int, AdapterRun],
+) -> tuple[int, int, int, object | None]:
+    from app.services.adapters import derive_effective_status, derive_is_overdue, derive_is_stale
+
+    running_count = 0
+    overdue_count = 0
+    stale_count = 0
+    latest_success_candidates: list[object] = []
+
+    for instance in adapter_instances:
+        latest_run = latest_runs.get(instance.id)
+        if derive_effective_status(instance, latest_run) == "running":
+            running_count += 1
+        if derive_is_overdue(instance, latest_run):
+            overdue_count += 1
+        if derive_is_stale(instance, latest_run):
+            stale_count += 1
+        if instance.last_success_at is not None:
+            latest_success_candidates.append(instance.last_success_at)
+
+    latest_success_at = max(latest_success_candidates) if latest_success_candidates else None
+    return running_count, overdue_count, stale_count, latest_success_at
+
+
 def ensure_hes_system(
     session: Session,
     *,
@@ -141,11 +201,26 @@ def ensure_hes_system(
 
 def list_hes_systems(session: Session, *, limit: int = 100) -> list[HesSystemSummary]:
     rows = session.scalars(
-        select(HesSystem).options(selectinload(HesSystem.adapter_instances)).order_by(HesSystem.id.desc()).limit(limit)
+        select(HesSystem)
+        .options(
+            selectinload(HesSystem.adapter_instances).selectinload(AdapterInstance.adapter_definition)
+        )
+        .order_by(HesSystem.id.desc())
+        .limit(limit)
     ).all()
+    latest_runs = _load_latest_runs(
+        session,
+        [adapter.id for row in rows for adapter in row.adapter_instances],
+    )
 
     summaries: list[HesSystemSummary] = []
     for row in rows:
+        (
+            running_adapter_count,
+            overdue_adapter_count,
+            stale_adapter_count,
+            latest_success_at,
+        ) = _summarize_adapter_runtime(row.adapter_instances, latest_runs)
         open_alert_count = int(
             session.scalar(
                 select(func.count())
@@ -158,16 +233,20 @@ def list_hes_systems(session: Session, *, limit: int = 100) -> list[HesSystemSum
             )
             or 0
         )
-        latest_success_candidates = [
-            adapter.last_success_at for adapter in row.adapter_instances if adapter.last_success_at is not None
-        ]
+        latest_ingest_at = session.scalar(
+            select(func.max(IngestBatch.received_at)).where(IngestBatch.hes_system_id == row.id)
+        )
         summaries.append(
             HesSystemSummary(
                 hes_system=row,
                 adapter_count=len(row.adapter_instances),
                 enabled_adapter_count=sum(1 for adapter in row.adapter_instances if adapter.admin_state == "enabled"),
+                running_adapter_count=running_adapter_count,
+                overdue_adapter_count=overdue_adapter_count,
+                stale_adapter_count=stale_adapter_count,
                 open_alert_count=open_alert_count,
-                latest_success_at=max(latest_success_candidates) if latest_success_candidates else None,
+                latest_success_at=latest_success_at,
+                latest_ingest_at=latest_ingest_at,
             )
         )
     return summaries
@@ -313,6 +392,15 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
         .limit(20)
     ).all()
+    running_adapter_count = sum(1 for row in adapter_rows if row.effective_status == "running")
+    overdue_adapter_count = sum(1 for row in adapter_rows if row.is_overdue)
+    stale_adapter_count = sum(1 for row in adapter_rows if row.is_stale)
+    latest_success_candidates = [
+        row.instance.last_success_at for row in adapter_rows if row.instance.last_success_at is not None
+    ]
+    latest_success_at = max(latest_success_candidates) if latest_success_candidates else None
+    latest_ingest_at = recent_batches[0].received_at if recent_batches else None
+    latest_event_at = recent_events[0].occurred_at if recent_events else None
 
     raw_reads_count = int(
         session.scalar(
@@ -331,7 +419,13 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         hes_system=hes_system,
         recent_batches=recent_batches,
         adapter_rows=adapter_rows,
+        running_adapter_count=running_adapter_count,
+        overdue_adapter_count=overdue_adapter_count,
+        stale_adapter_count=stale_adapter_count,
         open_alert_count=open_alert_count,
+        latest_success_at=latest_success_at,
+        latest_ingest_at=latest_ingest_at,
+        latest_event_at=latest_event_at,
         open_alerts=open_alerts,
         recent_events=recent_events,
         raw_reads_count=raw_reads_count,

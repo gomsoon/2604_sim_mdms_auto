@@ -24,8 +24,9 @@
                 <th>{{ t("table.default_delivery_mode") }}</th>
                 <th>{{ t("table.status") }}</th>
                 <th>{{ t("table.adapter_count") }}</th>
-                <th>{{ t("table.open_alerts") }}</th>
+                <th>{{ t("table.health") }}</th>
                 <th>{{ t("table.last_success") }}</th>
+                <th>{{ t("table.latest_ingest") }}</th>
                 <th>{{ t("table.actions") }}</th>
               </tr>
             </thead>
@@ -52,9 +53,15 @@
                 <td>
                   <div>{{ row.adapter_count }}</div>
                   <div class="small text-secondary">{{ t("page.hes_systems.enabled_adapter_count", count=row.enabled_adapter_count) }}</div>
+                  <div class="small text-secondary">{{ t("page.hes_systems.running_adapter_count", count=row.running_adapter_count) }}</div>
                 </td>
-                <td>{{ row.open_alert_count }}</td>
+                <td>
+                  <div>{{ t("table.open_alerts") }}: {{ row.open_alert_count }}</div>
+                  <div class="small text-secondary">{{ t("page.hes_systems.overdue_adapter_count", count=row.overdue_adapter_count) }}</div>
+                  <div class="small text-secondary">{{ t("page.hes_systems.stale_adapter_count", count=row.stale_adapter_count) }}</div>
+                </td>
                 <td>{{ row.latest_success_at|dt }}</td>
+                <td>{{ row.latest_ingest_at|dt }}</td>
                 <td>
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.hes_system_detail', hes_system_id=row.hes_system.id, lang=current_locale) }}">
                     {{ t("button.view") }}
@@ -63,7 +70,7 @@
               </tr>
               {% else %}
               <tr>
-                <td colspan="10" class="text-secondary">{{ t("page.hes_systems.empty") }}</td>
+                <td colspan="11" class="text-secondary">{{ t("page.hes_systems.empty") }}</td>
               </tr>
               {% endfor %}
             </tbody>
