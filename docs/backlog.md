@@ -256,6 +256,7 @@ These items are not blockers for the current minimal baseline, but they should r
 
 - Review how `hes_read_raw` row identity should remain referenceable once the table is partitioned by `measured_at`
 - Review downstream references such as canonical, error, reprocess, and duplicate lineage so the first raw partition rollout is structurally safe
+- Include `DEFAULT` partition behavior for null `measured_at` rows and the later row-movement path when `measured_at` becomes known
 
 ## Recommended execution waves
 

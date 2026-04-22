@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    ForeignKeyConstraint,
     Index,
     JSON,
     Boolean,
@@ -17,7 +18,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from app.db import Base
 
@@ -321,14 +322,10 @@ class InstallationHistory(TimestampMixin, Base):
 class HesReadRaw(TimestampMixin, Base):
     __tablename__ = "hes_read_raw"
     __table_args__ = (
-        Index(
-            "uq_hes_read_raw_source_record_key_scope",
-            "source_system",
-            "source_record_key",
-            unique=True,
-            postgresql_where=text(
-                "source_record_key IS NOT NULL AND btrim(source_record_key) <> ''"
-            ),
+        UniqueConstraint(
+            "id",
+            "measured_at",
+            name="uq_hes_read_raw_id_measured_at",
         ),
         Index(
             "ix_hes_read_raw_source_meter_channel_measured_at",
@@ -336,6 +333,17 @@ class HesReadRaw(TimestampMixin, Base):
             "meter_identifier",
             "channel_identifier",
             "measured_at",
+        ),
+        Index("ix_hes_read_raw_id", "id"),
+        Index(
+            "ix_hes_read_raw_source_record_key_scope",
+            "source_system",
+            "source_record_key",
+        ),
+        ForeignKeyConstraint(
+            ["duplicate_of_id", "duplicate_of_measured_at"],
+            ["hes_read_raw.id", "hes_read_raw.measured_at"],
+            name="fk_hes_read_raw_duplicate_of",
         ),
     )
 
@@ -370,7 +378,8 @@ class HesReadRaw(TimestampMixin, Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     canonical_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     is_duplicate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    duplicate_of_id: Mapped[int | None] = mapped_column(ForeignKey("hes_read_raw.id"))
+    duplicate_of_id: Mapped[int | None] = mapped_column(Integer)
+    duplicate_of_measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     ingest_batch: Mapped[IngestBatch] = relationship(back_populates="hes_read_rows")
@@ -383,10 +392,17 @@ class HesReadRaw(TimestampMixin, Base):
     canonical_measurement: Mapped["CanonicalMeasurement | None"] = relationship(
         back_populates="hes_read_raw", uselist=False
     )
-    duplicate_of: Mapped["HesReadRaw | None"] = relationship(remote_side=[id])
-    error_logs: Mapped[list["IngestErrorLog"]] = relationship(back_populates="hes_read_raw")
+    duplicate_of: Mapped["HesReadRaw | None"] = relationship(
+        remote_side=lambda: [HesReadRaw.id, HesReadRaw.measured_at],
+        foreign_keys=lambda: [HesReadRaw.duplicate_of_id, HesReadRaw.duplicate_of_measured_at],
+    )
+    error_logs: Mapped[list["IngestErrorLog"]] = relationship(
+        back_populates="hes_read_raw",
+        primaryjoin=lambda: HesReadRaw.id == foreign(IngestErrorLog.hes_read_raw_id),
+    )
     reprocess_requests: Mapped[list["ReprocessRequest"]] = relationship(
-        back_populates="hes_read_raw"
+        back_populates="hes_read_raw",
+        primaryjoin=lambda: HesReadRaw.id == foreign(ReprocessRequest.hes_read_raw_id),
     )
 
 
@@ -410,11 +426,18 @@ class HesEventRaw(TimestampMixin, Base):
 
 class CanonicalMeasurement(TimestampMixin, Base):
     __tablename__ = "canonical_measurement"
+    __table_args__ = (
+        UniqueConstraint("hes_read_raw_id", name="uq_canonical_measurement_hes_read_raw_id"),
+        ForeignKeyConstraint(
+            ["hes_read_raw_id", "hes_read_raw_measured_at"],
+            ["hes_read_raw.id", "hes_read_raw.measured_at"],
+            name="fk_canonical_measurement_hes_read_raw_identity",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    hes_read_raw_id: Mapped[int] = mapped_column(
-        ForeignKey("hes_read_raw.id"), nullable=False, unique=True
-    )
+    hes_read_raw_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    hes_read_raw_measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     measuring_component_id: Mapped[int] = mapped_column(
         ForeignKey("measuring_component.id"), nullable=False
     )
@@ -506,9 +529,13 @@ class IngestErrorLog(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="open")
     message: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    hes_read_raw_id: Mapped[int | None] = mapped_column(ForeignKey("hes_read_raw.id"))
+    hes_read_raw_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    hes_read_raw_measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     hes_event_raw_id: Mapped[int | None] = mapped_column(ForeignKey("hes_event_raw.id"))
-    hes_read_raw: Mapped[HesReadRaw | None] = relationship(back_populates="error_logs")
+    hes_read_raw: Mapped[HesReadRaw | None] = relationship(
+        back_populates="error_logs",
+        primaryjoin=lambda: foreign(IngestErrorLog.hes_read_raw_id) == HesReadRaw.id,
+    )
     hes_event_raw: Mapped[HesEventRaw | None] = relationship(back_populates="error_logs")
     reprocess_requests: Mapped[list["ReprocessRequest"]] = relationship(
         back_populates="ingest_error_log"
@@ -522,7 +549,8 @@ class ReprocessRequest(TimestampMixin, Base):
     ingest_error_log_id: Mapped[int] = mapped_column(
         ForeignKey("ingest_error_log.id"), nullable=False, index=True
     )
-    hes_read_raw_id: Mapped[int] = mapped_column(ForeignKey("hes_read_raw.id"), nullable=False)
+    hes_read_raw_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    hes_read_raw_measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="processing")
     result_code: Mapped[str | None] = mapped_column(String(80))
     result_message: Mapped[str | None] = mapped_column(Text)
@@ -530,7 +558,10 @@ class ReprocessRequest(TimestampMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     ingest_error_log: Mapped[IngestErrorLog] = relationship(back_populates="reprocess_requests")
-    hes_read_raw: Mapped[HesReadRaw] = relationship(back_populates="reprocess_requests")
+    hes_read_raw: Mapped[HesReadRaw] = relationship(
+        back_populates="reprocess_requests",
+        primaryjoin=lambda: foreign(ReprocessRequest.hes_read_raw_id) == HesReadRaw.id,
+    )
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(back_populates="reprocess_request")
 
 

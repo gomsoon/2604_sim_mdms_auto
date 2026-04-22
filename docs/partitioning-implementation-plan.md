@@ -75,11 +75,23 @@ Recommended direction:
 3. review and extend downstream references so they can follow that identity where needed
 4. relax or redesign only the guarantees that native partitioning cannot preserve directly in the first rollout
 
+This first rollout should also explicitly allow:
+
+- a `DEFAULT` partition for rows where `measured_at` is still null
+
+Why:
+
+- the current raw ingest path may persist validation-error rows with `measured_at = null`
+- those rows should remain in the same raw lineage model
+- the project should not force a separate invalid-raw table before the first partition rollout
+
 This phase may require:
 
 - composite uniqueness or composite foreign-key support
 - additional lineage columns in downstream tables
 - migration-time backfill for those lineage columns
+- review of how `measured_at` updates move rows from the `DEFAULT` partition into month partitions
+- review of whether downstream references need `ON UPDATE` behavior or equivalent application-driven synchronization
 
 ### Phase 2. Partition `hes_read_raw`
 
@@ -91,6 +103,7 @@ Goals:
 Recommended baseline:
 
 - parent table partitioned by `measured_at`
+- one `DEFAULT` partition for rows that do not yet have `measured_at`
 - monthly child partitions
 - local per-partition indexes for:
   - `(source_system, meter_identifier, channel_identifier, measured_at)`
@@ -169,6 +182,8 @@ Recommended first test scenarios:
    - insert one row in month A
    - insert one row in month B
    - confirm both are visible through the parent
+   - insert one row with `measured_at = null`
+   - confirm it lands in the `DEFAULT` partition
 2. replay and idempotency regression
    - run the same source records again across those months
    - confirm replay behavior is unchanged
@@ -176,6 +191,10 @@ Recommended first test scenarios:
    - confirm business duplicate detection still works across the partitioned parent
 4. AIMIR bounded smoke regression
    - use a bounded live window and confirm landing, raw, canonical, and event flow remain correct
+5. partition-key update regression
+   - update one `DEFAULT`-partition row from `measured_at = null` to a real month timestamp
+   - confirm it moves into the correct month partition
+   - confirm downstream references remain valid
 
 ## Backlog implications
 

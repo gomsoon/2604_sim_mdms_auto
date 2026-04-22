@@ -73,6 +73,11 @@ Important strengths:
 
 That means additional HES integrations can still map into the same raw table without changing the core MDM meaning of the row.
 
+It also means the raw table currently contains both:
+
+- valid interval rows with `measured_at`
+- validation-error rows where `measured_at` may still be null
+
 ### What must be revisited before partitioning
 
 The raw table currently has two different dedupe concerns:
@@ -114,6 +119,16 @@ For the immediate next implementation step, however, the project may still parti
 - the current replay and idempotency regression tests remain green
 - the project treats that result as an interim operating baseline rather than the final partition-safe design
 - the replay registry remains visible in backlog and architecture decisions
+- null-`measured_at` rows are handled explicitly, most likely through a `DEFAULT` partition
+
+There is also a separate structural concern:
+
+- some raw rows may start with `measured_at = null` and later be updated to a real timestamp
+
+If that approach is kept, the first partition rollout must explicitly review:
+
+- row movement from `DEFAULT` partition to month partition
+- downstream FK impact when `id + measured_at` is used as partition-compatible identity
 
 ## Review of `final_measurement`
 

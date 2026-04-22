@@ -279,6 +279,7 @@ def reprocess_exception(
     request = ReprocessRequest(
         ingest_error_log_id=error_log.id,
         hes_read_raw_id=raw_row.id,
+        hes_read_raw_measured_at=raw_row.measured_at,
         status="processing",
         details={
             "exception_code": error_log.exception_code,
@@ -343,10 +344,12 @@ def reprocess_exception(
 
     raw_row.is_duplicate = False
     raw_row.duplicate_of_id = None
+    raw_row.duplicate_of_measured_at = None
     duplicate = find_duplicate_hes_read_raw(session, raw_row)
     if duplicate is not None:
         raw_row.is_duplicate = True
         raw_row.duplicate_of_id = duplicate.id
+        raw_row.duplicate_of_measured_at = duplicate.measured_at
         return _mark_reprocess_failed(
             request,
             error_log,

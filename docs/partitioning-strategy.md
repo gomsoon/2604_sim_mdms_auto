@@ -71,12 +71,14 @@ Recommended partition key:
 Recommended partition model:
 
 - monthly range partitioning
+- plus one `DEFAULT` partition for rows that still do not have `measured_at`
 
 Why:
 
 - this is expected to become the largest MDM table
 - most important queries will naturally include time predicates
 - retention and archive are time-oriented
+- current minimal ingest behavior can still produce raw rows with null `measured_at`, and those rows should remain in the same raw lineage model until corrected or reprocessed
 
 ### `final_measurement`
 

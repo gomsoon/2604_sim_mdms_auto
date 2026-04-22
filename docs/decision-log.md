@@ -205,6 +205,16 @@ This document records current architectural and process decisions so that the te
   - [partitioning-implementation-plan.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-implementation-plan.md)
   - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
 
+### D-022. Null-`measured_at` raw rows stay in `hes_read_raw` through a `DEFAULT` partition in the first rollout
+
+- Status: locked
+- Summary: The first `hes_read_raw` partition rollout should keep raw validation-error rows inside the same raw table by routing null-`measured_at` rows into a `DEFAULT` partition rather than splitting them into a separate invalid-raw table
+- Why: This preserves simple lineage, avoids premature table proliferation, and still leaves room for later hardening if null-timestamp volume or row-movement complexity becomes unacceptable
+- Related docs:
+  - [partitioning-implementation-plan.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-implementation-plan.md)
+  - [partitioning-precheck.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-precheck.md)
+  - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

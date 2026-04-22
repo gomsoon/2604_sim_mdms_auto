@@ -70,6 +70,16 @@ def test_alembic_upgrade_creates_expected_tables():
         hes_read_raw_columns = {
             column["name"] for column in inspector.get_columns("hes_read_raw", schema=schema_name)
         }
+        canonical_columns = {
+            column["name"]
+            for column in inspector.get_columns("canonical_measurement", schema=schema_name)
+        }
+        ingest_error_log_columns = {
+            column["name"] for column in inspector.get_columns("ingest_error_log", schema=schema_name)
+        }
+        reprocess_request_columns = {
+            column["name"] for column in inspector.get_columns("reprocess_request", schema=schema_name)
+        }
         hes_event_raw_columns = {
             column["name"] for column in inspector.get_columns("hes_event_raw", schema=schema_name)
         }
@@ -91,6 +101,10 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "landing_lp_em_read_block_id" in hes_read_raw_columns
         assert "interval_size_minutes" in hes_read_raw_columns
         assert "source_write_ts" in hes_read_raw_columns
+        assert "duplicate_of_measured_at" in hes_read_raw_columns
+        assert "hes_read_raw_measured_at" in canonical_columns
+        assert "hes_read_raw_measured_at" in ingest_error_log_columns
+        assert "hes_read_raw_measured_at" in reprocess_request_columns
         assert "hes_system_id" in hes_event_raw_columns
         assert "hes_system_id" in landing_columns
         assert "is_alert" in operational_event_columns
@@ -117,11 +131,10 @@ def test_alembic_upgrade_creates_expected_tables():
 
         index_defs = {row.indexname: row.indexdef for row in index_rows}
 
-        assert "uq_hes_read_raw_source_record_key_scope" in index_defs
-        assert "UNIQUE INDEX" in index_defs["uq_hes_read_raw_source_record_key_scope"]
-        assert "source_record_key IS NOT NULL" in index_defs[
-            "uq_hes_read_raw_source_record_key_scope"
-        ]
+        assert "uq_hes_read_raw_id_measured_at" in index_defs
+        assert "UNIQUE INDEX" in index_defs["uq_hes_read_raw_id_measured_at"]
+        assert "ix_hes_read_raw_source_record_key_scope" in index_defs
+        assert "UNIQUE INDEX" not in index_defs["ix_hes_read_raw_source_record_key_scope"]
         assert "ix_hes_read_raw_source_meter_channel_measured_at" in index_defs
         assert "uq_adapter_run_single_running_per_instance" in index_defs
         assert "run_status" in index_defs[
@@ -136,5 +149,26 @@ def test_alembic_upgrade_creates_expected_tables():
         hes_system_index_names = {row["name"] for row in hes_system_indexes}
         assert "ix_hes_system_source_family" in hes_system_index_names
         assert "ix_hes_system_status" in hes_system_index_names
+
+        with engine.connect() as connection:
+            partition_rows = connection.execute(
+                text(
+                    """
+                    select child.relname
+                    from pg_inherits
+                    join pg_class parent on parent.oid = pg_inherits.inhparent
+                    join pg_class child on child.oid = pg_inherits.inhrelid
+                    join pg_namespace namespace on namespace.oid = child.relnamespace
+                    where namespace.nspname = :schema_name
+                      and parent.relname = 'hes_read_raw'
+                    order by child.relname
+                    """
+                ),
+                {"schema_name": schema_name},
+            ).scalars().all()
+
+        assert "hes_read_raw_default" in partition_rows
+        month_partitions = [name for name in partition_rows if name.startswith("hes_read_raw_20")]
+        assert len(month_partitions) >= 2
     finally:
         drop_schema(test_database_url, schema_name)

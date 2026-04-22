@@ -375,6 +375,7 @@ def ingest_reads(
         if duplicate is not None:
             hes_read_raw.is_duplicate = True
             hes_read_raw.duplicate_of_id = duplicate.id
+            hes_read_raw.duplicate_of_measured_at = duplicate.measured_at
             hes_read_raw.canonical_status = "duplicate"
             record_exception(
                 session,
@@ -628,6 +629,7 @@ def record_exception(
         message=message,
         details=details,
         hes_read_raw_id=hes_read_raw.id if hes_read_raw else None,
+        hes_read_raw_measured_at=hes_read_raw.measured_at if hes_read_raw else None,
         hes_event_raw_id=hes_event_raw.id if hes_event_raw else None,
     )
     session.add(exception)
@@ -660,6 +662,7 @@ def create_or_get_canonical_measurement(
 
     canonical = CanonicalMeasurement(
         hes_read_raw=hes_read_raw,
+        hes_read_raw_measured_at=hes_read_raw.measured_at,
         measuring_component_id=component.id,
         device_id=component.device_id,
         service_point_id=component.service_point_id,

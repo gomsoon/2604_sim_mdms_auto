@@ -214,7 +214,9 @@ def test_raw_interval_window_state_scope_is_unique(session):
     session.rollback()
 
 
-def test_hes_read_raw_source_record_key_scope_is_unique(session):
+def test_hes_read_raw_source_record_key_scope_allows_duplicates_during_partition_first_rollout(
+    session,
+):
     instance, run = _create_adapter_runtime(session)
     batch = _create_ingest_batch(session, instance=instance, run=run)
 
@@ -252,10 +254,12 @@ def test_hes_read_raw_source_record_key_scope_is_unique(session):
     )
     session.add_all([first, second])
 
-    with pytest.raises(IntegrityError):
-        session.commit()
+    session.commit()
 
-    session.rollback()
+    rows = session.query(HesReadRaw).order_by(HesReadRaw.id.asc()).all()
+    assert len(rows) == 2
+    assert rows[0].source_record_key == rows[1].source_record_key
+    assert rows[0].measured_at != rows[1].measured_at
 
 
 def test_hes_read_raw_blank_source_record_key_is_not_uniqued(session):
