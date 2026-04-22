@@ -192,6 +192,15 @@ because the current one-to-one finalization guarantee may need a partition-compa
 
 because source-side late updates and replay semantics may not fit a simple global unique key.
 
+The current project posture is:
+
+- long-term
+  - move truly global replay guarantees toward a separate support structure such as a replay registry
+- short-term
+  - allow the first `hes_read_raw` partition rollout to proceed before that registry exists
+  - keep replay and idempotency under explicit application control
+  - confirm behavior again through replay, idempotency, smoke, and regression tests after the first partition migration
+
 ## Maintenance baseline
 
 Partitioning should support easier maintenance, not just query speed.

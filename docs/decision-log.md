@@ -186,6 +186,25 @@ This document records current architectural and process decisions so that the te
   - [integration-adapter-management.md](/home/tprover/2604_sim_mdms_auto/docs/integration-adapter-management.md)
   - [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
 
+### D-020. `hes_read_raw` partitioning may proceed before replay-registry extraction
+
+- Status: locked
+- Summary: The long-term design direction is to move global replay guarantees out of partitioned fact tables and into a dedicated support structure such as a replay registry, but the project may still apply the first `hes_read_raw` partition migration before that extraction is implemented
+- Why: This allows the team to move partitioning forward incrementally, preserve the current replay and idempotency behavior temporarily, and use real regression evidence to decide when registry extraction becomes operationally necessary
+- Related docs:
+  - [partitioning-precheck.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-precheck.md)
+  - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
+  - [replay-idempotency-operations.md](/home/tprover/2604_sim_mdms_auto/docs/replay-idempotency-operations.md)
+
+### D-021. The first partition migration must be verified with rows from different months
+
+- Status: locked
+- Summary: The first partition migration is not considered validated unless tests insert and query rows from at least two different calendar months
+- Why: A single-month test can pass without proving real partition routing, child-table creation, or cross-partition query behavior
+- Related docs:
+  - [partitioning-implementation-plan.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-implementation-plan.md)
+  - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

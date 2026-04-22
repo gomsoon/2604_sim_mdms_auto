@@ -22,6 +22,16 @@ In short:
 - the current uniqueness assumptions are not all partition-ready
 - partitioning should therefore be implemented only after those assumptions are reviewed table by table
 
+The current project stance is intentionally two-phase:
+
+1. long-term direction
+   - move global replay guarantees out of partitioned fact tables and into a dedicated support structure such as a replay registry
+2. near-term execution
+   - partition `hes_read_raw` first
+   - keep the current replay and idempotency behavior in application logic
+   - run the existing replay, idempotency, and regression tests again after partitioning
+   - use those results to decide when the replay registry becomes mandatory rather than speculative
+
 ## Review of `hes_read_raw`
 
 ### Why the current structure is acceptable
@@ -97,7 +107,13 @@ Recommended options to evaluate:
 3. application-plus-registry hybrid
    - application checks backed by a smaller globally unique support table
 
-For now, the first option is the safest direction.
+For long-term scalability, the first option is still the safest direction.
+
+For the immediate next implementation step, however, the project may still partition `hes_read_raw` first and continue using the existing replay and idempotency logic as an interim guarantee, as long as:
+
+- the current replay and idempotency regression tests remain green
+- the project treats that result as an interim operating baseline rather than the final partition-safe design
+- the replay registry remains visible in backlog and architecture decisions
 
 ## Review of `final_measurement`
 
@@ -199,6 +215,7 @@ The following items should be treated as explicit follow-up work before or durin
 
 - decide whether `source_record_key` uniqueness moves to a replay registry table
 - keep exact replay guarantees without relying on a partition-incompatible global unique assumption
+- treat this as a long-term target even if the first `hes_read_raw` partition rollout proceeds before the registry exists
 
 ### P-CHK-2. Finalization uniqueness redesign for partitioned final
 
@@ -241,3 +258,10 @@ Before implementing the first partition migration:
 2. review the unique and dedupe assumptions against that partition key
 3. decide which guarantees stay in-table and which move into helper registry tables
 4. only then write the Alembic migration for partitioned tables
+
+The practical execution order for the current stage is:
+
+1. partition `hes_read_raw` first
+2. preserve existing replay and idempotency behavior for the first rollout
+3. rerun replay, idempotency, smoke, and regression tests
+4. keep replay-registry design visible as the next hardening step rather than forcing it before the first partition experiment

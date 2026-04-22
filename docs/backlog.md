@@ -224,6 +224,7 @@ These items are not blockers for the current minimal baseline, but they should r
 
 - Review how `source_system + source_record_key` exact replay guarantees should be preserved once `hes_read_raw` is partitioned
 - Likely direction: small replay registry table or equivalent support structure
+- Near-term policy: do not block the first `hes_read_raw` partition rollout on this item, but keep it visible as the next hardening step if replay and idempotency remain application-managed at first
 
 ### X2. Finalization uniqueness redesign for partitioned final
 
@@ -250,6 +251,11 @@ These items are not blockers for the current minimal baseline, but they should r
 
 - Revisit whether `hes_read_raw` and `hes_event_raw` should eventually evolve toward broader upstream-neutral naming
 - Do not block current progress on this review
+
+### X6. Partition-compatible raw identity and downstream FK review
+
+- Review how `hes_read_raw` row identity should remain referenceable once the table is partitioned by `measured_at`
+- Review downstream references such as canonical, error, reprocess, and duplicate lineage so the first raw partition rollout is structurally safe
 
 ## Recommended execution waves
 
