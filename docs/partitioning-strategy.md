@@ -6,6 +6,8 @@ This document defines the initial PostgreSQL partitioning strategy for large app
 
 It exists because table shape alone is not enough. The raw and final read tables will eventually be large enough that operational behavior must be part of the design baseline.
 
+For the table-by-table readiness review that should happen before the first partition migration, see [partitioning-precheck.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-precheck.md).
+
 ## Core recommendation
 
 The initial production-like baseline should use time-based range partitioning.
@@ -181,6 +183,12 @@ This is especially important for:
 
 - `hes_read_raw`
 - `landing_lp_em_read_block`
+
+It is also important for:
+
+- `final_measurement`
+
+because the current one-to-one finalization guarantee may need a partition-compatible support design.
 
 because source-side late updates and replay semantics may not fit a simple global unique key.
 

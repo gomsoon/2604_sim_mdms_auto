@@ -216,6 +216,41 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Ingest, VEE, and export monitoring endpoints
 - Alerting criteria
 
+## Cross-cutting follow-up backlog
+
+These items are not blockers for the current minimal baseline, but they should remain visible because they affect long-term scalability and downstream correctness.
+
+### X1. Replay uniqueness redesign for partitioned raw
+
+- Review how `source_system + source_record_key` exact replay guarantees should be preserved once `hes_read_raw` is partitioned
+- Likely direction: small replay registry table or equivalent support structure
+
+### X2. Finalization uniqueness redesign for partitioned final
+
+- Review how the one-final-per-canonical guarantee should be preserved once `final_measurement` is partitioned
+- Keep the canonical-to-final business guarantee explicit
+
+### X3. Numeric precision hardening
+
+- Review replacement of `Float` with `Numeric/Decimal` for:
+  - `hes_read_raw.reading_value`
+  - `canonical_measurement.value`
+  - `final_measurement.value`
+- Prioritize before billing-facing logic grows
+
+### X4. Final measurement revision model
+
+- Review whether the final layer needs:
+  - supersession
+  - revision lineage
+  - re-finalization support
+  - correction handling
+
+### X5. Common raw naming neutrality review
+
+- Revisit whether `hes_read_raw` and `hes_event_raw` should eventually evolve toward broader upstream-neutral naming
+- Do not block current progress on this review
+
 ## Recommended execution waves
 
 ### Wave 1
