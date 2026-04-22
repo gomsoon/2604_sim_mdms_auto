@@ -93,6 +93,12 @@ For each non-null `VALUE_nn` column:
 
 The adapter configuration should define the source timezone explicitly.
 
+For the current AIMIR HES interpretation:
+
+- `YYYYMMDDHH` is the source-local business hour
+- `WRITEDATE` is the source write or arrival time
+- `HH` is only the hour component and should not be treated as a full measurement timestamp
+
 ### Slot interpretation
 
 Recommended baseline:
@@ -134,13 +140,16 @@ Suggested target semantics per expanded row:
 - `meter_source_id` = `LP_EM.METER_ID`
 - `device_source_id` = `LP_EM.DEVICE_ID`
 - `channel_code` = `LP_EM.CHANNEL`
-- `interval_start_utc` = base hour plus slot offset converted to UTC
+- `measured_at` = parsed `YYYYMMDDHH` plus slot offset interpreted in the configured source timezone
+- `interval_start_utc` = canonical UTC or timestamptz representation derived from `measured_at`
 - `interval_minutes` = derived interval length
 - `reading_value` = `VALUE_nn`
 - `quality_code` = adapter-mapped value or null when unavailable
 - `status_code` = adapter-mapped value or null when unavailable
 - `source_write_ts` = parsed `WRITEDATE` when available
 - `source_business_ts` = parsed `YYYYMMDDHH`
+- `source_business_key` = original `YYYYMMDDHH`
+- `source_timezone` = configured source timezone
 - `source_payload` = original `LP_EM` row payload
 
 Preserve source-block-level fields inside payload even when they do not become top-level raw columns.
@@ -217,6 +226,14 @@ The recent sample already indicates a stable pattern:
 - one populated slot per row
 - channels repeated consistently per meter-hour
 - no duplicate `(METER_ID, YYYYMMDDHH, CHANNEL)` keys in the inspected recent sample
+
+## Current time interpretation decision
+
+For the current AIMIR HES source:
+
+- use `YYYYMMDDHH` as the basis for `measured_at`
+- use `WRITEDATE` as the basis for `source_write_ts`
+- preserve the original local business-hour string as source lineage rather than replacing `measured_at` with text
 
 These observations are strong enough to support the first adapter baseline, but they should still be treated as source observations, not as global guarantees.
 

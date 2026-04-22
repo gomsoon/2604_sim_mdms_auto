@@ -72,6 +72,12 @@ Recommended current baseline:
 - watermark mode should start with `writedate`
 - smoke or controlled live verification may additionally constrain `YYYYMMDDHH` with optional business-hour bounds
 
+Time interpretation rule:
+
+- `YYYYMMDDHH` is treated as source-local business time
+- `WRITEDATE` is treated as source write time
+- expanded common raw rows must preserve both canonical `measured_at` and source-local business-time lineage
+
 ## Recommended extraction boundary
 
 ### Primary watermark candidate
@@ -179,6 +185,15 @@ After landing, the adapter should expand each non-null slot into one interval-le
 
 The adapter should not persist the packed `VALUE_00` through `VALUE_59` layout directly into the common raw table.
 
+Recommended time mapping for expanded rows:
+
+- `measured_at`
+  - parsed from `YYYYMMDDHH` plus slot offset in the configured source timezone
+- `source_business_key`
+  - original `YYYYMMDDHH`
+- `source_write_ts`
+  - parsed from `WRITEDATE`
+
 ## Recommended completeness-state behavior
 
 For each expanded source block, the adapter should update one completeness window per:
@@ -253,6 +268,8 @@ The first implementation should prove:
 - slot expansion behavior
 - completeness-state updates
 - late-write handling for the same logical interval window
+- `measured_at` derivation from `YYYYMMDDHH` in the configured source timezone
+- preservation of source-local business-time lineage beside canonical `measured_at`
 
 ## Related documents
 

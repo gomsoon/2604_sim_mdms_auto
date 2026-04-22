@@ -30,6 +30,13 @@ That would increase:
 
 The common raw layer should instead converge on the smallest business-meaningful unit that downstream processing can use consistently.
 
+That does not mean source-local business time should be discarded.
+
+The project should preserve both:
+
+- a canonical interval timestamp suitable for cross-source processing and partitioning
+- the original source-local business-time representation used by the upstream HES
+
 ## Recommended raw unit
 
 For interval reads, the recommended common raw unit is:
@@ -69,6 +76,11 @@ Recommended meaning:
 - one row in `hes_read_raw` equals one interval read
 - not one source block
 - not one hour-wide packed row
+
+Recommended time posture:
+
+- `measured_at` should remain a canonical timestamp field
+- source-local business time should remain preserved separately as source lineage
 
 ### 3. Completeness or window-state table
 
@@ -144,6 +156,8 @@ The exact schema may still evolve, but the common raw interval table should pres
 - `status_code`
 - `source_write_ts`
 - `source_business_ts`
+- `source_business_key`
+- `source_timezone`
 - `source_payload`
 - `created_at`
 
@@ -152,6 +166,26 @@ Optional but useful:
 - `source_row_version`
 - `supersedes_raw_id`
 - `lineage_details`
+
+## Recommended time-model rule
+
+The common raw layer should not replace `measured_at` with a source-local text field such as `YYYYMMDDHH` or `YYYYMMDDHHMM`.
+
+Recommended rule:
+
+- `measured_at`
+  - canonical timestamp suitable for range queries, partitioning, and cross-source processing
+- `source_business_key`
+  - original source-local business-time text such as `YYYYMMDDHH` or `YYYYMMDDHHMM`
+- `source_timezone`
+  - explicit timezone used to interpret the source-local business-time text
+
+Why:
+
+- different countries may use different local timezones
+- some countries may use DST-like local time behavior
+- the raw layer still needs one unambiguous timestamp for internal processing
+- the source-local business-time text still matters for audit, operator traceability, and source-side reconciliation
 
 ## Recommended completeness-state columns
 
