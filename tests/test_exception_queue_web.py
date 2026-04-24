@@ -30,7 +30,24 @@ def test_exception_detail_page_renders_raw_context(client, session):
     assert "Exception Detail" in text
     assert "MTR-9999" in text
     assert "CH-99" in text
+    assert "HES Meter References" in text
+    assert "LP Interval (min)" in text
     assert "Reprocess" in text
+
+
+def test_exception_detail_page_renders_hes_meter_reference_bootstrap_in_korean(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    error_id = _mapping_error_id(session)
+    response = client.get(f"/exceptions/{error_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "HES 계량기 참조" in text
+    assert "MTR-9999" in text
+    assert "LP 주기(분)" in text
+    assert "원본 계량기 상태" in text
 
 
 def test_exception_queue_page_filters_by_meter_and_code_in_korean(client, session):

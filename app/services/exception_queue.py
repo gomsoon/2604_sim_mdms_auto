@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, aliased, joinedload, selectinload
 from app.models import (
     Device,
     HesEventRaw,
+    HesMeterReference,
     HesReadRaw,
     IngestBatch,
     IngestErrorLog,
@@ -45,6 +46,7 @@ class ExceptionReprocessError(ValueError):
 @dataclass(frozen=True, slots=True)
 class ExceptionDetailContext:
     error_log: IngestErrorLog
+    hes_meter_references: list[HesMeterReference]
     candidate_devices: list[Device]
     candidate_components: list[MeasuringComponent]
     exact_component_matches: list[MeasuringComponent]
@@ -187,12 +189,27 @@ def get_exception_detail_context(
     if raw_row is None:
         return ExceptionDetailContext(
             error_log=error_log,
+            hes_meter_references=[],
             candidate_devices=[],
             candidate_components=[],
             exact_component_matches=[],
             reprocess_requests=[],
             can_reprocess=False,
         )
+
+    hes_meter_references: list[HesMeterReference] = []
+    if raw_row.hes_system_id is not None and raw_row.meter_identifier:
+        hes_meter_references = session.scalars(
+            select(HesMeterReference)
+            .where(
+                HesMeterReference.hes_system_id == raw_row.hes_system_id,
+                or_(
+                    HesMeterReference.source_meter_id == raw_row.meter_identifier,
+                    HesMeterReference.source_meter_key == raw_row.meter_identifier,
+                ),
+            )
+            .order_by(HesMeterReference.last_synced_at.desc(), HesMeterReference.id.desc())
+        ).all()
 
     candidate_devices = session.scalars(
         select(Device)
@@ -239,6 +256,7 @@ def get_exception_detail_context(
 
     return ExceptionDetailContext(
         error_log=error_log,
+        hes_meter_references=hes_meter_references,
         candidate_devices=candidate_devices,
         candidate_components=candidate_components,
         exact_component_matches=exact_component_matches,

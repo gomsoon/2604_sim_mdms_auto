@@ -76,6 +76,31 @@
   <div class="col-xl-4">
     <div class="card shadow-sm h-100">
       <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.exception_detail.hes_meter_references") }}</h2>
+        {% for row in detail.hes_meter_references %}
+        <div class="border rounded p-3 mb-3">
+          <div class="fw-semibold">{{ row.source_meter_id }}</div>
+          <div class="small text-secondary">{{ row.source_meter_key or t("common.none") }}</div>
+          <div class="small text-secondary">{{ row.meter_name or t("common.none") }}</div>
+          <div class="small text-secondary">
+            {{ t("table.meter_status_code") }}: {{ row.meter_status_code or t("common.none") }}
+          </div>
+          <div class="small text-secondary">
+            {{ t("table.lp_interval_minutes") }}: {{ row.lp_interval_minutes if row.lp_interval_minutes is not none else t("common.none") }}
+          </div>
+          <div class="small text-secondary">
+            {{ t("table.last_synced_at") }}: {{ row.last_synced_at|dt }}
+          </div>
+        </div>
+        {% else %}
+        <p class="text-secondary mb-0">{{ t("page.exception_detail.no_hes_meter_references") }}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.exception_detail.candidate_devices") }}</h2>
         {% for row in detail.candidate_devices %}
         <div class="border rounded p-3 mb-3">

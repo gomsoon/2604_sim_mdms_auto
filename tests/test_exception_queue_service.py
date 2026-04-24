@@ -18,6 +18,7 @@ from app.services.exception_queue import (
     ExceptionQueueFilters,
     ExceptionReprocessError,
     build_exception_filters,
+    get_exception_detail_context,
     list_exception_queue,
     reprocess_exception,
 )
@@ -127,6 +128,22 @@ def test_list_exception_queue_filters_by_batch_meter_status_and_code(session):
     assert rows[0].status == "open"
     assert rows[0].hes_read_raw is not None
     assert rows[0].hes_read_raw.meter_identifier == "MTR-9999"
+
+
+def test_exception_detail_context_includes_hes_meter_reference_bootstrap_data(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    mapping_error = _load_error(session, "measuring_component_not_found")
+
+    detail = get_exception_detail_context(session, mapping_error.id)
+
+    assert detail is not None
+    assert detail.error_log.id == mapping_error.id
+    assert len(detail.hes_meter_references) == 1
+    assert detail.hes_meter_references[0].source_meter_id == "MTR-9999"
+    assert detail.hes_meter_references[0].lp_interval_minutes == 15
+    assert detail.hes_meter_references[0].meter_status_code == "active"
 
 
 def test_reprocess_exception_rejects_unsupported_duplicate_exception(session):
