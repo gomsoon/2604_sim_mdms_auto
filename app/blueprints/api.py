@@ -16,6 +16,7 @@ from app.services.exception_queue import (
 )
 from app.services.ingest_contract import IngestContractError, validate_ingest_envelope
 from app.services.ingestion import ingest_events, ingest_reads
+from app.services.receive_adapters import ReceiveAdapterError, receive_adapter_payload
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
@@ -114,6 +115,78 @@ def ingest_events_endpoint():
         validate_ingest_envelope(session, payload, record_type="hes_event_raw")
         summary = ingest_events(session, payload)
         session.commit()
+    except IngestContractError as exc:
+        session.rollback()
+        return error_response(
+            exc.error_code,
+            exc.status_code,
+            details=exc.fallback_message,
+            locale=exc.response_locale,
+        )
+    except Exception as exc:
+        session.rollback()
+        return error_response("ingest_request_failed", 400, details=str(exc))
+
+    return jsonify(summary), 201
+
+
+def _receive_adapter_secret() -> str | None:
+    return request.headers.get("X-Adapter-Secret")
+
+
+@bp.post("/receive/<string:instance_code>/reads")
+def receive_reads_endpoint(instance_code: str):
+    payload = request.get_json(silent=True)
+    if not payload or not isinstance(payload, dict):
+        return error_response("json_payload_required", 400)
+
+    session = get_session()
+    try:
+        summary = receive_adapter_payload(
+            session,
+            instance_code=instance_code,
+            record_type="hes_read_raw",
+            payload=payload,
+            shared_secret=_receive_adapter_secret(),
+        )
+        session.commit()
+    except ReceiveAdapterError as exc:
+        session.rollback()
+        return error_response(exc.error_code, exc.status_code, details=exc.fallback_message)
+    except IngestContractError as exc:
+        session.rollback()
+        return error_response(
+            exc.error_code,
+            exc.status_code,
+            details=exc.fallback_message,
+            locale=exc.response_locale,
+        )
+    except Exception as exc:
+        session.rollback()
+        return error_response("ingest_request_failed", 400, details=str(exc))
+
+    return jsonify(summary), 201
+
+
+@bp.post("/receive/<string:instance_code>/events")
+def receive_events_endpoint(instance_code: str):
+    payload = request.get_json(silent=True)
+    if not payload or not isinstance(payload, dict):
+        return error_response("json_payload_required", 400)
+
+    session = get_session()
+    try:
+        summary = receive_adapter_payload(
+            session,
+            instance_code=instance_code,
+            record_type="hes_event_raw",
+            payload=payload,
+            shared_secret=_receive_adapter_secret(),
+        )
+        session.commit()
+    except ReceiveAdapterError as exc:
+        session.rollback()
+        return error_response(exc.error_code, exc.status_code, details=exc.fallback_message)
     except IngestContractError as exc:
         session.rollback()
         return error_response(
