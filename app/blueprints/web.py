@@ -676,12 +676,20 @@ def master_data():
         .order_by(InstallationHistory.id.desc())
         .limit(100)
     ).all()
+    prefill_data = {
+        "source_system": (request.args.get("prefill_source_system") or "HES").strip() or "HES",
+        "external_meter_id": (request.args.get("prefill_external_meter_id") or "").strip(),
+        "external_channel_id": (request.args.get("prefill_external_channel_id") or "").strip(),
+        "device_id": (request.args.get("prefill_device_id") or "").strip(),
+        "service_point_id": (request.args.get("prefill_service_point_id") or "").strip(),
+    }
     return render_template(
         "master_data.html",
         service_points=service_points,
         devices=devices,
         rows=components,
         installations=installations,
+        prefill_data=prefill_data,
     )
 
 

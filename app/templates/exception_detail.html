@@ -7,7 +7,8 @@
     <p class="text-secondary mb-0">{{ t("page.exception_detail.description") }}</p>
   </div>
   <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary" href="{{ url_for('web.master_data', lang=current_locale) }}">
+    {% set raw = detail.error_log.hes_read_raw %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.master_data', lang=current_locale, prefill_source_system=raw.source_system if raw else None, prefill_external_meter_id=raw.meter_identifier if raw else None, prefill_external_channel_id=raw.channel_identifier if raw else None, prefill_device_id=detail.candidate_devices[0].id if detail.candidate_devices else None, prefill_service_point_id=detail.candidate_devices[0].service_point_id if detail.candidate_devices else None) }}">
       {{ t("button.open_master_data") }}
     </a>
     {% if detail.can_reprocess %}
@@ -71,7 +72,6 @@
 </div>
 
 {% if detail.error_log.hes_read_raw %}
-{% set raw = detail.error_log.hes_read_raw %}
 <div class="row g-4 mb-4">
   <div class="col-xl-4">
     <div class="card shadow-sm h-100">

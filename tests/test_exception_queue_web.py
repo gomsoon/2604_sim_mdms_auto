@@ -50,6 +50,21 @@ def test_exception_detail_page_renders_hes_meter_reference_bootstrap_in_korean(c
     assert "원본 계량기 상태" in text
 
 
+def test_exception_detail_page_master_data_link_includes_prefill_query(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    error_id = _mapping_error_id(session)
+    response = client.get(f"/exceptions/{error_id}")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "/master-data" in text
+    assert "prefill_source_system=HES" in text
+    assert "prefill_external_meter_id=MTR-9999" in text
+    assert "prefill_external_channel_id=CH-99" in text
+
+
 def test_exception_queue_page_filters_by_meter_and_code_in_korean(client, session):
     seed_demo_environment(session)
     session.commit()

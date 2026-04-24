@@ -28,6 +28,37 @@ def test_create_service_point_via_web_creates_record(client, session):
     assert service_point is not None
 
 
+def test_master_data_page_prefills_device_and_component_forms_from_query(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-PREFILL-1001",
+        service_type="electric",
+        name="Prefill Site",
+        status="active",
+    )
+    device = create_device(
+        session,
+        source_system="HES",
+        external_meter_id="MTR-PREFILL-1001",
+        serial_number="SER-PREFILL-1001",
+        service_point_id=service_point.id,
+        status="active",
+    )
+    session.commit()
+
+    response = client.get(
+        f"/master-data?prefill_source_system=HES&prefill_external_meter_id=MTR-9999&prefill_external_channel_id=CH-99&prefill_device_id={device.id}&prefill_service_point_id={service_point.id}"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'name="external_meter_id" value="MTR-9999"' in text
+    assert 'name="external_channel_id" value="CH-99"' in text
+    assert f'<option value="{device.id}" selected>{device.external_meter_id}</option>' in text
+    assert f'<option value="{service_point.id}" selected>{service_point.external_id}</option>' in text
+
+
 def test_update_device_via_web_supports_korean_feedback(client, session):
     client.get("/master-data?lang=ko")
     service_point = create_service_point(

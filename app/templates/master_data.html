@@ -126,11 +126,11 @@
           <form method="post" action="{{ url_for('web.create_device_view') }}">
             <div class="mb-3">
               <label class="form-label">{{ t("field.source_system") }}</label>
-              <input class="form-control" name="source_system" value="HES" required>
+              <input class="form-control" name="source_system" value="{{ prefill_data.source_system }}" required>
             </div>
             <div class="mb-3">
               <label class="form-label">{{ t("field.external_meter_id") }}</label>
-              <input class="form-control" name="external_meter_id" required>
+              <input class="form-control" name="external_meter_id" value="{{ prefill_data.external_meter_id }}" required>
             </div>
             <div class="mb-3">
               <label class="form-label">{{ t("field.serial_number") }}</label>
@@ -141,7 +141,7 @@
               <select class="form-select" name="service_point_id" required>
                 <option value="">{{ t("common.none") }}</option>
                 {% for service_point in service_points %}
-                <option value="{{ service_point.id }}">{{ service_point.external_id }}</option>
+                <option value="{{ service_point.id }}" {% if prefill_data.service_point_id == (service_point.id|string) %}selected{% endif %}>{{ service_point.external_id }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -222,14 +222,14 @@
           <form method="post" action="{{ url_for('web.create_component_view') }}">
             <div class="mb-3">
               <label class="form-label">{{ t("field.source_system") }}</label>
-              <input class="form-control" name="source_system" value="HES" required>
+              <input class="form-control" name="source_system" value="{{ prefill_data.source_system }}" required>
             </div>
             <div class="mb-3">
               <label class="form-label">{{ t("field.device") }}</label>
               <select class="form-select" name="device_id" required>
                 <option value="">{{ t("common.none") }}</option>
                 {% for device in devices %}
-                <option value="{{ device.id }}">{{ device.external_meter_id }}</option>
+                <option value="{{ device.id }}" {% if prefill_data.device_id == (device.id|string) %}selected{% endif %}>{{ device.external_meter_id }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -238,13 +238,13 @@
               <select class="form-select" name="service_point_id" required>
                 <option value="">{{ t("common.none") }}</option>
                 {% for service_point in service_points %}
-                <option value="{{ service_point.id }}">{{ service_point.external_id }}</option>
+                <option value="{{ service_point.id }}" {% if prefill_data.service_point_id == (service_point.id|string) %}selected{% endif %}>{{ service_point.external_id }}</option>
                 {% endfor %}
               </select>
             </div>
             <div class="mb-3">
               <label class="form-label">{{ t("field.external_channel_id") }}</label>
-              <input class="form-control" name="external_channel_id" required>
+              <input class="form-control" name="external_channel_id" value="{{ prefill_data.external_channel_id }}" required>
             </div>
             <div class="mb-3">
               <label class="form-label">{{ t("field.unit_of_measure") }}</label>
