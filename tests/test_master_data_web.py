@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import Device, InstallationHistory, ServicePoint
+from app.models import Device, HesMeterReference, HesSystem, InstallationHistory, OperationalEvent, ServicePoint
+from app.services.hes_systems import sync_hes_meter_reference_alerts
 from app.services.master_data import create_device, create_service_point
 from app.services.seeds import seed_demo_environment
 
@@ -74,6 +75,66 @@ def test_master_data_page_shows_matching_hes_meter_references_from_prefill(clien
     assert "MTR-9999" in text
     assert "AIMIR-9999" in text
     assert "15" in text
+
+
+def test_create_device_via_web_closes_missing_device_alert_and_opens_missing_component_alert(
+    client, session
+):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    service_point = session.scalar(
+        select(ServicePoint).where(ServicePoint.source_system == "HES").limit(1)
+    )
+    reference = session.scalar(
+        select(HesMeterReference).where(HesMeterReference.source_meter_id == "MTR-4040").limit(1)
+    )
+
+    assert hes_system is not None
+    assert service_point is not None
+    assert reference is not None
+
+    sync_hes_meter_reference_alerts(session, hes_system_id=hes_system.id)
+    session.commit()
+
+    response = client.post(
+        "/master-data/devices",
+        data={
+            "source_system": "HES",
+            "external_meter_id": "MTR-4040",
+            "serial_number": "SER-4040",
+            "service_point_id": str(service_point.id),
+            "status": "active",
+        },
+        follow_redirects=True,
+    )
+
+    missing_device_alert = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "hes_meter_reference_missing_device_detected",
+            OperationalEvent.entity_type == "hes_meter_reference",
+            OperationalEvent.entity_id == reference.id,
+        )
+        .limit(1)
+    )
+    missing_component_alert = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "hes_meter_reference_missing_component_detected",
+            OperationalEvent.entity_type == "hes_meter_reference",
+            OperationalEvent.entity_id == reference.id,
+            OperationalEvent.alert_status == "open",
+        )
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "Device created successfully." in response.get_data(as_text=True)
+    assert missing_device_alert is not None
+    assert missing_device_alert.alert_status == "closed"
+    assert missing_component_alert is not None
 
 
 def test_update_device_via_web_supports_korean_feedback(client, session):

@@ -58,6 +58,7 @@ from app.services.hes_systems import (
     get_hes_system_detail,
     list_hes_meter_reference_comparisons,
     list_hes_systems,
+    sync_hes_meter_reference_alerts,
     update_hes_system,
 )
 from app.services.hes_meter_references import list_prefill_hes_meter_references
@@ -723,6 +724,20 @@ def _flash_master_data_error(exc: MasterDataValidationError) -> None:
     flash(translate_master_data_error(exc.error_code, exc.fallback_message), "danger")
 
 
+def _sync_hes_meter_reference_alerts_for_source_system(session, source_system: str | None) -> None:
+    normalized = (source_system or "").strip()
+    if not normalized:
+        return
+
+    hes_system = session.scalar(
+        select(HesSystem).where(HesSystem.hes_code == normalized).limit(1)
+    )
+    if hes_system is None:
+        return
+
+    sync_hes_meter_reference_alerts(session, hes_system_id=hes_system.id)
+
+
 def _flash_installation_error(exc: InstallationValidationError) -> None:
     flash(translate_master_data_error(exc.error_code, exc.fallback_message), "danger")
 
@@ -784,7 +799,7 @@ def update_service_point_view(service_point_id: int):
 def create_device_view():
     session = get_session()
     try:
-        create_device(
+        device = create_device(
             session,
             source_system=request.form.get("source_system"),
             external_meter_id=request.form.get("external_meter_id"),
@@ -792,6 +807,7 @@ def create_device_view():
             service_point_id=request.form.get("service_point_id"),
             status=request.form.get("status"),
         )
+        _sync_hes_meter_reference_alerts_for_source_system(session, device.source_system)
         session.commit()
         _flash_master_data_success("master_data.flash.device_created")
     except MasterDataValidationError as exc:
@@ -822,6 +838,7 @@ def update_device_view(device_id: int):
             service_point_id=request.form.get("service_point_id"),
             status=request.form.get("status"),
         )
+        _sync_hes_meter_reference_alerts_for_source_system(session, device.source_system)
         session.commit()
         _flash_master_data_success("master_data.flash.device_updated")
     except MasterDataValidationError as exc:
@@ -835,7 +852,7 @@ def update_device_view(device_id: int):
 def create_component_view():
     session = get_session()
     try:
-        create_measuring_component(
+        component = create_measuring_component(
             session,
             source_system=request.form.get("source_system"),
             external_channel_id=request.form.get("external_channel_id"),
@@ -845,6 +862,7 @@ def create_component_view():
             device_id=request.form.get("device_id"),
             service_point_id=request.form.get("service_point_id"),
         )
+        _sync_hes_meter_reference_alerts_for_source_system(session, component.source_system)
         session.commit()
         _flash_master_data_success("master_data.flash.component_created")
     except MasterDataValidationError as exc:
@@ -879,6 +897,7 @@ def update_component_view(component_id: int):
             device_id=request.form.get("device_id"),
             service_point_id=request.form.get("service_point_id"),
         )
+        _sync_hes_meter_reference_alerts_for_source_system(session, component.source_system)
         session.commit()
         _flash_master_data_success("master_data.flash.component_updated")
     except MasterDataValidationError as exc:
@@ -892,13 +911,16 @@ def update_component_view(component_id: int):
 def create_installation_view():
     session = get_session()
     try:
-        create_installation_history(
+        installation = create_installation_history(
             session,
             device_id=request.form.get("device_id"),
             service_point_id=request.form.get("service_point_id"),
             installed_at=request.form.get("installed_at"),
             removed_at=request.form.get("removed_at"),
             status=request.form.get("status"),
+        )
+        _sync_hes_meter_reference_alerts_for_source_system(
+            session, installation.device.source_system
         )
         session.commit()
         _flash_master_data_success("master_data.flash.installation_created")
@@ -931,6 +953,9 @@ def update_installation_view(installation_id: int):
             installed_at=request.form.get("installed_at"),
             removed_at=request.form.get("removed_at"),
             status=request.form.get("status"),
+        )
+        _sync_hes_meter_reference_alerts_for_source_system(
+            session, installation.device.source_system
         )
         session.commit()
         _flash_master_data_success("master_data.flash.installation_updated")

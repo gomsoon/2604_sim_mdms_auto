@@ -66,6 +66,7 @@
             <th>{{ t("table.active_installations") }}</th>
             <th>{{ t("table.match_basis") }}</th>
             <th>{{ t("table.comparison_status") }}</th>
+            <th>{{ t("table.suggested_action") }}</th>
             <th>{{ t("table.last_synced_at") }}</th>
             <th>{{ t("table.actions") }}</th>
           </tr>
@@ -100,19 +101,16 @@
                 {{ t_or("hes_meter_reference.comparison_status." ~ row.comparison_status, row.comparison_status) }}
               </span>
             </td>
+            <td>
+              <span class="badge text-bg-light border">
+                {{ t_or("hes_meter_reference.suggested_action." ~ row.suggested_action, row.suggested_action) }}
+              </span>
+            </td>
             <td>{{ row.reference.last_synced_at|dt }}</td>
             <td>
-              {% if row.comparison_status == "missing_component" %}
-              {% set target_fragment = "components" %}
-              {% elif row.comparison_status == "missing_installation" %}
-              {% set target_fragment = "installations" %}
-              {% else %}
-              {% set target_fragment = "devices" %}
-              {% endif %}
-              {% set target_meter_id = row.matched_device.external_meter_id if row.matched_device else (row.reference.source_meter_key or row.reference.source_meter_id) %}
               <a
                 class="btn btn-sm btn-outline-primary"
-                href="{{ url_for('web.master_data', lang=current_locale, prefill_source_system=hes_system.hes_code, prefill_external_meter_id=target_meter_id, prefill_device_id=row.matched_device.id if row.matched_device else None, prefill_service_point_id=row.matched_service_point.id if row.matched_service_point else None) }}#{{ target_fragment }}"
+                href="{{ url_for('web.master_data', lang=current_locale, prefill_source_system=hes_system.hes_code, prefill_external_meter_id=row.suggested_meter_id, prefill_device_id=row.matched_device.id if row.matched_device else None, prefill_service_point_id=row.matched_service_point.id if row.matched_service_point else None) }}#{{ row.suggested_fragment }}"
               >
                 {{ t("button.open_master_data") }}
               </a>
@@ -120,7 +118,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="13" class="text-secondary">{{ t("page.hes_meter_references.no_rows") }}</td>
+            <td colspan="14" class="text-secondary">{{ t("page.hes_meter_references.no_rows") }}</td>
           </tr>
           {% endfor %}
         </tbody>

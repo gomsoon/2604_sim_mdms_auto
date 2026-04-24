@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import HesMeterReference, HesSystem
 from app.services.hes_meter_references import upsert_hes_meter_reference
+from app.services.hes_systems import sync_hes_meter_reference_alerts
 from app.services.nuri_aimir_hes_source import (
     fetch_nuri_aimir_hes_meter_rows,
     parse_nuri_aimir_hes_meter_reference_config,
@@ -124,6 +125,12 @@ def sync_hes_meter_references(
             created += 1
         else:
             updated += 1
+
+    sync_hes_meter_reference_alerts(
+        session,
+        hes_system_id=hes_system.id,
+        occurred_at=synced_at,
+    )
 
     return HesMeterReferenceSyncSummary(
         hes_system_id=hes_system.id,

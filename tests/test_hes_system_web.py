@@ -157,6 +157,11 @@ def test_hes_meter_references_page_renders_comparison_rows(client, session):
     assert "컴포넌트 누락" in text
     assert "설치 누락" in text
     assert "장치 누락" in text
+    assert "권장 조치" in text
+    assert "장치 생성" in text
+    assert "컴포넌트 생성" in text
+    assert "설치 이력 생성" in text
+    assert "매핑 검토" in text
 
 
 def test_hes_meter_references_page_filters_by_comparison_status(client, session):

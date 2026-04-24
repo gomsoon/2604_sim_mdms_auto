@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select
@@ -18,6 +19,7 @@ from app.models import (
     OperationalEvent,
     ServicePoint,
 )
+from app.services.operational_events import close_operational_alerts, record_operational_event
 
 
 @dataclass(slots=True)
@@ -75,6 +77,23 @@ class HesMeterReferenceComparisonRow:
     active_component_count: int
     active_installation_count: int
     comparison_status: str
+    suggested_action: str
+    suggested_fragment: str
+    suggested_meter_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class HesMeterReferenceAlertRule:
+    comparison_status: str
+    event_code: str
+    close_memo: str
+
+
+@dataclass(frozen=True, slots=True)
+class HesMeterReferenceAlertSyncSummary:
+    checked: int
+    opened: int
+    closed: int
 
 
 def _normalize_required_hes_code(hes_code: str | None) -> str:
@@ -183,6 +202,37 @@ def _summarize_adapter_runtime(
     return running_count, overdue_count, stale_count, latest_success_at
 
 
+def _derive_hes_meter_reference_suggestion(
+    reference: HesMeterReference,
+    *,
+    matched_device: Device | None,
+    comparison_status: str,
+) -> tuple[str, str, str]:
+    if comparison_status == "missing_device":
+        return (
+            "create_device",
+            "devices",
+            reference.source_meter_key or reference.source_meter_id,
+        )
+    if comparison_status == "missing_component":
+        return (
+            "create_component",
+            "components",
+            matched_device.external_meter_id if matched_device is not None else reference.source_meter_id,
+        )
+    if comparison_status == "missing_installation":
+        return (
+            "create_installation",
+            "installations",
+            matched_device.external_meter_id if matched_device is not None else reference.source_meter_id,
+        )
+    return (
+        "review_mapping",
+        "devices",
+        matched_device.external_meter_id if matched_device is not None else reference.source_meter_id,
+    )
+
+
 def _build_hes_meter_reference_comparison_rows(
     session: Session,
     hes_system: HesSystem,
@@ -255,6 +305,11 @@ def _build_hes_meter_reference_comparison_rows(
             else:
                 comparison_status = "matched"
 
+        suggested_action, suggested_fragment, suggested_meter_id = _derive_hes_meter_reference_suggestion(
+            reference,
+            matched_device=matched_device,
+            comparison_status=comparison_status,
+        )
         rows.append(
             HesMeterReferenceComparisonRow(
                 reference=reference,
@@ -264,6 +319,9 @@ def _build_hes_meter_reference_comparison_rows(
                 active_component_count=active_component_count,
                 active_installation_count=active_installation_count,
                 comparison_status=comparison_status,
+                suggested_action=suggested_action,
+                suggested_fragment=suggested_fragment,
+                suggested_meter_id=suggested_meter_id,
             )
         )
     return rows
@@ -326,6 +384,108 @@ def _summarize_hes_meter_reference_comparison_rows(
             1 for row in rows if row.comparison_status == "missing_installation"
         ),
     }
+
+
+HES_METER_REFERENCE_ALERT_RULES: tuple[HesMeterReferenceAlertRule, ...] = (
+    HesMeterReferenceAlertRule(
+        comparison_status="missing_device",
+        event_code="hes_meter_reference_missing_device_detected",
+        close_memo="Closed automatically because the HES meter reference now has a canonical device mapping.",
+    ),
+    HesMeterReferenceAlertRule(
+        comparison_status="missing_component",
+        event_code="hes_meter_reference_missing_component_detected",
+        close_memo="Closed automatically because the HES meter reference now has an active canonical component.",
+    ),
+    HesMeterReferenceAlertRule(
+        comparison_status="missing_installation",
+        event_code="hes_meter_reference_missing_installation_detected",
+        close_memo="Closed automatically because the HES meter reference now has an active installation mapping.",
+    ),
+)
+
+
+def sync_hes_meter_reference_alerts(
+    session: Session,
+    *,
+    hes_system_id: int,
+    occurred_at: datetime | None = None,
+) -> HesMeterReferenceAlertSyncSummary | None:
+    hes_system = session.get(HesSystem, hes_system_id)
+    if hes_system is None:
+        return None
+
+    effective_occurred_at = occurred_at or datetime.now(timezone.utc)
+    rows = _build_hes_meter_reference_comparison_rows(session, hes_system)
+    open_alerts = session.scalars(
+        select(OperationalEvent).where(
+            OperationalEvent.hes_system_id == hes_system.id,
+            OperationalEvent.is_alert.is_(True),
+            OperationalEvent.event_code.in_(
+                tuple(rule.event_code for rule in HES_METER_REFERENCE_ALERT_RULES)
+            ),
+            OperationalEvent.entity_type == "hes_meter_reference",
+            OperationalEvent.alert_status.in_(("open", "acknowledged")),
+        )
+    ).all()
+    open_alert_keys = {(row.event_code, row.entity_id) for row in open_alerts}
+
+    opened = 0
+    closed = 0
+    for row in rows:
+        for rule in HES_METER_REFERENCE_ALERT_RULES:
+            alert_key = (rule.event_code, row.reference.id)
+            is_active = row.comparison_status == rule.comparison_status
+            if is_active:
+                if alert_key not in open_alert_keys:
+                    record_operational_event(
+                        session,
+                        rule.event_code,
+                        occurred_at=effective_occurred_at,
+                        hes_system=hes_system,
+                        entity_type="hes_meter_reference",
+                        entity_id=row.reference.id,
+                        meter_identifier=row.reference.source_meter_key or row.reference.source_meter_id,
+                        details={
+                            "comparison_status": row.comparison_status,
+                            "suggested_action": row.suggested_action,
+                            "suggested_fragment": row.suggested_fragment,
+                            "source_meter_id": row.reference.source_meter_id,
+                            "source_meter_key": row.reference.source_meter_key,
+                            "meter_status_code": row.reference.meter_status_code,
+                            "lp_interval_minutes": row.reference.lp_interval_minutes,
+                            "matched_device_id": row.matched_device.id if row.matched_device is not None else None,
+                            "matched_service_point_id": (
+                                row.matched_service_point.id
+                                if row.matched_service_point is not None
+                                else None
+                            ),
+                        },
+                        source_meter_id=row.reference.source_meter_id,
+                        source_meter_key=row.reference.source_meter_key or "-",
+                        suggested_action=row.suggested_action,
+                    )
+                    open_alert_keys.add(alert_key)
+                    opened += 1
+                continue
+
+            closed_count = close_operational_alerts(
+                session,
+                event_code=rule.event_code,
+                entity_type="hes_meter_reference",
+                entity_id=row.reference.id,
+                closed_at=effective_occurred_at,
+                operator_memo=rule.close_memo,
+            )
+            if closed_count:
+                open_alert_keys.discard(alert_key)
+            closed += closed_count
+
+    return HesMeterReferenceAlertSyncSummary(
+        checked=len(rows),
+        opened=opened,
+        closed=closed,
+    )
 
 
 def list_hes_meter_reference_comparisons(
