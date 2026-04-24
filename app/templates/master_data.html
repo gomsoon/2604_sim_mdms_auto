@@ -26,6 +26,41 @@
   </div>
 </div>
 
+{% if prefill_hes_meter_references %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-2">{{ t("page.master_data.prefill_hes_meter_references") }}</h2>
+    <p class="text-secondary mb-3">{{ t("page.master_data.prefill_hes_meter_references_description") }}</p>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>{{ t("table.source_meter_id") }}</th>
+            <th>{{ t("table.source_meter_key") }}</th>
+            <th>{{ t("table.name") }}</th>
+            <th>{{ t("table.meter_status_code") }}</th>
+            <th>{{ t("table.lp_interval_minutes") }}</th>
+            <th>{{ t("table.last_synced_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in prefill_hes_meter_references %}
+          <tr>
+            <td>{{ row.source_meter_id }}</td>
+            <td>{{ row.source_meter_key or t("common.none") }}</td>
+            <td>{{ row.meter_name or t("common.none") }}</td>
+            <td>{{ row.meter_status_code or t("common.none") }}</td>
+            <td>{{ row.lp_interval_minutes if row.lp_interval_minutes is not none else t("common.none") }}</td>
+            <td>{{ row.last_synced_at|dt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <section id="service-points" class="mb-5">
   <div class="row g-4">
     <div class="col-xl-4">

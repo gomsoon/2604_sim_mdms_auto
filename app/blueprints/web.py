@@ -60,6 +60,7 @@ from app.services.hes_systems import (
     list_hes_systems,
     update_hes_system,
 )
+from app.services.hes_meter_references import list_prefill_hes_meter_references
 from app.services.master_data import (
     MasterDataValidationError,
     create_device,
@@ -694,6 +695,11 @@ def master_data():
         "device_id": (request.args.get("prefill_device_id") or "").strip(),
         "service_point_id": (request.args.get("prefill_service_point_id") or "").strip(),
     }
+    prefill_hes_meter_references = list_prefill_hes_meter_references(
+        session,
+        source_system=prefill_data["source_system"],
+        external_meter_id=prefill_data["external_meter_id"],
+    )
     return render_template(
         "master_data.html",
         service_points=service_points,
@@ -701,6 +707,7 @@ def master_data():
         rows=components,
         installations=installations,
         prefill_data=prefill_data,
+        prefill_hes_meter_references=prefill_hes_meter_references,
     )
 
 

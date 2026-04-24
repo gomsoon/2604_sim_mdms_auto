@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import HesMeterReference, HesSystem
@@ -180,5 +180,32 @@ def list_hes_meter_references(
         select(HesMeterReference)
         .where(HesMeterReference.hes_system_id == hes_system_id)
         .order_by(HesMeterReference.id.desc())
+        .limit(limit)
+    ).all()
+
+
+def list_prefill_hes_meter_references(
+    session: Session,
+    *,
+    source_system: str | None,
+    external_meter_id: str | None,
+    limit: int = 20,
+) -> list[HesMeterReference]:
+    normalized_source_system = _normalize_optional_text(source_system)
+    normalized_external_meter_id = _normalize_optional_text(external_meter_id)
+    if normalized_source_system is None or normalized_external_meter_id is None:
+        return []
+
+    return session.scalars(
+        select(HesMeterReference)
+        .join(HesSystem)
+        .where(
+            HesSystem.hes_code == normalized_source_system,
+            or_(
+                HesMeterReference.source_meter_id == normalized_external_meter_id,
+                HesMeterReference.source_meter_key == normalized_external_meter_id,
+            ),
+        )
+        .order_by(HesMeterReference.last_synced_at.desc(), HesMeterReference.id.desc())
         .limit(limit)
     ).all()

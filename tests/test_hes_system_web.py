@@ -176,6 +176,22 @@ def test_hes_meter_references_page_filters_by_comparison_status(client, session)
     assert "AIMIR-32418" not in text
 
 
+def test_hes_meter_references_page_offers_master_data_bootstrap_link(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert hes_system is not None
+
+    response = client.get(f"/hes-systems/{hes_system.id}/meter-references?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "마스터 데이터 열기" in text
+    assert "prefill_source_system=HES" in text
+    assert "prefill_external_meter_id=AIMIR-4040" in text
+
+
 def test_update_hes_system_via_web_updates_registry(client, session):
     seed_demo_environment(session)
     session.commit()

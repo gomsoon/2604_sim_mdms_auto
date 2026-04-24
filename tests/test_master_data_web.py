@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.models import Device, InstallationHistory, ServicePoint
 from app.services.master_data import create_device, create_service_point
+from app.services.seeds import seed_demo_environment
 
 
 def test_create_service_point_via_web_creates_record(client, session):
@@ -57,6 +58,22 @@ def test_master_data_page_prefills_device_and_component_forms_from_query(client,
     assert 'name="external_channel_id" value="CH-99"' in text
     assert f'<option value="{device.id}" selected>{device.external_meter_id}</option>' in text
     assert f'<option value="{service_point.id}" selected>{service_point.external_id}</option>' in text
+
+
+def test_master_data_page_shows_matching_hes_meter_references_from_prefill(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get(
+        "/master-data?lang=ko&prefill_source_system=HES&prefill_external_meter_id=MTR-9999"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "관련 HES 계량기 참조" in text
+    assert "MTR-9999" in text
+    assert "AIMIR-9999" in text
+    assert "15" in text
 
 
 def test_update_device_via_web_supports_korean_feedback(client, session):
