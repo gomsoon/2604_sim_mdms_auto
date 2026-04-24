@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.hes_meter_references.title") }}</h1>
+    <p class="text-secondary mb-0">
+      {{ t("page.hes_meter_references.description") }}
+      <span class="ms-1 fw-semibold">{{ hes_system.display_name }}</span>
+    </p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_system_detail', hes_system_id=hes_system.id, lang=current_locale) }}">{{ t("button.view") }} {{ t("field.hes_system") }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('web.hes_systems', lang=current_locale) }}">{{ t("dashboard.view_all") }}</a>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label" for="meter_query">{{ t("filter.meter_query") }}</label>
+        <input class="form-control" id="meter_query" name="meter_query" value="{{ form_data.meter_query }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="comparison_status">{{ t("filter.comparison_status") }}</label>
+        <select class="form-select" id="comparison_status" name="comparison_status">
+          <option value="">{{ t("common.all") }}</option>
+          {% for value in ("matched", "missing_device", "missing_component", "missing_installation") %}
+          <option value="{{ value }}" {% if form_data.comparison_status == value %}selected{% endif %}>
+            {{ t_or("hes_meter_reference.comparison_status." ~ value, value) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button class="btn btn-primary flex-fill" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary flex-fill" href="{{ url_for('web.hes_meter_references', hes_system_id=hes_system.id, lang=current_locale) }}">{{ t("dashboard.view_all") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="d-flex gap-2 flex-wrap mb-3">
+  <span class="badge rounded-pill text-bg-light border">{{ t("table.meter_reference_count") }}: {{ summary.meter_reference_count }}</span>
+  <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.matched_meter_references") }}: {{ summary.matched_meter_reference_count }}</span>
+  <span class="badge rounded-pill text-bg-danger-subtle text-danger-emphasis border">{{ t("table.missing_device_mappings") }}: {{ summary.missing_device_meter_reference_count }}</span>
+  <span class="badge rounded-pill text-bg-warning-subtle text-warning-emphasis border">{{ t("table.missing_component_mappings") }}: {{ summary.missing_component_meter_reference_count }}</span>
+  <span class="badge rounded-pill text-bg-secondary-subtle text-secondary-emphasis border">{{ t("table.missing_installation_mappings") }}: {{ summary.missing_installation_meter_reference_count }}</span>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.source_meter_id") }}</th>
+            <th>{{ t("table.source_meter_key") }}</th>
+            <th>{{ t("table.name") }}</th>
+            <th>{{ t("table.meter_status_code") }}</th>
+            <th>{{ t("table.lp_interval_minutes") }}</th>
+            <th>{{ t("table.canonical_device") }}</th>
+            <th>{{ t("table.service_point") }}</th>
+            <th>{{ t("table.component_count") }}</th>
+            <th>{{ t("table.active_installations") }}</th>
+            <th>{{ t("table.match_basis") }}</th>
+            <th>{{ t("table.comparison_status") }}</th>
+            <th>{{ t("table.last_synced_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.reference.source_meter_id }}</td>
+            <td>{{ row.reference.source_meter_key or t("common.none") }}</td>
+            <td>{{ row.reference.meter_name or t("common.none") }}</td>
+            <td>{{ row.reference.meter_status_code or t("common.none") }}</td>
+            <td>{{ row.reference.lp_interval_minutes if row.reference.lp_interval_minutes is not none else t("common.none") }}</td>
+            <td>{{ row.matched_device.external_meter_id if row.matched_device else t("common.none") }}</td>
+            <td>
+              {% if row.matched_service_point %}
+              {{ row.matched_service_point.name or row.matched_service_point.external_id }}
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>{{ row.active_component_count }}</td>
+            <td>{{ row.active_installation_count }}</td>
+            <td>
+              {% if row.match_basis %}
+              {{ t_or("hes_meter_reference.match_basis." ~ row.match_basis, row.match_basis) }}
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge text-bg-{% if row.comparison_status == 'matched' %}success{% elif row.comparison_status == 'missing_device' %}danger{% elif row.comparison_status == 'missing_component' %}warning{% else %}secondary{% endif %}">
+                {{ t_or("hes_meter_reference.comparison_status." ~ row.comparison_status, row.comparison_status) }}
+              </span>
+            </td>
+            <td>{{ row.reference.last_synced_at|dt }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="12" class="text-secondary">{{ t("page.hes_meter_references.no_rows") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -15,6 +15,7 @@ from app.models import (
     MeasuringComponent,
     ServicePoint,
 )
+from app.services.hes_meter_references import upsert_hes_meter_reference
 from app.services.hes_systems import ensure_hes_system
 from app.services.ingestion import ingest_events, ingest_reads
 
@@ -29,6 +30,7 @@ def seed_demo_environment(session: Session) -> dict:
         source_family="hes",
         default_delivery_mode="poll",
     )
+    seed_hes_meter_references(session, hes_system_id=hes_system.id)
     read_summary = ingest_reads(
         session,
         {
@@ -138,6 +140,110 @@ def seed_master_data(session: Session) -> bool:
     )
     session.add(installation)
 
+    device_without_component = Device(
+        source_system="HES",
+        external_meter_id="MTR-2001",
+        serial_number="SN-2001",
+        status="active",
+        service_point_id=service_point.id,
+    )
+    session.add(device_without_component)
+    session.flush()
+
+    device_without_installation = Device(
+        source_system="HES",
+        external_meter_id="MTR-3001",
+        serial_number="SN-3001",
+        status="active",
+        service_point_id=service_point.id,
+    )
+    session.add(device_without_installation)
+    session.flush()
+
+    session.add(
+        MeasuringComponent(
+            source_system="HES",
+            external_channel_id="CH-03",
+            unit_of_measure="kWh",
+            multiplier=1.0,
+            status="active",
+            device_id=device_without_installation.id,
+            service_point_id=service_point.id,
+        )
+    )
+
+    return True
+
+
+def seed_hes_meter_references(session: Session, *, hes_system_id: int) -> bool:
+    existing_reference = session.scalar(
+        select(Device.id)
+        .where(Device.source_system == "HES", Device.external_meter_id == "MTR-1001")
+        .limit(1)
+    )
+    if existing_reference is None:
+        return False
+
+    upsert_hes_meter_reference(
+        session,
+        hes_system_id=hes_system_id,
+        source_table_name="METER",
+        source_meter_id="AIMIR-32418",
+        source_meter_key="MTR-1001",
+        meter_name="Matched Demo Meter",
+        meter_status_code="140",
+        lp_interval_minutes=60,
+        meter_type_code="energy",
+        device_model_code="demo-model-1",
+        location_source_id="LOC-01",
+        supplier_source_id="SUP-01",
+        source_payload={"ID": "AIMIR-32418", "MDS_ID": "MTR-1001"},
+    )
+    upsert_hes_meter_reference(
+        session,
+        hes_system_id=hes_system_id,
+        source_table_name="METER",
+        source_meter_id="MTR-2001",
+        source_meter_key="AIMIR-2001",
+        meter_name="Missing Component Meter",
+        meter_status_code="151",
+        lp_interval_minutes=30,
+        meter_type_code="energy",
+        device_model_code="demo-model-2",
+        location_source_id="LOC-02",
+        supplier_source_id="SUP-01",
+        source_payload={"ID": "MTR-2001", "MDS_ID": "AIMIR-2001"},
+    )
+    upsert_hes_meter_reference(
+        session,
+        hes_system_id=hes_system_id,
+        source_table_name="METER",
+        source_meter_id="MTR-3001",
+        source_meter_key="AIMIR-3001",
+        meter_name="Missing Installation Meter",
+        meter_status_code="active",
+        lp_interval_minutes=15,
+        meter_type_code="energy",
+        device_model_code="demo-model-3",
+        location_source_id="LOC-03",
+        supplier_source_id="SUP-01",
+        source_payload={"ID": "MTR-3001", "MDS_ID": "AIMIR-3001"},
+    )
+    upsert_hes_meter_reference(
+        session,
+        hes_system_id=hes_system_id,
+        source_table_name="METER",
+        source_meter_id="MTR-4040",
+        source_meter_key="AIMIR-4040",
+        meter_name="Missing Canonical Meter",
+        meter_status_code="inactive",
+        lp_interval_minutes=60,
+        meter_type_code="energy",
+        device_model_code="demo-model-4",
+        location_source_id="LOC-04",
+        supplier_source_id="SUP-02",
+        source_payload={"ID": "MTR-4040", "MDS_ID": "AIMIR-4040"},
+    )
     return True
 
 

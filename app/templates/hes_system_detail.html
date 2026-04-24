@@ -8,6 +8,7 @@
   </div>
   <div class="d-flex gap-2 flex-wrap">
     <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_systems', lang=current_locale) }}">{{ t("dashboard.view_all") }}</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_meter_references', hes_system_id=detail.hes_system.id, lang=current_locale) }}">{{ t("page.hes_system_detail.meter_references") }}</a>
     <a class="btn btn-primary" href="{{ url_for('web.new_adapter', hes_system_id=detail.hes_system.id, lang=current_locale) }}">{{ t("button.register_adapter") }}</a>
     <a class="btn btn-outline-primary" href="{{ url_for('web.adapters', lang=current_locale) }}">{{ t("nav.adapters") }}</a>
   </div>
@@ -61,6 +62,16 @@
           <dd class="col-sm-7">{{ detail.raw_reads_count }}</dd>
           <dt class="col-sm-5">{{ t("table.raw_events_count") }}</dt>
           <dd class="col-sm-7">{{ detail.raw_events_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.meter_reference_count") }}</dt>
+          <dd class="col-sm-7">{{ detail.meter_reference_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.matched_meter_references") }}</dt>
+          <dd class="col-sm-7">{{ detail.matched_meter_reference_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.missing_device_mappings") }}</dt>
+          <dd class="col-sm-7">{{ detail.missing_device_meter_reference_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.missing_component_mappings") }}</dt>
+          <dd class="col-sm-7">{{ detail.missing_component_meter_reference_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.missing_installation_mappings") }}</dt>
+          <dd class="col-sm-7">{{ detail.missing_installation_meter_reference_count }}</dd>
         </dl>
       </div>
     </div>
@@ -205,6 +216,71 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="h5 mb-1">{{ t("page.hes_system_detail.meter_references") }}</h2>
+            <div class="small text-secondary">{{ t("page.hes_system_detail.meter_references_description") }}</div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.hes_meter_references', hes_system_id=detail.hes_system.id, lang=current_locale) }}">
+            {{ t("dashboard.view_all") }}
+          </a>
+        </div>
+        {% if detail.meter_reference_rows %}
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <span class="badge rounded-pill text-bg-light border">{{ t("table.meter_reference_count") }}: {{ detail.meter_reference_count }}</span>
+          <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.matched_meter_references") }}: {{ detail.matched_meter_reference_count }}</span>
+          <span class="badge rounded-pill text-bg-danger-subtle text-danger-emphasis border">{{ t("table.missing_device_mappings") }}: {{ detail.missing_device_meter_reference_count }}</span>
+          <span class="badge rounded-pill text-bg-warning-subtle text-warning-emphasis border">{{ t("table.missing_component_mappings") }}: {{ detail.missing_component_meter_reference_count }}</span>
+          <span class="badge rounded-pill text-bg-secondary-subtle text-secondary-emphasis border">{{ t("table.missing_installation_mappings") }}: {{ detail.missing_installation_meter_reference_count }}</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.source_meter_id") }}</th>
+                <th>{{ t("table.source_meter_key") }}</th>
+                <th>{{ t("table.canonical_device") }}</th>
+                <th>{{ t("table.component_count") }}</th>
+                <th>{{ t("table.active_installations") }}</th>
+                <th>{{ t("table.comparison_status") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.meter_reference_rows %}
+              <tr>
+                <td>{{ row.reference.source_meter_id }}</td>
+                <td>{{ row.reference.source_meter_key or t("common.none") }}</td>
+                <td>
+                  {% if row.matched_device %}
+                  {{ row.matched_device.external_meter_id }}
+                  {% else %}
+                  {{ t("common.none") }}
+                  {% endif %}
+                </td>
+                <td>{{ row.active_component_count }}</td>
+                <td>{{ row.active_installation_count }}</td>
+                <td>
+                  <span class="badge text-bg-{% if row.comparison_status == 'matched' %}success{% elif row.comparison_status == 'missing_device' %}danger{% elif row.comparison_status == 'missing_component' %}warning{% else %}secondary{% endif %}">
+                    {{ t_or("hes_meter_reference.comparison_status." ~ row.comparison_status, row.comparison_status) }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary">{{ t("page.hes_system_detail.no_meter_references") }}</div>
+        {% endif %}
       </div>
     </div>
   </div>

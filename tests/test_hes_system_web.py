@@ -96,6 +96,9 @@ def test_hes_system_detail_page_renders_linked_adapter_and_recent_batch(client, 
     assert "demo-read-batch" in text
     assert "최근 적재" in text
     assert "최근 이벤트" in text
+    assert "계량기 참조" in text
+    assert "정상 매핑" in text
+    assert "장치 누락" in text
 
 
 def test_hes_system_detail_page_renders_recent_alerts_and_events(client, session):
@@ -133,6 +136,44 @@ def test_hes_system_detail_page_renders_recent_alerts_and_events(client, session
     assert open_alert.event_code in text
     assert recent_event.event_code in text
     assert f"/operational-events?hes_system_id={hes_system.id}" in text
+
+
+def test_hes_meter_references_page_renders_comparison_rows(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert hes_system is not None
+
+    response = client.get(f"/hes-systems/{hes_system.id}/meter-references?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "HES 계량기 참조" in text
+    assert "원본 계량기 ID" in text
+    assert "AIMIR-32418" in text
+    assert "MTR-1001" in text
+    assert "정상 매핑" in text
+    assert "컴포넌트 누락" in text
+    assert "설치 누락" in text
+    assert "장치 누락" in text
+
+
+def test_hes_meter_references_page_filters_by_comparison_status(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert hes_system is not None
+
+    response = client.get(
+        f"/hes-systems/{hes_system.id}/meter-references?lang=ko&comparison_status=missing_device"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "MTR-4040" in text
+    assert "AIMIR-32418" not in text
 
 
 def test_update_hes_system_via_web_updates_registry(client, session):

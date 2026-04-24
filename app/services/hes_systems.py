@@ -9,11 +9,14 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import (
     AdapterInstance,
     AdapterRun,
+    Device,
     HesEventRaw,
+    HesMeterReference,
     HesReadRaw,
     HesSystem,
     IngestBatch,
     OperationalEvent,
+    ServicePoint,
 )
 
 
@@ -55,6 +58,23 @@ class HesSystemDetail:
     recent_events: list[OperationalEvent]
     raw_reads_count: int
     raw_events_count: int
+    meter_reference_rows: list["HesMeterReferenceComparisonRow"]
+    meter_reference_count: int
+    matched_meter_reference_count: int
+    missing_device_meter_reference_count: int
+    missing_component_meter_reference_count: int
+    missing_installation_meter_reference_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class HesMeterReferenceComparisonRow:
+    reference: HesMeterReference
+    matched_device: Device | None
+    matched_service_point: ServicePoint | None
+    match_basis: str | None
+    active_component_count: int
+    active_installation_count: int
+    comparison_status: str
 
 
 def _normalize_required_hes_code(hes_code: str | None) -> str:
@@ -161,6 +181,173 @@ def _summarize_adapter_runtime(
 
     latest_success_at = max(latest_success_candidates) if latest_success_candidates else None
     return running_count, overdue_count, stale_count, latest_success_at
+
+
+def _build_hes_meter_reference_comparison_rows(
+    session: Session,
+    hes_system: HesSystem,
+) -> list[HesMeterReferenceComparisonRow]:
+    references = session.scalars(
+        select(HesMeterReference)
+        .where(HesMeterReference.hes_system_id == hes_system.id)
+        .order_by(HesMeterReference.last_synced_at.desc(), HesMeterReference.id.desc())
+    ).all()
+    if not references:
+        return []
+
+    candidate_meter_ids = {
+        value
+        for reference in references
+        for value in (reference.source_meter_key, reference.source_meter_id)
+        if value
+    }
+    devices = session.scalars(
+        select(Device)
+        .options(
+            selectinload(Device.service_point),
+            selectinload(Device.measuring_components),
+            selectinload(Device.installation_history),
+        )
+        .where(
+            Device.source_system == hes_system.hes_code,
+            Device.external_meter_id.in_(sorted(candidate_meter_ids)),
+        )
+    ).all()
+    device_by_external_meter_id = {device.external_meter_id: device for device in devices}
+
+    rows: list[HesMeterReferenceComparisonRow] = []
+    for reference in references:
+        matched_device = None
+        match_basis = None
+
+        if reference.source_meter_key:
+            matched_device = device_by_external_meter_id.get(reference.source_meter_key)
+            if matched_device is not None:
+                match_basis = "source_meter_key"
+
+        if matched_device is None:
+            matched_device = device_by_external_meter_id.get(reference.source_meter_id)
+            if matched_device is not None:
+                match_basis = "source_meter_id"
+
+        active_component_count = 0
+        active_installation_count = 0
+        matched_service_point = None
+        comparison_status = "missing_device"
+
+        if matched_device is not None:
+            matched_service_point = matched_device.service_point
+            active_component_count = sum(
+                1
+                for component in matched_device.measuring_components
+                if component.status == "active"
+            )
+            active_installation_count = sum(
+                1
+                for installation in matched_device.installation_history
+                if installation.removed_at is None
+            )
+
+            if active_component_count == 0:
+                comparison_status = "missing_component"
+            elif active_installation_count == 0:
+                comparison_status = "missing_installation"
+            else:
+                comparison_status = "matched"
+
+        rows.append(
+            HesMeterReferenceComparisonRow(
+                reference=reference,
+                matched_device=matched_device,
+                matched_service_point=matched_service_point,
+                match_basis=match_basis,
+                active_component_count=active_component_count,
+                active_installation_count=active_installation_count,
+                comparison_status=comparison_status,
+            )
+        )
+    return rows
+
+
+def _filter_hes_meter_reference_comparison_rows(
+    rows: list[HesMeterReferenceComparisonRow],
+    *,
+    comparison_status: str | None = None,
+    meter_query: str | None = None,
+    limit: int | None = None,
+) -> list[HesMeterReferenceComparisonRow]:
+    normalized_status = (comparison_status or "").strip()
+    normalized_query = (meter_query or "").strip().lower()
+
+    filtered_rows = rows
+    if normalized_status:
+        filtered_rows = [row for row in filtered_rows if row.comparison_status == normalized_status]
+
+    if normalized_query:
+        filtered_rows = [
+            row
+            for row in filtered_rows
+            if any(
+                normalized_query in value.lower()
+                for value in (
+                    row.reference.source_meter_id,
+                    row.reference.source_meter_key or "",
+                    row.reference.meter_name or "",
+                    row.reference.meter_status_code or "",
+                    row.matched_device.external_meter_id if row.matched_device is not None else "",
+                    row.matched_service_point.external_id
+                    if row.matched_service_point is not None
+                    else "",
+                    row.matched_service_point.name if row.matched_service_point is not None else "",
+                )
+            )
+        ]
+
+    if limit is not None:
+        return filtered_rows[:limit]
+    return filtered_rows
+
+
+def _summarize_hes_meter_reference_comparison_rows(
+    rows: list[HesMeterReferenceComparisonRow],
+) -> dict[str, int]:
+    return {
+        "meter_reference_count": len(rows),
+        "matched_meter_reference_count": sum(
+            1 for row in rows if row.comparison_status == "matched"
+        ),
+        "missing_device_meter_reference_count": sum(
+            1 for row in rows if row.comparison_status == "missing_device"
+        ),
+        "missing_component_meter_reference_count": sum(
+            1 for row in rows if row.comparison_status == "missing_component"
+        ),
+        "missing_installation_meter_reference_count": sum(
+            1 for row in rows if row.comparison_status == "missing_installation"
+        ),
+    }
+
+
+def list_hes_meter_reference_comparisons(
+    session: Session,
+    *,
+    hes_system_id: int,
+    comparison_status: str | None = None,
+    meter_query: str | None = None,
+    limit: int = 200,
+) -> tuple[HesSystem, list[HesMeterReferenceComparisonRow], dict[str, int]] | None:
+    hes_system = session.get(HesSystem, hes_system_id)
+    if hes_system is None:
+        return None
+
+    rows = _build_hes_meter_reference_comparison_rows(session, hes_system)
+    filtered_rows = _filter_hes_meter_reference_comparison_rows(
+        rows,
+        comparison_status=comparison_status,
+        meter_query=meter_query,
+        limit=limit,
+    )
+    return hes_system, filtered_rows, _summarize_hes_meter_reference_comparison_rows(filtered_rows)
 
 
 def ensure_hes_system(
@@ -414,6 +601,10 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         )
         or 0
     )
+    all_meter_reference_rows = _build_hes_meter_reference_comparison_rows(session, hes_system)
+    meter_reference_summary = _summarize_hes_meter_reference_comparison_rows(
+        all_meter_reference_rows
+    )
 
     return HesSystemDetail(
         hes_system=hes_system,
@@ -430,4 +621,16 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         recent_events=recent_events,
         raw_reads_count=raw_reads_count,
         raw_events_count=raw_events_count,
+        meter_reference_rows=all_meter_reference_rows[:10],
+        meter_reference_count=meter_reference_summary["meter_reference_count"],
+        matched_meter_reference_count=meter_reference_summary["matched_meter_reference_count"],
+        missing_device_meter_reference_count=meter_reference_summary[
+            "missing_device_meter_reference_count"
+        ],
+        missing_component_meter_reference_count=meter_reference_summary[
+            "missing_component_meter_reference_count"
+        ],
+        missing_installation_meter_reference_count=meter_reference_summary[
+            "missing_installation_meter_reference_count"
+        ],
     )

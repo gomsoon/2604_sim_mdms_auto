@@ -56,6 +56,7 @@ from app.services.hes_systems import (
     HesSystemValidationError,
     create_hes_system,
     get_hes_system_detail,
+    list_hes_meter_reference_comparisons,
     list_hes_systems,
     update_hes_system,
 )
@@ -461,6 +462,33 @@ def hes_system_detail(hes_system_id: int):
         "hes_system_detail.html",
         detail=detail,
         form_data=_hes_system_form_from_model(detail.hes_system),
+    )
+
+
+@bp.get("/hes-systems/<int:hes_system_id>/meter-references")
+def hes_meter_references(hes_system_id: int):
+    session = get_session()
+    comparison_status = (request.args.get("comparison_status") or "").strip() or None
+    meter_query = (request.args.get("meter_query") or "").strip() or None
+    result = list_hes_meter_reference_comparisons(
+        session,
+        hes_system_id=hes_system_id,
+        comparison_status=comparison_status,
+        meter_query=meter_query,
+    )
+    if result is None:
+        abort(404)
+
+    hes_system, rows, summary = result
+    return render_template(
+        "hes_meter_references.html",
+        hes_system=hes_system,
+        rows=rows,
+        summary=summary,
+        form_data={
+            "comparison_status": comparison_status or "",
+            "meter_query": meter_query or "",
+        },
     )
 
 
