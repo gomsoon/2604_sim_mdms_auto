@@ -54,6 +54,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "processing_watermark" in tables
         assert "adapter_definition" in tables
         assert "hes_system" in tables
+        assert "hes_meter_reference" in tables
         assert "adapter_instance" in tables
         assert "adapter_run" in tables
         assert "adapter_watermark" in tables
@@ -66,6 +67,10 @@ def test_alembic_upgrade_creates_expected_tables():
         }
         adapter_instance_columns = {
             column["name"] for column in inspector.get_columns("adapter_instance", schema=schema_name)
+        }
+        hes_meter_reference_columns = {
+            column["name"]
+            for column in inspector.get_columns("hes_meter_reference", schema=schema_name)
         }
         hes_read_raw_columns = {
             column["name"] for column in inspector.get_columns("hes_read_raw", schema=schema_name)
@@ -105,6 +110,12 @@ def test_alembic_upgrade_creates_expected_tables():
 
         assert "hes_system_id" in ingest_batch_columns
         assert "hes_system_id" in adapter_instance_columns
+        assert "hes_system_id" in hes_meter_reference_columns
+        assert "source_meter_id" in hes_meter_reference_columns
+        assert "source_meter_key" in hes_meter_reference_columns
+        assert "lp_interval_minutes" in hes_meter_reference_columns
+        assert "source_payload" in hes_meter_reference_columns
+        assert "last_synced_at" in hes_meter_reference_columns
         assert "adapter_instance_id" in ingest_batch_columns
         assert "adapter_run_id" in ingest_batch_columns
         assert "hes_system_id" in hes_read_raw_columns
@@ -167,6 +178,11 @@ def test_alembic_upgrade_creates_expected_tables():
         hes_system_index_names = {row["name"] for row in hes_system_indexes}
         assert "ix_hes_system_source_family" in hes_system_index_names
         assert "ix_hes_system_status" in hes_system_index_names
+        hes_meter_reference_indexes = inspector.get_indexes("hes_meter_reference", schema=schema_name)
+        hes_meter_reference_index_names = {row["name"] for row in hes_meter_reference_indexes}
+        assert "ix_hes_meter_reference_hes_system_id" in hes_meter_reference_index_names
+        assert "ix_hes_meter_reference_source_table_name" in hes_meter_reference_index_names
+        assert "ix_hes_meter_reference_meter_status_code" in hes_meter_reference_index_names
 
         with engine.connect() as connection:
             partition_rows = connection.execute(

@@ -52,6 +52,9 @@ class HesSystem(TimestampMixin, Base):
     ingest_batches: Mapped[list["IngestBatch"]] = relationship(back_populates="hes_system")
     hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="hes_system")
     hes_event_rows: Mapped[list["HesEventRaw"]] = relationship(back_populates="hes_system")
+    hes_meter_references: Mapped[list["HesMeterReference"]] = relationship(
+        back_populates="hes_system"
+    )
     landing_lp_em_read_blocks: Mapped[list["LandingLpEmReadBlock"]] = relationship(
         back_populates="hes_system"
     )
@@ -250,6 +253,44 @@ class LandingLpEmReadBlock(TimestampMixin, Base):
     hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(
         back_populates="landing_lp_em_read_block"
     )
+
+
+class HesMeterReference(TimestampMixin, Base):
+    __tablename__ = "hes_meter_reference"
+    __table_args__ = (
+        UniqueConstraint(
+            "hes_system_id",
+            "source_meter_id",
+            name="uq_hes_meter_reference_source_meter_id",
+        ),
+        UniqueConstraint(
+            "hes_system_id",
+            "source_meter_key",
+            name="uq_hes_meter_reference_source_meter_key",
+        ),
+        Index("ix_hes_meter_reference_source_table_name", "source_table_name"),
+        Index("ix_hes_meter_reference_meter_status_code", "meter_status_code"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hes_system_id: Mapped[int] = mapped_column(ForeignKey("hes_system.id"), nullable=False, index=True)
+    source_table_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    source_meter_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_meter_key: Mapped[str | None] = mapped_column(String(100))
+    meter_name: Mapped[str | None] = mapped_column(String(150))
+    meter_status_code: Mapped[str | None] = mapped_column(String(60))
+    lp_interval_minutes: Mapped[int | None] = mapped_column(Integer)
+    meter_type_code: Mapped[str | None] = mapped_column(String(100))
+    device_model_code: Mapped[str | None] = mapped_column(String(100))
+    modem_source_id: Mapped[str | None] = mapped_column(String(100))
+    location_source_id: Mapped[str | None] = mapped_column(String(100))
+    supplier_source_id: Mapped[str | None] = mapped_column(String(100))
+    last_read_at_text: Mapped[str | None] = mapped_column(String(50))
+    source_write_at_text: Mapped[str | None] = mapped_column(String(50))
+    source_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    hes_system: Mapped["HesSystem"] = relationship(back_populates="hes_meter_references")
 
 
 class ServicePoint(TimestampMixin, Base):
