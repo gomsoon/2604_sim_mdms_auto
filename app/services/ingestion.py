@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -32,7 +33,7 @@ class ParsedRawReadPayload:
     meter_identifier: str | None
     channel_identifier: str | None
     measured_at: datetime | None
-    reading_value: float | None
+    reading_value: Decimal | None
     quality_code: str | None
     status_code: str | None
     unit_of_measure: str | None
@@ -667,7 +668,7 @@ def create_or_get_canonical_measurement(
         device_id=component.device_id,
         service_point_id=component.service_point_id,
         measured_at=hes_read_raw.measured_at,
-        value=float(hes_read_raw.reading_value),
+        value=hes_read_raw.reading_value,
         quality_code=hes_read_raw.quality_code,
         status_code=hes_read_raw.status_code,
         unit_of_measure=hes_read_raw.unit_of_measure or component.unit_of_measure,

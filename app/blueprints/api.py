@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from flask import Blueprint, jsonify, request
 from sqlalchemy import select
 
@@ -28,6 +30,12 @@ from app.services.visibility import (
 
 
 bp = Blueprint("api", __name__)
+
+
+def _json_numeric(value: Decimal | float | int | None) -> float | None:
+    if value is None:
+        return None
+    return float(value)
 
 
 def error_response(
@@ -133,7 +141,7 @@ def list_raw_reads():
                 "meter_id": row.meter_identifier,
                 "channel_id": row.channel_identifier,
                 "measured_at": row.measured_at.isoformat() if row.measured_at else None,
-                "value": row.reading_value,
+                "value": _json_numeric(row.reading_value),
                 "status": row.canonical_status,
                 "duplicate": row.is_duplicate,
             }
@@ -243,7 +251,7 @@ def list_canonical_measurements_endpoint():
                 "meter_id": row.hes_read_raw.meter_identifier,
                 "channel_id": row.hes_read_raw.channel_identifier,
                 "measured_at": row.measured_at.isoformat(),
-                "value": row.value,
+                "value": _json_numeric(row.value),
                 "unit_of_measure": row.unit_of_measure,
                 "service_point_id": row.service_point_id,
                 "device_id": row.device_id,
@@ -280,7 +288,7 @@ def list_final_measurements_endpoint():
                 "meter_id": row.canonical_measurement.hes_read_raw.meter_identifier,
                 "channel_id": row.canonical_measurement.hes_read_raw.channel_identifier,
                 "measured_at": row.measured_at.isoformat(),
-                "value": row.value,
+                "value": _json_numeric(row.value),
                 "unit_of_measure": row.unit_of_measure,
                 "final_status": row.final_status,
                 "finalized_at": row.finalized_at.isoformat(),

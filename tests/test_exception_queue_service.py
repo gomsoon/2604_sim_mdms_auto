@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from datetime import datetime, timezone
 
 import pytest
@@ -297,7 +298,7 @@ def test_reprocess_exception_recovers_legacy_missing_required_fields_payload(ses
     assert refreshed_error.status == "resolved"
     assert raw_row is not None
     assert raw_row.measured_at == datetime.fromisoformat("2026-04-18T01:00:00+09:00")
-    assert raw_row.reading_value == 12.5
+    assert raw_row.reading_value == Decimal("12.5")
     assert raw_row.canonical_status == "mapped"
     assert raw_row.canonical_measurement is not None
     assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 1
@@ -365,7 +366,7 @@ def test_reprocess_exception_recovers_legacy_invalid_numeric_value_payload(sessi
     assert refreshed_error is not None
     assert refreshed_error.status == "resolved"
     assert raw_row is not None
-    assert raw_row.reading_value == 7.25
+    assert raw_row.reading_value == Decimal("7.25")
     assert raw_row.canonical_status == "mapped"
     assert raw_row.canonical_measurement is not None
     assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 1

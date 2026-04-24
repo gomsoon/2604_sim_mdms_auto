@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from datetime import datetime
 from typing import Any
 
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -369,7 +371,7 @@ class HesReadRaw(TimestampMixin, Base):
     measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     interval_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     interval_size_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
-    reading_value: Mapped[float | None] = mapped_column(Float)
+    reading_value: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
     quality_code: Mapped[str | None] = mapped_column(String(40))
     status_code: Mapped[str | None] = mapped_column(String(40))
     unit_of_measure: Mapped[str | None] = mapped_column(String(20))
@@ -444,7 +446,7 @@ class CanonicalMeasurement(TimestampMixin, Base):
     device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
     service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    value: Mapped[float] = mapped_column(Float, nullable=False)
+    value: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
     quality_code: Mapped[str | None] = mapped_column(String(40))
     status_code: Mapped[str | None] = mapped_column(String(40))
     unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -471,7 +473,7 @@ class FinalMeasurement(TimestampMixin, Base):
     device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
     service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    value: Mapped[float] = mapped_column(Float, nullable=False)
+    value: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
     quality_code: Mapped[str | None] = mapped_column(String(40))
     status_code: Mapped[str | None] = mapped_column(String(40))
     unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False)

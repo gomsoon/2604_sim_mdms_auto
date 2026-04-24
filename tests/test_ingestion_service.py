@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from sqlalchemy import func, select
 
 from app.models import CanonicalMeasurement, HesReadRaw, IngestBatch, IngestErrorLog
@@ -157,7 +159,7 @@ def test_ingest_reads_supports_legacy_adapter_mapping_and_preserves_original_pay
     assert row is not None
     assert row.meter_identifier == "MTR-1001"
     assert row.channel_identifier == "CH-01"
-    assert row.reading_value == 3.75
+    assert row.reading_value == Decimal("3.75")
     assert row.unit_of_measure == "kWh"
     assert row.payload["mtr_no"] == "MTR-1001"
     assert row.payload["read_value"] == "3.75"

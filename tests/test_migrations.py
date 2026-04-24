@@ -70,9 +70,21 @@ def test_alembic_upgrade_creates_expected_tables():
         hes_read_raw_columns = {
             column["name"] for column in inspector.get_columns("hes_read_raw", schema=schema_name)
         }
+        hes_read_raw_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("hes_read_raw", schema=schema_name)
+        }
         canonical_columns = {
             column["name"]
             for column in inspector.get_columns("canonical_measurement", schema=schema_name)
+        }
+        canonical_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("canonical_measurement", schema=schema_name)
+        }
+        final_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("final_measurement", schema=schema_name)
         }
         ingest_error_log_columns = {
             column["name"] for column in inspector.get_columns("ingest_error_log", schema=schema_name)
@@ -113,6 +125,12 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "acknowledged_at" in operational_event_columns
         assert "closed_at" in operational_event_columns
         assert "hes_system_id" in operational_event_columns
+        assert hes_read_raw_column_defs["reading_value"]["type"].precision == 19
+        assert hes_read_raw_column_defs["reading_value"]["type"].scale == 4
+        assert canonical_column_defs["value"]["type"].precision == 19
+        assert canonical_column_defs["value"]["type"].scale == 4
+        assert final_column_defs["value"]["type"].precision == 19
+        assert final_column_defs["value"]["type"].scale == 4
 
         engine = create_engine(schema_url)
         with engine.connect() as connection:

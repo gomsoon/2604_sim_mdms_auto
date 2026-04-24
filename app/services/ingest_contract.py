@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from datetime import datetime
 from typing import Any
 
@@ -51,12 +52,15 @@ def parse_datetime(value: Any, *, require_timezone: bool = False) -> datetime | 
     return parsed
 
 
-def coerce_numeric(value: Any) -> float | None:
+def coerce_numeric(value: Any) -> Decimal | None:
     if value in (None, ""):
         return None
     if isinstance(value, bool):
         raise ValueError("Boolean values are not valid numeric measurements.")
-    return float(value)
+    try:
+        return Decimal(str(value))
+    except (ArithmeticError, InvalidOperation, ValueError) as exc:
+        raise ValueError("Value must be numeric.") from exc
 
 
 def detect_response_locale(payload: dict[str, Any] | None) -> str | None:
