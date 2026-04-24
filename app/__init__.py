@@ -14,6 +14,7 @@ from app.migrations import upgrade_db
 from app.services.adapter_execution import process_waiting_adapter_runs
 from app.services.adapters import enqueue_scheduled_adapter_runs, sync_adapter_health_alerts
 from app.services.finalization import finalize_canonical_measurements
+from app.services.hes_meter_reference_sync import sync_hes_meter_references
 from app.services.seeds import seed_demo_environment
 
 
@@ -145,6 +146,25 @@ def register_commands(app: Flask) -> None:
             f"overdue_closed={summary.overdue_closed}, "
             f"stale_opened={summary.stale_opened}, "
             f"stale_closed={summary.stale_closed}"
+        )
+
+    @app.cli.command("sync-hes-meter-reference")
+    @click.option("--hes-code", required=True)
+    def sync_hes_meter_reference_command(hes_code: str) -> None:
+        session = get_session()
+        try:
+            summary = sync_hes_meter_references(session, hes_code=hes_code)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+        click.echo(
+            "HES meter reference sync completed: "
+            f"hes_code={summary.hes_code}, "
+            f"rows_fetched={summary.rows_fetched}, "
+            f"created={summary.created}, "
+            f"updated={summary.updated}"
         )
 
 

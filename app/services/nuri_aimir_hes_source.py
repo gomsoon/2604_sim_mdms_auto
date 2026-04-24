@@ -30,6 +30,16 @@ class NuriAimirHesPollingConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class NuriAimirHesMeterReferenceConfig:
+    host: str
+    port: int
+    username: str
+    password: str
+    sid: str | None
+    service_name: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class NuriAimirHesRuntimeConfig:
     source_timezone_name: str
     default_interval_minutes: int | None
@@ -65,6 +75,21 @@ SELECT_COLUMNS = [
     "LP_EM.ENDDEVICE_ID",
     "METER.LP_INTERVAL",
     *[f"LP_EM.VALUE_{slot_index:02d}" for slot_index in range(60)],
+]
+
+METER_REFERENCE_SELECT_COLUMNS = [
+    "METER.ID",
+    "METER.MDS_ID",
+    "METER.METER",
+    "METER.METER_STATUS",
+    "METER.LP_INTERVAL",
+    "METER.METERTYPE_ID",
+    "METER.DEVICEMODEL_ID",
+    "METER.MODEM_ID",
+    "METER.LOCATION_ID",
+    "METER.SUPPLIER_ID",
+    "METER.LAST_READ_DATE",
+    "METER.WRITE_DATE",
 ]
 
 
@@ -200,6 +225,43 @@ def parse_nuri_aimir_hes_polling_config(
     )
 
 
+def parse_nuri_aimir_hes_meter_reference_config(
+    runtime_config: dict[str, Any],
+    *,
+    secret_ref: str | None,
+) -> NuriAimirHesMeterReferenceConfig:
+    host = str(runtime_config.get("oracle_host") or "").strip()
+    if not host:
+        raise ValueError("Oracle meter reference sync requires oracle_host in the masked configuration.")
+
+    try:
+        port = int(runtime_config.get("oracle_port") or 1521)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Oracle meter reference sync requires oracle_port to be a valid integer.") from exc
+    if port <= 0:
+        raise ValueError("Oracle meter reference sync requires oracle_port to be a positive integer.")
+
+    username = str(runtime_config.get("oracle_username") or "").strip()
+    if not username:
+        raise ValueError("Oracle meter reference sync requires oracle_username in the masked configuration.")
+
+    sid = str(runtime_config.get("oracle_sid") or "").strip() or None
+    service_name = str(runtime_config.get("oracle_service_name") or "").strip() or None
+    if bool(sid) == bool(service_name):
+        raise ValueError(
+            "Oracle meter reference sync requires exactly one of oracle_sid or oracle_service_name."
+        )
+
+    return NuriAimirHesMeterReferenceConfig(
+        host=host,
+        port=port,
+        username=username,
+        password=resolve_env_secret(secret_ref),
+        sid=sid,
+        service_name=service_name,
+    )
+
+
 def parse_nuri_aimir_hes_runtime_config(
     runtime_config: dict[str, Any],
     *,
@@ -332,6 +394,14 @@ def _build_lp_em_query(
     return query, bind_values
 
 
+def _build_meter_reference_query() -> str:
+    return f"""
+        select {", ".join(METER_REFERENCE_SELECT_COLUMNS)}
+        from METER
+        order by METER.ID
+    """.strip()
+
+
 def _classify_connect_error(exc: Exception) -> NuriAimirHesSourceError:
     rendered = str(exc)
     if "ORA-01017" in rendered or "ORA-28000" in rendered or "ORA-28001" in rendered:
@@ -392,6 +462,46 @@ def fetch_nuri_aimir_hes_lp_em_rows(
         try:
             try:
                 cursor_obj.execute(query, bind_values)
+            except Exception as exc:
+                raise NuriAimirHesSourceError(
+                    "nuri_aimir_hes_query_failed",
+                    "The NURI AIMIR HES Oracle polling query failed.",
+                    details={"exception_type": type(exc).__name__},
+                ) from exc
+            column_names = [column[0] for column in cursor_obj.description or []]
+            return [dict(zip(column_names, row, strict=False)) for row in cursor_obj.fetchall()]
+        finally:
+            cursor_obj.close()
+    finally:
+        connection.close()
+
+
+def fetch_nuri_aimir_hes_meter_rows(
+    config: NuriAimirHesMeterReferenceConfig,
+) -> list[dict[str, Any]]:
+    try:
+        import oracledb
+    except ImportError as exc:
+        raise NuriAimirHesSourceError(
+            "oracle_driver_unavailable",
+            "The Python Oracle driver is not available in the current runtime.",
+            details={"exception_type": type(exc).__name__},
+        ) from exc
+
+    if config.sid:
+        dsn = oracledb.makedsn(config.host, config.port, sid=config.sid)
+    else:
+        dsn = oracledb.makedsn(config.host, config.port, service_name=config.service_name)
+
+    try:
+        connection = oracledb.connect(user=config.username, password=config.password, dsn=dsn)
+    except Exception as exc:
+        raise _classify_connect_error(exc) from exc
+    try:
+        cursor_obj = connection.cursor()
+        try:
+            try:
+                cursor_obj.execute(_build_meter_reference_query())
             except Exception as exc:
                 raise NuriAimirHesSourceError(
                     "nuri_aimir_hes_query_failed",
