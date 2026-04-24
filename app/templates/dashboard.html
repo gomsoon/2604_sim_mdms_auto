@@ -226,6 +226,7 @@
               </span>
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.operational_event_detail', event_id=row.id, lang=current_locale) }}">{{ t("button.view") }}</a>
               {% if row.alert_status == "open" %}
               <form method="post" action="{{ url_for('web.acknowledge_operational_alert_view', event_id=row.id) }}">
                 <input type="hidden" name="next" value="{{ url_for('web.dashboard', lang=current_locale) }}">
@@ -280,7 +281,11 @@
                   </span>
                 </td>
                 <td>
-                  <div class="fw-semibold">{{ t_event_title(row) }}</div>
+                  <div class="fw-semibold">
+                    <a class="link-primary text-decoration-none" href="{{ url_for('web.operational_event_detail', event_id=row.id, lang=current_locale) }}">
+                      {{ t_event_title(row) }}
+                    </a>
+                  </div>
                   <div class="small text-secondary">{{ t_event_message(row) }}</div>
                 </td>
                 <td>{{ t_or("operational_event.source_layer." ~ row.source_layer, row.source_layer) }}</td>

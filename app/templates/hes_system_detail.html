@@ -309,6 +309,9 @@
                   <span class="ms-2">{{ t_or("common.status." ~ row.alert_status, row.alert_status or t("common.none")) }}</span>
                 </div>
                 <div class="small text-secondary mt-1 d-flex gap-2 flex-wrap">
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.operational_event_detail', event_id=row.id, lang=current_locale) }}">
+                    {{ t("button.view") }}
+                  </a>
                   {% if row.adapter_instance_id %}
                   <a class="link-primary text-decoration-none" href="{{ url_for('web.adapter_detail', adapter_instance_id=row.adapter_instance_id, lang=current_locale) }}">
                     {{ t("nav.adapters") }}
@@ -355,6 +358,9 @@
                   <span class="ms-2">{{ t("table.event_code") }}: {{ row.event_code }}</span>
                 </div>
                 <div class="small text-secondary mt-1 d-flex gap-2 flex-wrap">
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.operational_event_detail', event_id=row.id, lang=current_locale) }}">
+                    {{ t("button.view") }}
+                  </a>
                   {% if row.adapter_instance_id %}
                   <a class="link-primary text-decoration-none" href="{{ url_for('web.adapter_detail', adapter_instance_id=row.adapter_instance_id, lang=current_locale) }}">
                     {{ t("nav.adapters") }}

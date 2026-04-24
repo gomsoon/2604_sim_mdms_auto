@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.operational_event_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.operational_event_detail.description") }}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.operational_events', hes_system_id=detail.event.hes_system_id if detail.event.hes_system_id else None, lang=current_locale) }}">
+      {{ t("button.back_to_events") }}
+    </a>
+    {% if detail.event.hes_system %}
+    <a class="btn btn-outline-primary" href="{{ url_for('web.hes_system_detail', hes_system_id=detail.event.hes_system.id, lang=current_locale) }}">
+      {{ detail.event.hes_system.display_name }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if detail.event.is_alert and detail.event.alert_status != "closed" %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between">
+    <div>
+      <div class="fw-semibold">{{ t_event_title(detail.event) }}</div>
+      <div class="small text-secondary">{{ t_event_message(detail.event) }}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if detail.event.alert_status == "open" %}
+      <form method="post" action="{{ url_for('web.acknowledge_operational_alert_view', event_id=detail.event.id, lang=current_locale) }}">
+        <input type="hidden" name="next" value="{{ url_for('web.operational_event_detail', event_id=detail.event.id, lang=current_locale) }}">
+        <button type="submit" class="btn btn-outline-primary">{{ t("button.acknowledge") }}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('web.close_operational_alert_view', event_id=detail.event.id, lang=current_locale) }}" class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="hidden" name="next" value="{{ url_for('web.operational_event_detail', event_id=detail.event.id, lang=current_locale) }}">
+        <input
+          type="text"
+          name="operator_memo"
+          class="form-control form-control-sm"
+          style="max-width: 16rem;"
+          placeholder="{{ t('dashboard.alert_memo_placeholder') }}"
+        >
+        <button type="submit" class="btn btn-outline-danger">{{ t("button.close_alert") }}</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.operational_event_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.event") }}</dt>
+          <dd class="col-sm-8">
+            <div class="fw-semibold">{{ t_event_title(detail.event) }}</div>
+            <div class="small text-secondary">{{ t_event_message(detail.event) }}</div>
+          </dd>
+          <dt class="col-sm-4">{{ t("table.event_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.event_code }}</dd>
+          <dt class="col-sm-4">{{ t("table.severity") }}</dt>
+          <dd class="col-sm-8">{{ t_or("operational_event.severity." ~ detail.event.severity, detail.event.severity) }}</dd>
+          <dt class="col-sm-4">{{ t("table.source_layer") }}</dt>
+          <dd class="col-sm-8">{{ t_or("operational_event.source_layer." ~ detail.event.source_layer, detail.event.source_layer) }}</dd>
+          <dt class="col-sm-4">{{ t("table.occurred_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.occurred_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.alert_status") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.event.is_alert %}
+            {{ t_or("common.status." ~ detail.event.alert_status, detail.event.alert_status or t("common.none")) }}
+            {% else %}
+            {{ t("stream_type.event") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("table.opened_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.opened_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.acknowledged_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.acknowledged_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.closed_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.closed_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.operator_memo or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.entity") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.event.entity_type or detail.event.entity_id %}
+            {{ detail.event.entity_type or t("common.none") }} / {{ detail.event.entity_id or t("common.none") }}
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.operational_event_detail.lineage") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("field.hes_system") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.event.hes_system %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=detail.event.hes_system.id, lang=current_locale) }}">
+              {{ detail.event.hes_system.display_name }}
+            </a>
+            <div class="small text-secondary">{{ detail.event.hes_system.hes_code }}</div>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.adapter_instance") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.adapter_instance %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.adapter_detail', adapter_instance_id=detail.adapter_instance.id, lang=current_locale) }}">
+              {{ detail.adapter_instance.display_name }}
+            </a>
+            <div class="small text-secondary">{{ detail.adapter_instance.instance_code }}</div>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("table.adapter_run_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.adapter_run.id if detail.adapter_run else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.pipeline_run_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.pipeline_run.id if detail.pipeline_run else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.batch_id") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.ingest_batch %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.ingest_batches', batch_id=detail.ingest_batch.batch_id, lang=current_locale) }}">
+              {{ detail.ingest_batch.batch_id }}
+            </a>
+            {% else %}
+            {{ detail.event.batch_id or t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("table.ingest_error_log_id") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.ingest_error_log %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.exception_detail', exception_id=detail.ingest_error_log.id, lang=current_locale) }}">
+              {{ detail.ingest_error_log.id }}
+            </a>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("table.reprocess_request_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.reprocess_request.id if detail.reprocess_request else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.meter") }}</dt>
+          <dd class="col-sm-8">{{ detail.event.meter_identifier or t("common.none") }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.operational_event_detail.raw_context") }}</h2>
+    {% if detail.raw_rows %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.batch_id") }}</th>
+            <th>{{ t("table.meter") }}</th>
+            <th>{{ t("table.channel") }}</th>
+            <th>{{ t("table.measured_at") }}</th>
+            <th>{{ t("table.value") }}</th>
+            <th>{{ t("field.status") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.raw_rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.ingest_batch.batch_id if row.ingest_batch else t("common.none") }}</td>
+            <td>{{ row.meter_identifier or t("common.none") }}</td>
+            <td>{{ row.channel_identifier or t("common.none") }}</td>
+            <td>{{ row.measured_at|dt }}</td>
+            <td>{{ row.reading_value if row.reading_value is not none else t("common.none") }}</td>
+            <td>{{ t_or("canonical_status." ~ row.canonical_status, row.canonical_status) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ t("page.operational_event_detail.no_raw_context") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.operational_event_detail.canonical_context") }}</h2>
+        {% if detail.canonical_rows %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.id") }}</th>
+                <th>{{ t("table.measured_at") }}</th>
+                <th>{{ t("table.device_id") }}</th>
+                <th>{{ t("table.value") }}</th>
+                <th>{{ t("field.unit_of_measure") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.canonical_rows %}
+              <tr>
+                <td>{{ row.id }}</td>
+                <td>{{ row.measured_at|dt }}</td>
+                <td>{{ row.device_id }}</td>
+                <td>{{ row.value }}</td>
+                <td>{{ row.unit_of_measure }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary">{{ t("page.operational_event_detail.no_canonical_context") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.operational_event_detail.final_context") }}</h2>
+        {% if detail.final_rows %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.id") }}</th>
+                <th>{{ t("table.measured_at") }}</th>
+                <th>{{ t("table.value") }}</th>
+                <th>{{ t("field.unit_of_measure") }}</th>
+                <th>{{ t("table.finalized_at") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.final_rows %}
+              <tr>
+                <td>{{ row.id }}</td>
+                <td>{{ row.measured_at|dt }}</td>
+                <td>{{ row.value }}</td>
+                <td>{{ row.unit_of_measure }}</td>
+                <td>{{ row.finalized_at|dt }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary">{{ t("page.operational_event_detail.no_final_context") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("table.details") }}</h2>
+    {% if detail.event.details %}
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ detail.event.details | tojson(indent=2) }}</code></pre>
+    {% else %}
+    <div class="text-secondary">{{ t("page.operational_event_detail.no_details") }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

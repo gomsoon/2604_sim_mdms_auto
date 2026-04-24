@@ -155,8 +155,11 @@
               {% endif %}
             </td>
             <td>
-              {% if row.is_alert and row.alert_status != "closed" %}
               <div class="d-flex flex-column gap-2">
+                <a class="btn btn-sm btn-outline-secondary w-100" href="{{ url_for('web.operational_event_detail', event_id=row.id, lang=current_locale) }}">
+                  {{ t("button.view") }}
+                </a>
+              {% if row.is_alert and row.alert_status != "closed" %}
                 {% if row.alert_status == "open" %}
                 <form method="post" action="{{ url_for('web.acknowledge_operational_alert_view', event_id=row.id) }}">
                   <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
@@ -170,7 +173,7 @@
                 </form>
               </div>
               {% else %}
-              <span class="text-secondary">{{ t("common.none") }}</span>
+              </div>
               {% endif %}
             </td>
           </tr>

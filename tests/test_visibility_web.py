@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.models import FinalMeasurement
+from app.models import FinalMeasurement, OperationalEvent
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.operational_events import close_operational_alert
@@ -194,6 +194,50 @@ def test_operational_events_page_filters_closed_alerts_in_korean(client, session
     assert "표준화 주의 필요" in text
     assert "종료됨" in text
     assert "demo-read-batch" in text
+
+
+def test_operational_events_page_includes_detail_link(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    event = session.scalar(
+        select(OperationalEvent)
+        .where(OperationalEvent.event_code == "canonical_failed")
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert event is not None
+
+    response = client.get("/operational-events?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert f"/operational-events/{event.id}?lang=ko" in text
+
+
+def test_operational_event_detail_page_shows_lineage_and_related_measurements(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    event = session.scalar(
+        select(OperationalEvent)
+        .where(OperationalEvent.event_code == "canonical_failed")
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert event is not None
+
+    response = client.get(f"/operational-events/{event.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "운영 이벤트 상세" in text
+    assert "표준화 주의 필요" in text
+    assert "Lineage" in text
+    assert "demo-read-batch" in text
+    assert "MTR-1001" in text
+    assert "관련 원시 검침" in text
+    assert "관련 표준 계측" in text
 
 
 def test_operational_events_api_rejects_invalid_stream_type_in_korean(client):

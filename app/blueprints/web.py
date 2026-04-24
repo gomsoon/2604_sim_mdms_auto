@@ -80,6 +80,7 @@ from app.services.visibility import (
     build_final_filters,
     build_ingest_batch_filters,
     build_operational_event_filters,
+    get_operational_event_detail_context,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
@@ -323,6 +324,16 @@ def operational_events():
         filters=filters,
         hes_system_options=hes_system_options,
     )
+
+
+@bp.get("/operational-events/<int:event_id>")
+def operational_event_detail(event_id: int):
+    session = get_session()
+    detail = get_operational_event_detail_context(session, event_id)
+    if detail is None:
+        abort(404)
+
+    return render_template("operational_event_detail.html", detail=detail)
 
 
 def _adapter_redirect(adapter_instance_id: int) -> str:

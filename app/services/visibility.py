@@ -5,15 +5,20 @@ from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import get_app_timezone_name
 from app.models import (
+    AdapterInstance,
+    AdapterRun,
     CanonicalMeasurement,
     FinalMeasurement,
     HesReadRaw,
     IngestBatch,
+    IngestErrorLog,
     OperationalEvent,
+    PipelineRun,
+    ReprocessRequest,
 )
 
 
@@ -63,6 +68,20 @@ class OperationalEventFilters:
     meter_id: str | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalEventDetailContext:
+    event: OperationalEvent
+    adapter_instance: AdapterInstance | None = None
+    adapter_run: AdapterRun | None = None
+    pipeline_run: PipelineRun | None = None
+    ingest_batch: IngestBatch | None = None
+    ingest_error_log: IngestErrorLog | None = None
+    reprocess_request: ReprocessRequest | None = None
+    raw_rows: list[HesReadRaw] = ()
+    canonical_rows: list[CanonicalMeasurement] = ()
+    final_rows: list[FinalMeasurement] = ()
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -312,3 +331,122 @@ def list_operational_events(
         limit
     )
     return session.scalars(statement).all()
+
+
+def get_operational_event_detail_context(
+    session: Session,
+    event_id: int,
+    *,
+    raw_limit: int = 20,
+) -> OperationalEventDetailContext | None:
+    event = session.scalar(
+        select(OperationalEvent)
+        .where(OperationalEvent.id == event_id)
+        .options(selectinload(OperationalEvent.hes_system))
+        .limit(1)
+    )
+    if event is None:
+        return None
+
+    adapter_instance = (
+        session.get(AdapterInstance, event.adapter_instance_id)
+        if event.adapter_instance_id is not None
+        else None
+    )
+    adapter_run = session.get(AdapterRun, event.adapter_run_id) if event.adapter_run_id is not None else None
+    pipeline_run = (
+        session.get(PipelineRun, event.pipeline_run_id) if event.pipeline_run_id is not None else None
+    )
+    ingest_batch = (
+        session.get(IngestBatch, event.ingest_batch_id) if event.ingest_batch_id is not None else None
+    )
+    ingest_error_log = (
+        session.scalar(
+            select(IngestErrorLog)
+            .where(IngestErrorLog.id == event.ingest_error_log_id)
+            .options(joinedload(IngestErrorLog.hes_read_raw).joinedload(HesReadRaw.ingest_batch))
+            .limit(1)
+        )
+        if event.ingest_error_log_id is not None
+        else None
+    )
+    reprocess_request = (
+        session.scalar(
+            select(ReprocessRequest)
+            .where(ReprocessRequest.id == event.reprocess_request_id)
+            .options(joinedload(ReprocessRequest.hes_read_raw).joinedload(HesReadRaw.ingest_batch))
+            .limit(1)
+        )
+        if event.reprocess_request_id is not None
+        else None
+    )
+
+    raw_rows = _list_related_raw_rows(
+        session,
+        event,
+        ingest_error_log=ingest_error_log,
+        reprocess_request=reprocess_request,
+        limit=raw_limit,
+    )
+    canonical_rows = [
+        row.canonical_measurement
+        for row in raw_rows
+        if row.canonical_measurement is not None
+    ]
+    canonical_ids = [row.id for row in canonical_rows]
+    final_rows: list[FinalMeasurement] = []
+    if canonical_ids:
+        final_rows = session.scalars(
+            select(FinalMeasurement)
+            .where(FinalMeasurement.canonical_measurement_id.in_(canonical_ids))
+            .order_by(FinalMeasurement.measured_at.desc(), FinalMeasurement.id.desc())
+        ).all()
+
+    return OperationalEventDetailContext(
+        event=event,
+        adapter_instance=adapter_instance,
+        adapter_run=adapter_run,
+        pipeline_run=pipeline_run,
+        ingest_batch=ingest_batch,
+        ingest_error_log=ingest_error_log,
+        reprocess_request=reprocess_request,
+        raw_rows=raw_rows,
+        canonical_rows=canonical_rows,
+        final_rows=final_rows,
+    )
+
+
+def _list_related_raw_rows(
+    session: Session,
+    event: OperationalEvent,
+    *,
+    ingest_error_log: IngestErrorLog | None,
+    reprocess_request: ReprocessRequest | None,
+    limit: int,
+) -> list[HesReadRaw]:
+    statement: Select[tuple[HesReadRaw]] = (
+        select(HesReadRaw)
+        .options(
+            joinedload(HesReadRaw.ingest_batch),
+            joinedload(HesReadRaw.canonical_measurement),
+        )
+        .order_by(HesReadRaw.measured_at.desc().nullslast(), HesReadRaw.id.desc())
+    )
+
+    if ingest_error_log is not None and ingest_error_log.hes_read_raw_id is not None:
+        statement = statement.where(HesReadRaw.id == ingest_error_log.hes_read_raw_id)
+    elif reprocess_request is not None:
+        statement = statement.where(HesReadRaw.id == reprocess_request.hes_read_raw_id)
+    elif event.ingest_batch_id is not None and event.meter_identifier:
+        statement = statement.where(
+            HesReadRaw.ingest_batch_id == event.ingest_batch_id,
+            HesReadRaw.meter_identifier == event.meter_identifier,
+        )
+    elif event.ingest_batch_id is not None:
+        statement = statement.where(HesReadRaw.ingest_batch_id == event.ingest_batch_id)
+    elif event.meter_identifier:
+        statement = statement.where(HesReadRaw.meter_identifier == event.meter_identifier)
+    else:
+        return []
+
+    return session.scalars(statement.limit(limit)).all()
