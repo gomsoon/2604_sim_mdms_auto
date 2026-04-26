@@ -28,33 +28,36 @@ This directory captures the working engineering baseline for the `Minimal End-to
 22. [hes-system-management.md](/home/tprover/2604_sim_mdms_auto/docs/hes-system-management.md)
 23. [hes-meter-reference-design.md](/home/tprover/2604_sim_mdms_auto/docs/hes-meter-reference-design.md)
 24. [hes-centric-operations-plan.md](/home/tprover/2604_sim_mdms_auto/docs/hes-centric-operations-plan.md)
-25. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
-26. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
-27. [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md)
-28. [adapter-backlog.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-backlog.md)
-29. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
-30. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
-31. [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
-32. [adapter-live-hardening-plan.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-live-hardening-plan.md)
-33. [adapter-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-test-matrix.md)
-34. [adapter-operator-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operator-runbook.md)
-35. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
-36. [replay-idempotency-operations.md](/home/tprover/2604_sim_mdms_auto/docs/replay-idempotency-operations.md)
-37. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
-38. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
-39. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
-40. [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
-41. [minimal-event-alert-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-event-alert-boundary.md)
-42. [operational-event-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/operational-event-table-design.md)
-43. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
-44. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
-45. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
-46. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
-47. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
-48. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
-49. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
-50. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
-51. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+25. [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
+26. [vee-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/vee-baseline-design.md)
+27. [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+28. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
+29. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+30. [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md)
+31. [adapter-backlog.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-backlog.md)
+32. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
+33. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
+34. [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
+35. [adapter-live-hardening-plan.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-live-hardening-plan.md)
+36. [adapter-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-test-matrix.md)
+37. [adapter-operator-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operator-runbook.md)
+38. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
+39. [replay-idempotency-operations.md](/home/tprover/2604_sim_mdms_auto/docs/replay-idempotency-operations.md)
+40. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
+41. [adapter-implementation-sequence.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-implementation-sequence.md)
+42. [pipeline-orchestration.md](/home/tprover/2604_sim_mdms_auto/docs/pipeline-orchestration.md)
+43. [operational-events-and-alerts.md](/home/tprover/2604_sim_mdms_auto/docs/operational-events-and-alerts.md)
+44. [minimal-event-alert-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-event-alert-boundary.md)
+45. [operational-event-table-design.md](/home/tprover/2604_sim_mdms_auto/docs/operational-event-table-design.md)
+46. [persistence-renaming-plan.md](/home/tprover/2604_sim_mdms_auto/docs/persistence-renaming-plan.md)
+47. [i18n-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/i18n-strategy.md)
+48. [migration-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/migration-strategy.md)
+49. [domain-glossary.md](/home/tprover/2604_sim_mdms_auto/docs/domain-glossary.md)
+50. [acceptance-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/acceptance-test-matrix.md)
+51. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
+52. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
+53. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+54. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
 
 ## Intent
 
@@ -84,6 +87,9 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `hes-system-management.md` defines the operator-facing HES registry concept above runtime adapters and the intended raw and batch lineage anchor for upstream sources.
 - `hes-meter-reference-design.md` defines how HES-side meter reference should remain distinct from the MDM canonical master model while still supporting mapping and operations.
 - `hes-centric-operations-plan.md` defines the next HES-first operating slice after the registry baseline, including HES-scoped adapter registration and stronger top-down drill-down.
+- `usage-and-billing-ready-architecture.md` defines the next processing/core shape after the current minimal finalization baseline, including the intended `initial -> VEE -> final -> usage` flow.
+- `vee-baseline-design.md` defines the first practical VEE persistence boundary, including `initial_measurement`, `vee_execution_log`, `vee_exception`, and the promotion conditions into final.
+- `usage-transaction-design.md` defines the first downstream usage layer and the boundary between usage-ready and later billing-ready outputs.
 - `adapter-runtime-lifecycle.md` defines the proposed minimal state model for runtime adapters and the operator-facing status view.
 - `adapter-operations-ui.md` defines the recommended first operator actions and screen scope for runtime adapters.
 - `minimal-adapter-operations-boundary.md` defines what runtime adapter control means in the minimal stage, what libraries are in use now, and what is intentionally deferred.

@@ -83,11 +83,15 @@ This document captures the staged backlog derived from the reference PDF backlog
 - `final_measurement`
 - Versioning
 - Validation and finalization statuses
+- explicit separation between `canonical_measurement`, `initial_measurement`, and post-VEE `final_measurement`
+- review whether current minimal finalization should be treated as temporary until the VEE boundary is introduced
 
 ### V2. Basic VEE engine
 
 - Rule baseline
 - Execution logging
+- `vee_execution_log`
+- `vee_exception`
 - Required-field validation
 - UOM validation
 - Multiplier validation
@@ -125,6 +129,9 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Daily usage
 - Monthly usage
 - Service-point usage API
+- usage-local timezone windowing
+- usage quality summary and missing-interval visibility
+- explicit distinction between `usage_transaction` and later billing-ready determinant outputs
 
 ### V7. Event-linked decisioning
 
@@ -258,6 +265,22 @@ These items are not blockers for the current minimal baseline, but they should r
 - Do not block current progress on this review
 
 ### X6. Partition-compatible raw identity and downstream FK review
+
+- Continue reviewing how partitioned `hes_read_raw` identity should interact with:
+  - `canonical_measurement`
+  - exception lineage
+  - reprocessing lineage
+
+### X7. Processing-core boundary clarification
+
+- Introduce a clear structural boundary between:
+  - `canonical_measurement`
+  - `initial_measurement`
+  - `vee_execution_log`
+  - `vee_exception`
+  - `final_measurement`
+  - `usage_transaction`
+- Keep the first usage layer intentionally simpler than later billing-ready determinant generation
 
 - Review how `hes_read_raw` row identity should remain referenceable once the table is partitioned by `measured_at`
 - Review downstream references such as canonical, error, reprocess, and duplicate lineage so the first raw partition rollout is structurally safe

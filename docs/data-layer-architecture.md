@@ -167,6 +167,12 @@ Key rule:
 
 Downstream systems should consume standardized business outputs, not source-specific raw records.
 
+Recommended sequencing rule:
+
+- `final_measurement` should be the authoritative post-VEE measurement layer
+- `usage_transaction` should be the first downstream business output layer
+- `bill_determinant` should remain a later billing-ready layer instead of being collapsed into `final_measurement`
+
 ## HES meter reference vs canonical MDM master
 
 The project should distinguish between two kinds of meter-related data:

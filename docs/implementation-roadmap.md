@@ -274,6 +274,33 @@ Shift integration operations from an adapter-first posture to an HES-first postu
 - [hes-centric-operations-plan.md](/home/tprover/2604_sim_mdms_auto/docs/hes-centric-operations-plan.md)
 - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
 
+### Stage 10. Processing/core foundation beyond the minimal finalization baseline
+
+#### Goal
+
+Introduce the first true MDM processing boundary between canonical mapping results and downstream usage-oriented outputs.
+
+#### Key tasks
+
+- define `initial_measurement`
+- define `vee_execution_log`
+- define `vee_exception`
+- tighten the business meaning of `final_measurement`
+- define the first `usage_transaction` grain
+- keep billing-ready determinants as a later follow-up layer
+
+#### Test gate
+
+- the repository can distinguish mapping success from VEE acceptance
+- finalization rules are explicit and testable
+- downstream usage design depends on `final_measurement` rather than directly on canonical rows
+
+#### Related documents
+
+- [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
+- [vee-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/vee-baseline-design.md)
+- [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

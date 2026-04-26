@@ -142,6 +142,14 @@ The finalized business-level measurement record used for downstream usage and bi
 
 Validation, Estimation, and Editing. The rule-driven process used to assess, correct, and finalize measurements.
 
+### vee_execution_log
+
+The persistent trace of one VEE execution attempt, including scope, timing, and result.
+
+### vee_exception
+
+The persistent operator-facing record of a VEE-stage abnormality that blocks or conditions finalization.
+
 ### usage_transaction
 
 The persisted result of calculating consumption or usage from final measurements.
@@ -149,6 +157,10 @@ The persisted result of calculating consumption or usage from final measurements
 ### bill_determinant
 
 A billing-oriented output value such as on-peak usage, off-peak usage, demand, or power factor.
+
+### billing-ready
+
+The state in which downstream outputs are suitable for billing-oriented use, typically after usage calculation and determinant generation rather than immediately after finalization.
 
 ## Language usage guidance
 

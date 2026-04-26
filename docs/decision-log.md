@@ -215,6 +215,25 @@ This document records current architectural and process decisions so that the te
   - [partitioning-precheck.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-precheck.md)
   - [partitioning-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/partitioning-strategy.md)
 
+### D-023. Processing core should separate `canonical`, `initial`, `VEE`, `final`, and `usage`
+
+- Status: locked
+- Summary: The next processing/core expansion should explicitly separate `canonical_measurement`, `initial_measurement`, `vee_execution_log`, `vee_exception`, `final_measurement`, and `usage_transaction` rather than treating the current minimal finalization path as the finished business-processing architecture
+- Why: This keeps mapping, business validation, finalization, and downstream usage calculation distinct, auditable, and easier to extend toward estimation, re-VEE, and billing-oriented outputs later
+- Related docs:
+  - [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
+  - [vee-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/vee-baseline-design.md)
+  - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+
+### D-024. `usage_transaction` should precede later billing-ready determinant generation
+
+- Status: locked
+- Summary: The first downstream business-output layer should be `usage_transaction`, with `bill_determinant` intentionally deferred as a later billing-ready layer
+- Why: This creates a stable bridge between finalized measurements and billing-oriented outputs without overloading the first processing/core expansion with tariff, demand, and billing-cycle logic
+- Related docs:
+  - [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
+  - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape
