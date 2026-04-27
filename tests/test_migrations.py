@@ -47,11 +47,14 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "hes_read_raw" in tables
         assert "hes_event_raw" in tables
         assert "canonical_measurement" in tables
+        assert "initial_measurement" in tables
         assert "final_measurement" in tables
         assert "ingest_error_log" in tables
         assert "reprocess_request" in tables
         assert "pipeline_run" in tables
         assert "processing_watermark" in tables
+        assert "vee_execution_log" in tables
+        assert "vee_exception" in tables
         assert "adapter_definition" in tables
         assert "hes_system" in tables
         assert "hes_meter_reference" in tables
@@ -91,6 +94,21 @@ def test_alembic_upgrade_creates_expected_tables():
             column["name"]: column
             for column in inspector.get_columns("final_measurement", schema=schema_name)
         }
+        initial_measurement_columns = {
+            column["name"]
+            for column in inspector.get_columns("initial_measurement", schema=schema_name)
+        }
+        initial_measurement_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("initial_measurement", schema=schema_name)
+        }
+        vee_execution_log_columns = {
+            column["name"]
+            for column in inspector.get_columns("vee_execution_log", schema=schema_name)
+        }
+        vee_exception_columns = {
+            column["name"] for column in inspector.get_columns("vee_exception", schema=schema_name)
+        }
         ingest_error_log_columns = {
             column["name"] for column in inspector.get_columns("ingest_error_log", schema=schema_name)
         }
@@ -126,6 +144,15 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "source_write_ts" in hes_read_raw_columns
         assert "duplicate_of_measured_at" in hes_read_raw_columns
         assert "hes_read_raw_measured_at" in canonical_columns
+        assert "canonical_measurement_id" in initial_measurement_columns
+        assert "initial_status" in initial_measurement_columns
+        assert "ready_for_vee_at" in initial_measurement_columns
+        assert "initial_measurement_id" in vee_execution_log_columns
+        assert "rule_set_code" in vee_execution_log_columns
+        assert "execution_status" in vee_execution_log_columns
+        assert "initial_measurement_id" in vee_exception_columns
+        assert "vee_execution_log_id" in vee_exception_columns
+        assert "blocking_finalization" in vee_exception_columns
         assert "hes_read_raw_measured_at" in ingest_error_log_columns
         assert "hes_read_raw_measured_at" in reprocess_request_columns
         assert "hes_system_id" in hes_event_raw_columns
@@ -140,6 +167,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert hes_read_raw_column_defs["reading_value"]["type"].scale == 4
         assert canonical_column_defs["value"]["type"].precision == 19
         assert canonical_column_defs["value"]["type"].scale == 4
+        assert initial_measurement_column_defs["value"]["type"].precision == 19
+        assert initial_measurement_column_defs["value"]["type"].scale == 4
         assert final_column_defs["value"]["type"].precision == 19
         assert final_column_defs["value"]["type"].scale == 4
 
@@ -151,7 +180,14 @@ def test_alembic_upgrade_creates_expected_tables():
                     select indexname, indexdef
                     from pg_indexes
                     where schemaname = :schema_name
-                      and tablename in ('hes_read_raw', 'adapter_run', 'operational_event')
+                      and tablename in (
+                        'hes_read_raw',
+                        'adapter_run',
+                        'operational_event',
+                        'initial_measurement',
+                        'vee_execution_log',
+                        'vee_exception'
+                      )
                     order by tablename, indexname
                     """
                 ),
@@ -165,6 +201,17 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_hes_read_raw_source_record_key_scope" in index_defs
         assert "UNIQUE INDEX" not in index_defs["ix_hes_read_raw_source_record_key_scope"]
         assert "ix_hes_read_raw_source_meter_channel_measured_at" in index_defs
+        assert "ix_initial_measurement_measured_at" in index_defs
+        assert "ix_initial_measurement_initial_status" in index_defs
+        assert "ix_initial_measurement_service_point_id_measured_at" in index_defs
+        assert "ix_vee_execution_log_initial_measurement_id" in index_defs
+        assert "ix_vee_execution_log_execution_status" in index_defs
+        assert "ix_vee_execution_log_started_at" in index_defs
+        assert "ix_vee_exception_initial_measurement_id" in index_defs
+        assert "ix_vee_exception_exception_status" in index_defs
+        assert "ix_vee_exception_exception_code" in index_defs
+        assert "ix_vee_exception_detected_at" in index_defs
+        assert "ix_vee_exception_blocking_finalization" in index_defs
         assert "uq_adapter_run_single_running_per_instance" in index_defs
         assert "run_status" in index_defs[
             "uq_adapter_run_single_running_per_instance"

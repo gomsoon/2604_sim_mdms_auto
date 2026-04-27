@@ -310,6 +310,9 @@ class ServicePoint(TimestampMixin, Base):
     measuring_components: Mapped[list["MeasuringComponent"]] = relationship(
         back_populates="service_point"
     )
+    initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
+        back_populates="service_point"
+    )
 
 
 class Device(TimestampMixin, Base):
@@ -325,6 +328,9 @@ class Device(TimestampMixin, Base):
     service_point: Mapped[ServicePoint | None] = relationship(back_populates="devices")
     measuring_components: Mapped[list["MeasuringComponent"]] = relationship(back_populates="device")
     installation_history: Mapped[list["InstallationHistory"]] = relationship(
+        back_populates="device"
+    )
+    initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
         back_populates="device"
     )
 
@@ -344,6 +350,9 @@ class MeasuringComponent(TimestampMixin, Base):
     device: Mapped[Device] = relationship(back_populates="measuring_components")
     service_point: Mapped[ServicePoint] = relationship(back_populates="measuring_components")
     canonical_measurements: Mapped[list["CanonicalMeasurement"]] = relationship(
+        back_populates="measuring_component"
+    )
+    initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
         back_populates="measuring_component"
     )
 
@@ -496,8 +505,100 @@ class CanonicalMeasurement(TimestampMixin, Base):
     measuring_component: Mapped[MeasuringComponent] = relationship(
         back_populates="canonical_measurements"
     )
+    initial_measurement: Mapped["InitialMeasurement | None"] = relationship(
+        back_populates="canonical_measurement", uselist=False
+    )
     final_measurement: Mapped["FinalMeasurement | None"] = relationship(
         back_populates="canonical_measurement", uselist=False
+    )
+
+
+class InitialMeasurement(TimestampMixin, Base):
+    __tablename__ = "initial_measurement"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_measurement_id: Mapped[int] = mapped_column(
+        ForeignKey("canonical_measurement.id"), nullable=False, unique=True
+    )
+    measuring_component_id: Mapped[int] = mapped_column(
+        ForeignKey("measuring_component.id"), nullable=False
+    )
+    device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
+    service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    value: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    quality_code: Mapped[str | None] = mapped_column(String(40))
+    status_code: Mapped[str | None] = mapped_column(String(40))
+    unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False)
+    initial_status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    ready_for_vee_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    canonical_measurement: Mapped[CanonicalMeasurement] = relationship(
+        back_populates="initial_measurement"
+    )
+    measuring_component: Mapped[MeasuringComponent] = relationship(
+        back_populates="initial_measurements"
+    )
+    device: Mapped[Device] = relationship(back_populates="initial_measurements")
+    service_point: Mapped[ServicePoint] = relationship(back_populates="initial_measurements")
+    vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(
+        back_populates="initial_measurement"
+    )
+    vee_exceptions: Mapped[list["VeeException"]] = relationship(back_populates="initial_measurement")
+
+
+class VeeExecutionLog(TimestampMixin, Base):
+    __tablename__ = "vee_execution_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    initial_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("initial_measurement.id"), index=True
+    )
+    pipeline_run_id: Mapped[int | None] = mapped_column(ForeignKey("pipeline_run.id"), index=True)
+    execution_scope: Mapped[str] = mapped_column(String(30), nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    rule_set_code: Mapped[str] = mapped_column(String(60), nullable=False)
+    period_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    period_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    execution_status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    summary_code: Mapped[str | None] = mapped_column(String(60))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    initial_measurement: Mapped["InitialMeasurement | None"] = relationship(
+        back_populates="vee_execution_logs"
+    )
+    pipeline_run: Mapped["PipelineRun | None"] = relationship(back_populates="vee_execution_logs")
+    vee_exceptions: Mapped[list["VeeException"]] = relationship(back_populates="vee_execution_log")
+
+
+class VeeException(TimestampMixin, Base):
+    __tablename__ = "vee_exception"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    initial_measurement_id: Mapped[int] = mapped_column(
+        ForeignKey("initial_measurement.id"), nullable=False, index=True
+    )
+    vee_execution_log_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vee_execution_log.id"), index=True
+    )
+    exception_code: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    exception_status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    blocking_finalization: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[str | None] = mapped_column(String(120))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_type: Mapped[str | None] = mapped_column(String(40))
+    operator_memo: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    initial_measurement: Mapped["InitialMeasurement"] = relationship(back_populates="vee_exceptions")
+    vee_execution_log: Mapped["VeeExecutionLog | None"] = relationship(
+        back_populates="vee_exceptions"
     )
 
 
@@ -624,6 +725,7 @@ class PipelineRun(TimestampMixin, Base):
 
     ingest_batch: Mapped[IngestBatch | None] = relationship(back_populates="pipeline_runs")
     reprocess_request: Mapped[ReprocessRequest | None] = relationship(back_populates="pipeline_runs")
+    vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(back_populates="pipeline_run")
 
 
 class ProcessingWatermark(TimestampMixin, Base):

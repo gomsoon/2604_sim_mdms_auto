@@ -14,6 +14,12 @@ The immediate target is to introduce the first explicit persistence boundary bet
 - VEE exception state
 - finalized measurement output
 
+Implementation note:
+
+- the current repository persistence baseline uses integer surrogate keys widely
+- the first ORM and Alembic implementation of this design should stay aligned with that existing convention
+- later widening to larger integer identity types can be reviewed separately if scale pressure makes it necessary
+
 ## Design scope
 
 This document covers:
@@ -83,11 +89,11 @@ It should exist before:
 
 | Column | Type | Null | Notes |
 | --- | --- | --- | --- |
-| `id` | `bigint` | No | PK |
-| `canonical_measurement_id` | `bigint` | No | FK, unique in first baseline |
-| `measuring_component_id` | `bigint` | No | FK |
-| `device_id` | `bigint` | No | FK |
-| `service_point_id` | `bigint` | No | FK |
+| `id` | `integer` | No | PK in the first implementation |
+| `canonical_measurement_id` | `integer` | No | FK, unique in first baseline |
+| `measuring_component_id` | `integer` | No | FK |
+| `device_id` | `integer` | No | FK |
+| `service_point_id` | `integer` | No | FK |
 | `measured_at` | `timestamptz` | No | copied from canonical |
 | `value` | `numeric(19,4)` | No | copied from canonical |
 | `quality_code` | `varchar(40)` | Yes | |
@@ -154,9 +160,9 @@ It is also the first stable execution truth for later re-VEE and operator tracea
 
 | Column | Type | Null | Notes |
 | --- | --- | --- | --- |
-| `id` | `bigint` | No | PK |
-| `initial_measurement_id` | `bigint` | Yes | for single-measurement execution scope |
-| `pipeline_run_id` | `bigint` | Yes | link to the broader processing run |
+| `id` | `integer` | No | PK in the first implementation |
+| `initial_measurement_id` | `integer` | Yes | for single-measurement execution scope |
+| `pipeline_run_id` | `integer` | Yes | link to the broader processing run |
 | `execution_scope` | `varchar(30)` | No | `measurement`, `window`, `batch` |
 | `trigger_type` | `varchar(30)` | No | `scheduled`, `manual`, `reprocess`, `system` |
 | `rule_set_code` | `varchar(60)` | No | baseline rule-set identity |
@@ -230,9 +236,9 @@ It should be distinct from:
 
 | Column | Type | Null | Notes |
 | --- | --- | --- | --- |
-| `id` | `bigint` | No | PK |
-| `initial_measurement_id` | `bigint` | No | FK |
-| `vee_execution_log_id` | `bigint` | Yes | FK |
+| `id` | `integer` | No | PK in the first implementation |
+| `initial_measurement_id` | `integer` | No | FK |
+| `vee_execution_log_id` | `integer` | Yes | FK |
 | `exception_code` | `varchar(80)` | No | stable machine code |
 | `severity` | `varchar(20)` | No | |
 | `exception_status` | `varchar(30)` | No | |
