@@ -26,6 +26,7 @@ from app.services.pipeline import (
     start_pipeline_run,
     upsert_processing_watermark,
 )
+from app.services.processing_core import ensure_processing_core_lineage
 
 
 @dataclass(frozen=True, slots=True)
@@ -659,6 +660,7 @@ def create_or_get_canonical_measurement(
 ) -> CanonicalMeasurement:
     if hes_read_raw.canonical_measurement is not None:
         hes_read_raw.canonical_status = "mapped"
+        ensure_processing_core_lineage(session, hes_read_raw.canonical_measurement)
         return hes_read_raw.canonical_measurement
 
     canonical = CanonicalMeasurement(
@@ -675,4 +677,6 @@ def create_or_get_canonical_measurement(
     )
     session.add(canonical)
     hes_read_raw.canonical_status = "mapped"
+    session.flush()
+    ensure_processing_core_lineage(session, canonical)
     return canonical

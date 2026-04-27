@@ -4,7 +4,14 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
-from app.models import CanonicalMeasurement, HesReadRaw, IngestBatch, IngestErrorLog
+from app.models import (
+    CanonicalMeasurement,
+    HesReadRaw,
+    IngestBatch,
+    IngestErrorLog,
+    InitialMeasurement,
+    VeeExecutionLog,
+)
 from app.services.ingestion import ingest_reads
 from app.services.seeds import seed_master_data
 
@@ -165,3 +172,45 @@ def test_ingest_reads_supports_legacy_adapter_mapping_and_preserves_original_pay
     assert row.payload["read_value"] == "3.75"
     assert row.canonical_status == "mapped"
     assert session.scalar(select(func.count()).select_from(CanonicalMeasurement)) == 1
+
+
+def test_ingest_reads_creates_initial_measurement_and_pass_through_vee_log(session):
+    seed_master_data(session)
+    session.commit()
+
+    summary = ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "boundary-processing-core-lineage",
+            "received_at": "2026-04-18T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T01:00:00+09:00",
+                    "value": 5.25,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+
+    canonical = session.scalar(
+        select(CanonicalMeasurement).order_by(CanonicalMeasurement.id.desc()).limit(1)
+    )
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    execution = session.scalar(select(VeeExecutionLog).limit(1))
+
+    assert summary["canonical_created"] == 1
+    assert canonical is not None
+    assert initial is not None
+    assert execution is not None
+    assert initial.canonical_measurement_id == canonical.id
+    assert initial.initial_status == "accepted"
+    assert execution.initial_measurement_id == initial.id
+    assert execution.execution_status == "passed"
+    assert execution.summary_code == "vee_passed"
