@@ -79,6 +79,7 @@ Begin persisting blocking processing exceptions explicitly.
 - evaluate first VEE baseline rules
 - create `vee_exception` for blocking cases
 - expose those exceptions in operator surfaces
+- first active rules: `required_field_missing`, `negative_value_detected`, `duplicate_detected`
 
 ### Acceptance gate
 

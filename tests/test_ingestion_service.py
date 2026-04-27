@@ -10,6 +10,7 @@ from app.models import (
     IngestBatch,
     IngestErrorLog,
     InitialMeasurement,
+    VeeException,
     VeeExecutionLog,
 )
 from app.services.ingestion import ingest_reads
@@ -214,3 +215,45 @@ def test_ingest_reads_creates_initial_measurement_and_pass_through_vee_log(sessi
     assert execution.initial_measurement_id == initial.id
     assert execution.execution_status == "passed"
     assert execution.summary_code == "vee_passed"
+
+
+def test_ingest_reads_marks_negative_value_with_vee_exception(session):
+    seed_master_data(session)
+    session.commit()
+
+    summary = ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "boundary-negative-value-vee",
+            "received_at": "2026-04-18T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T01:15:00+09:00",
+                    "value": -1.25,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).order_by(InitialMeasurement.id.desc()).limit(1))
+    execution = session.scalar(select(VeeExecutionLog).order_by(VeeExecutionLog.id.desc()).limit(1))
+    exception = session.scalar(select(VeeException).order_by(VeeException.id.desc()).limit(1))
+
+    assert summary["canonical_created"] == 1
+    assert summary["exceptions"] == 0
+    assert initial is not None
+    assert initial.initial_status == "exception"
+    assert execution is not None
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_failed_negative_value"
+    assert exception is not None
+    assert exception.initial_measurement_id == initial.id
+    assert exception.exception_code == "vee_negative_value_detected"
+    assert exception.exception_status == "open"

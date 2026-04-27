@@ -147,6 +147,18 @@ Recommended minimal rules:
 - low check
 - missing interval detection
 
+Recommended first active rules in the first executable rollout:
+
+- `required_field_missing`
+- `negative_value_detected`
+- `duplicate_detected`
+
+Recommended first rollout policy:
+
+- activate only a small blocking subset first
+- keep the remaining rules documented but deferred
+- expand rule coverage only after regression and operator visibility are stable
+
 Notes:
 
 - these rules are intentionally small in scope
