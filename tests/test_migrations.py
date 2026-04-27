@@ -153,6 +153,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "initial_measurement_id" in vee_exception_columns
         assert "vee_execution_log_id" in vee_exception_columns
         assert "blocking_finalization" in vee_exception_columns
+        assert "initial_measurement_id" in final_column_defs
         assert "hes_read_raw_measured_at" in ingest_error_log_columns
         assert "hes_read_raw_measured_at" in reprocess_request_columns
         assert "hes_system_id" in hes_event_raw_columns

@@ -98,6 +98,7 @@ Make `final_measurement` depend on accepted processing state rather than only on
 - block finalization on open blocking `vee_exception`
 - preserve `canonical_measurement_id` as compatibility lineage
 - add `initial_measurement_id` to `final_measurement`
+- backfill `initial_measurement_id` from existing `canonical_measurement_id` lineage where possible
 
 ### Acceptance gate
 

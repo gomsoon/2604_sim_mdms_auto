@@ -542,6 +542,9 @@ class InitialMeasurement(TimestampMixin, Base):
     )
     device: Mapped[Device] = relationship(back_populates="initial_measurements")
     service_point: Mapped[ServicePoint] = relationship(back_populates="initial_measurements")
+    final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="initial_measurement", uselist=False
+    )
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(
         back_populates="initial_measurement"
     )
@@ -606,6 +609,9 @@ class FinalMeasurement(TimestampMixin, Base):
     __tablename__ = "final_measurement"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    initial_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("initial_measurement.id"), unique=True, index=True
+    )
     canonical_measurement_id: Mapped[int] = mapped_column(
         ForeignKey("canonical_measurement.id"), nullable=False, unique=True
     )
@@ -622,6 +628,9 @@ class FinalMeasurement(TimestampMixin, Base):
     final_status: Mapped[str] = mapped_column(String(30), nullable=False, default="finalized")
     finalized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
+    initial_measurement: Mapped["InitialMeasurement | None"] = relationship(
+        back_populates="final_measurement"
+    )
     canonical_measurement: Mapped[CanonicalMeasurement] = relationship(
         back_populates="final_measurement"
     )

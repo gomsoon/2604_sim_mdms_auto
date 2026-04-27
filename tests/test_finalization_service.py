@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import func, select
 
-from app.models import CanonicalMeasurement, FinalMeasurement, PipelineRun, ProcessingWatermark
+from app.models import (
+    CanonicalMeasurement,
+    FinalMeasurement,
+    InitialMeasurement,
+    PipelineRun,
+    ProcessingWatermark,
+    VeeException,
+)
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.seeds import seed_demo_environment
@@ -31,6 +40,7 @@ def test_finalize_canonical_measurements_creates_final_measurement(session):
     assert summary.skipped_not_well_formed == 0
     assert final_row is not None
     assert final_row.final_status == "finalized"
+    assert final_row.initial_measurement_id is not None
     assert pipeline_run is not None
     assert pipeline_run.status == "completed"
     assert pipeline_run.result_code == "finalization_completed"
@@ -81,6 +91,35 @@ def test_finalize_canonical_measurements_skips_non_well_formed_rows(session):
     assert pipeline_run is not None
     assert pipeline_run.status == "failed"
     assert pipeline_run.result_code == "finalization_completed_with_skips"
+
+
+def test_finalize_canonical_measurements_skips_rows_with_open_blocking_vee_exception(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial_row is not None
+    session.add(
+        VeeException(
+            initial_measurement_id=initial_row.id,
+            exception_code="vee_required_field_missing",
+            severity="error",
+            exception_status="open",
+            blocking_finalization=True,
+            detected_at=datetime.now(timezone.utc),
+            details={"field": "unit_of_measure"},
+        )
+    )
+    session.commit()
+
+    summary = finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    assert summary.candidates == 1
+    assert summary.finalized == 0
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 1
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 0
 
 
 def test_finalize_canonical_measurements_respects_exact_date_boundaries(session):

@@ -338,6 +338,8 @@ while adding:
 Recommended compatibility policy:
 
 - do not remove `canonical_measurement_id` in the first VEE rollout
+- backfill `initial_measurement_id` from `canonical_measurement_id` where a matching initial row already exists
+- treat missing backfill as a temporary compatibility state, not as the long-term target
 - use it as legacy-support lineage while the business gate moves to `initial_measurement`
 
 ## First promotion rule
