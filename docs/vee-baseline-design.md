@@ -154,6 +154,7 @@ Recommended first active rules in the first executable rollout:
 - `zero_value_detected`
 - `interval_size_invalid`
 - `duplicate_detected`
+- `missing_interval_detected`
 
 Recommended first rollout policy:
 
@@ -165,6 +166,8 @@ Current implementation note:
 
 - `zero_value_detected` is active as a non-blocking warning
 - `interval_size_invalid` is active as a blocking error
+- `missing_interval_detected` is active as a blocking error when a matching
+  `raw_interval_window_state` exists with `open` or `partial` completeness
 
 Notes:
 

@@ -10,11 +10,13 @@ from app.models import (
     InitialMeasurement,
     PipelineRun,
     ProcessingWatermark,
+    RawIntervalWindowState,
     VeeException,
 )
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.seeds import seed_demo_environment
+from app.services.vee import evaluate_or_get_vee_baseline
 
 
 def test_finalize_canonical_measurements_creates_final_measurement(session):
@@ -150,6 +152,59 @@ def test_finalize_canonical_measurements_allows_non_blocking_vee_warning(session
     assert summary.skipped_existing == 0
     assert summary.skipped_not_well_formed == 0
     assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 1
+
+
+def test_finalize_canonical_measurements_skips_rows_with_missing_interval_vee_exception(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    canonical_row = session.scalar(select(CanonicalMeasurement).limit(1))
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    assert canonical_row is not None
+    assert initial_row is not None
+    assert canonical_row.hes_read_raw is not None
+    raw_row = canonical_row.hes_read_raw
+    assert raw_row.source_system is not None
+    assert raw_row.meter_identifier is not None
+    assert raw_row.channel_identifier is not None
+    raw_row.source_business_ts = raw_row.measured_at
+    assert raw_row.source_business_ts is not None
+
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+
+    session.add(
+        RawIntervalWindowState(
+            source_system=raw_row.source_system,
+            meter_identifier=raw_row.meter_identifier,
+            channel_identifier=raw_row.channel_identifier,
+            window_start_at=raw_row.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=raw_row.interval_size_minutes,
+            expected_slot_count=4,
+            received_slot_count=2,
+            received_slot_bitmap="00,15",
+            completion_status="partial",
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row)
+    session.commit()
+
+    summary = finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    assert summary.candidates == 1
+    assert summary.finalized == 0
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 1
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 0
 
 
 def test_finalize_canonical_measurements_respects_exact_date_boundaries(session):

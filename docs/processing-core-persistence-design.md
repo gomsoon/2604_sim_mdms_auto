@@ -204,8 +204,8 @@ It is also the first stable execution truth for later re-VEE and operator tracea
 - `vee_failed_required_field`
 - `vee_failed_uom`
 - `vee_failed_interval_size`
+- `vee_failed_missing_interval`
 - `vee_completed_with_duplicate`
-- `vee_completed_with_missing_interval`
 
 ### Recommended first rule-code baseline
 

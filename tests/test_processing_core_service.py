@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.models import CanonicalMeasurement, InitialMeasurement, VeeException, VeeExecutionLog
+from app.models import (
+    CanonicalMeasurement,
+    InitialMeasurement,
+    RawIntervalWindowState,
+    VeeException,
+    VeeExecutionLog,
+)
 from app.services.processing_core import ensure_processing_core_lineage
 from app.services.vee import evaluate_or_get_vee_baseline
 from app.services.seeds import seed_demo_environment
@@ -164,4 +170,57 @@ def test_evaluate_or_get_vee_baseline_marks_invalid_interval_size_as_blocking(se
     assert execution.summary_code == "vee_failed_interval_size"
     assert exception is not None
     assert exception.exception_code == "vee_interval_size_invalid"
+    assert exception.blocking_finalization is True
+
+
+def test_evaluate_or_get_vee_baseline_marks_partial_window_as_missing_interval(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    canonical = session.scalar(select(CanonicalMeasurement).limit(1))
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert canonical is not None
+    assert initial is not None
+    assert canonical.hes_read_raw is not None
+    raw_row = canonical.hes_read_raw
+    assert raw_row.source_system is not None
+    assert raw_row.meter_identifier is not None
+    assert raw_row.channel_identifier is not None
+    raw_row.source_business_ts = raw_row.measured_at
+    assert raw_row.source_business_ts is not None
+
+    _reset_vee_baseline(session, initial)
+    session.add(
+        RawIntervalWindowState(
+            source_system=raw_row.source_system,
+            meter_identifier=raw_row.meter_identifier,
+            channel_identifier=raw_row.channel_identifier,
+            window_start_at=raw_row.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=raw_row.interval_size_minutes,
+            expected_slot_count=4,
+            received_slot_count=2,
+            received_slot_bitmap="00,15",
+            completion_status="partial",
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.flush()
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "exception"
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_failed_missing_interval"
+    assert exception is not None
+    assert exception.exception_code == "vee_missing_interval_detected"
     assert exception.blocking_finalization is True

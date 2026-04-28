@@ -6,7 +6,13 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import InitialMeasurement, PipelineRun, VeeException, VeeExecutionLog
+from app.models import (
+    InitialMeasurement,
+    PipelineRun,
+    RawIntervalWindowState,
+    VeeException,
+    VeeExecutionLog,
+)
 from app.services.operational_events import (
     acknowledge_operational_alerts,
     close_operational_alerts,
@@ -129,7 +135,60 @@ def _build_duplicate_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
     )
 
 
-def evaluate_initial_measurement_rule_hits(initial_row: InitialMeasurement) -> list[VeeRuleHit]:
+def _build_missing_interval_hit(
+    session: Session,
+    initial_row: InitialMeasurement,
+) -> VeeRuleHit | None:
+    canonical_row = initial_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    if raw_row is None:
+        return None
+    if (
+        raw_row.source_business_ts is None
+        or not (raw_row.source_system or "").strip()
+        or not (raw_row.meter_identifier or "").strip()
+        or not (raw_row.channel_identifier or "").strip()
+    ):
+        return None
+
+    state = session.scalar(
+        select(RawIntervalWindowState)
+        .where(
+            RawIntervalWindowState.source_system == raw_row.source_system,
+            RawIntervalWindowState.meter_identifier == raw_row.meter_identifier,
+            RawIntervalWindowState.channel_identifier == raw_row.channel_identifier,
+            RawIntervalWindowState.window_start_at == raw_row.source_business_ts,
+        )
+        .order_by(RawIntervalWindowState.window_size_minutes.asc(), RawIntervalWindowState.id.asc())
+        .limit(1)
+    )
+    if state is None:
+        return None
+    if state.completion_status not in {"open", "partial"}:
+        return None
+    if state.received_slot_count >= state.expected_slot_count:
+        return None
+
+    return VeeRuleHit(
+        exception_code="vee_missing_interval_detected",
+        severity="error",
+        blocking_finalization=True,
+        details={
+            "window_start_at": state.window_start_at.isoformat(),
+            "window_size_minutes": state.window_size_minutes,
+            "interval_size_minutes": state.interval_size_minutes,
+            "expected_slot_count": state.expected_slot_count,
+            "received_slot_count": state.received_slot_count,
+            "completion_status": state.completion_status,
+            "state_id": state.id,
+        },
+    )
+
+
+def evaluate_initial_measurement_rule_hits(
+    session: Session,
+    initial_row: InitialMeasurement,
+) -> list[VeeRuleHit]:
     hits: list[VeeRuleHit] = []
     for hit in (
         _build_required_field_hit(initial_row),
@@ -137,6 +196,7 @@ def evaluate_initial_measurement_rule_hits(initial_row: InitialMeasurement) -> l
         _build_zero_value_hit(initial_row),
         _build_interval_size_hit(initial_row),
         _build_duplicate_hit(initial_row),
+        _build_missing_interval_hit(session, initial_row),
     ):
         if hit is not None:
             hits.append(hit)
@@ -158,6 +218,8 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
         return "vee_failed_interval_size"
     if first_code == "vee_duplicate_detected":
         return "vee_completed_with_duplicate"
+    if first_code == "vee_missing_interval_detected":
+        return "vee_failed_missing_interval"
     return "vee_completed_with_exception"
 
 
@@ -237,7 +299,7 @@ def evaluate_or_get_vee_baseline(
             initial_row.initial_status = "accepted"
         return existing, False
 
-    rule_hits = evaluate_initial_measurement_rule_hits(initial_row)
+    rule_hits = evaluate_initial_measurement_rule_hits(session, initial_row)
     now = datetime.now(timezone.utc)
     summary_code = _build_summary_code(rule_hits)
     execution = VeeExecutionLog(
@@ -260,6 +322,7 @@ def evaluate_or_get_vee_baseline(
                 "zero_value_detected",
                 "interval_size_invalid",
                 "duplicate_detected",
+                "missing_interval_detected",
             ],
             "rule_hits": [hit.exception_code for hit in rule_hits],
         },
