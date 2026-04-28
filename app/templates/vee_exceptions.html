@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.vee_exceptions.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.vee_exceptions.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-3">
+        <label class="form-label">{{ t("field.hes_system") }}</label>
+        <select class="form-select" name="hes_system_id">
+          <option value="">{{ t("common.none") }}</option>
+          {% for hes_system in hes_system_options %}
+          <option value="{{ hes_system.id }}" {% if filters.hes_system_id == hes_system.id %}selected{% endif %}>
+            {{ hes_system.display_name }} ({{ hes_system.hes_code }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.exception_status") }}</label>
+        <select class="form-select" name="exception_status">
+          <option value="">{{ t("common.none") }}</option>
+          {% for value in ["open", "acknowledged", "resolved"] %}
+          <option value="{{ value }}" {% if filters.exception_status == value %}selected{% endif %}>{{ t_or("common.status." ~ value, value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.severity") }}</label>
+        <select class="form-select" name="severity">
+          <option value="">{{ t("common.none") }}</option>
+          {% for value in ["info", "warning", "error", "critical"] %}
+          <option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ t_or("operational_event.severity." ~ value, value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.meter_id") }}</label>
+        <input class="form-control" name="meter_id" value="{{ filters.meter_id or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.exception_code") }}</label>
+        <input class="form-control" name="exception_code" value="{{ filters.exception_code or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_exceptions', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.detected_at") }}</th>
+            <th>{{ t("table.severity") }}</th>
+            <th>{{ t("filter.exception_code") }}</th>
+            <th>{{ t("table.hes_system") }}</th>
+            <th>{{ t("table.meter") }}</th>
+            <th>{{ t("table.measured_at") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.blocking_finalization") }}</th>
+            <th>{{ t("table.actions") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          {% set initial = row.initial_measurement %}
+          {% set canonical = initial.canonical_measurement %}
+          {% set raw = canonical.hes_read_raw if canonical else none %}
+          {% set ingest_batch = raw.ingest_batch if raw else none %}
+          {% set hes_system = raw.hes_system if raw else none %}
+          <tr>
+            <td>{{ row.detected_at|dt }}</td>
+            <td>
+              <span class="badge text-bg-{{ 'danger' if row.severity in ['error', 'critical'] else 'warning' if row.severity == 'warning' else 'secondary' }}">
+                {{ t_or("operational_event.severity." ~ row.severity, row.severity) }}
+              </span>
+            </td>
+            <td>
+              <div class="fw-semibold">{{ t_or("vee.exception_code." ~ row.exception_code, row.exception_code) }}</div>
+              <div class="small text-secondary">{{ row.exception_code }}</div>
+            </td>
+            <td>
+              {% if hes_system %}
+              <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=hes_system.id, lang=current_locale) }}">
+                {{ hes_system.display_name }}
+              </a>
+              <div class="small text-secondary">{{ hes_system.hes_code }}</div>
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>{{ raw.meter_identifier if raw else t("common.none") }}</td>
+            <td>{{ initial.measured_at|dt }}</td>
+            <td>
+              <span class="badge text-bg-light">
+                {{ t_or("common.status." ~ row.exception_status, row.exception_status) }}
+              </span>
+            </td>
+            <td>{{ t("common.yes") if row.blocking_finalization else t("common.no") }}</td>
+            <td>
+              <div class="d-flex flex-column gap-2">
+                <a class="btn btn-sm btn-outline-secondary w-100" href="{{ url_for('web.vee_exception_detail', vee_exception_id=row.id, lang=current_locale) }}">{{ t("button.view") }}</a>
+                {% if row.exception_status == "open" %}
+                <form method="post" action="{{ url_for('web.acknowledge_vee_exception_view', vee_exception_id=row.id, lang=current_locale) }}">
+                  <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                  <button type="submit" class="btn btn-sm btn-outline-primary w-100">{{ t("button.acknowledge") }}</button>
+                </form>
+                {% endif %}
+                {% if row.exception_status != "resolved" %}
+                <form method="post" action="{{ url_for('web.resolve_vee_exception_view', vee_exception_id=row.id, lang=current_locale) }}" class="d-flex flex-column gap-2">
+                  <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                  <input type="hidden" name="resolution_type" value="operator_resolution">
+                  <input type="text" name="operator_memo" class="form-control form-control-sm" placeholder="{{ t('dashboard.alert_memo_placeholder') }}">
+                  <button type="submit" class="btn btn-sm btn-outline-success w-100">{{ t("button.resolve") }}</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="text-secondary">{{ t("page.vee_exceptions.no_rows") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

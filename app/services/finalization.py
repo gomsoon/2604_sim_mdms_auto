@@ -20,6 +20,7 @@ from app.services.pipeline import (
     upsert_processing_watermark,
 )
 from app.services.processing_core import is_canonical_measurement_pass_through_eligible
+from app.services.vee import has_active_blocking_vee_exception
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,10 +42,7 @@ def is_initial_measurement_finalizable(row: InitialMeasurement) -> bool:
         and raw_row.canonical_status == "mapped"
         and not raw_row.is_duplicate
         and is_canonical_measurement_pass_through_eligible(canonical_row)
-        and not any(
-            exception.exception_status == "open" and exception.blocking_finalization
-            for exception in row.vee_exceptions
-        )
+        and not has_active_blocking_vee_exception(row)
     )
 
 

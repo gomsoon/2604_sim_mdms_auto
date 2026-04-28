@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.vee_exception_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.vee_exception_detail.description") }}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_exceptions', hes_system_id=detail.raw_row.hes_system_id if detail.raw_row and detail.raw_row.hes_system_id else None, lang=current_locale) }}">
+      {{ t("button.back_to_vee_exceptions") }}
+    </a>
+    {% if detail.raw_row and detail.raw_row.hes_system %}
+    <a class="btn btn-outline-primary" href="{{ url_for('web.hes_system_detail', hes_system_id=detail.raw_row.hes_system.id, lang=current_locale) }}">
+      {{ detail.raw_row.hes_system.display_name }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if detail.vee_exception.exception_status != "resolved" %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between">
+    <div>
+      <div class="fw-semibold">{{ t_or("vee.exception_code." ~ detail.vee_exception.exception_code, detail.vee_exception.exception_code) }}</div>
+      <div class="small text-secondary">{{ detail.vee_exception.exception_code }}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if detail.vee_exception.exception_status == "open" %}
+      <form method="post" action="{{ url_for('web.acknowledge_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+        <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+        <button type="submit" class="btn btn-outline-primary">{{ t("button.acknowledge") }}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('web.resolve_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+        <input type="hidden" name="resolution_type" value="operator_resolution">
+        <input
+          type="text"
+          name="operator_memo"
+          class="form-control form-control-sm"
+          style="max-width: 16rem;"
+          placeholder="{{ t('dashboard.alert_memo_placeholder') }}"
+        >
+        <button type="submit" class="btn btn-outline-success">{{ t("button.resolve") }}</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_exception.id }}</dd>
+          <dt class="col-sm-4">{{ t("filter.exception_code") }}</dt>
+          <dd class="col-sm-8">
+            <div class="fw-semibold">{{ t_or("vee.exception_code." ~ detail.vee_exception.exception_code, detail.vee_exception.exception_code) }}</div>
+            <div class="small text-secondary">{{ detail.vee_exception.exception_code }}</div>
+          </dd>
+          <dt class="col-sm-4">{{ t("table.severity") }}</dt>
+          <dd class="col-sm-8">{{ t_or("operational_event.severity." ~ detail.vee_exception.severity, detail.vee_exception.severity) }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("common.status." ~ detail.vee_exception.exception_status, detail.vee_exception.exception_status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.blocking_finalization") }}</dt>
+          <dd class="col-sm-8">{{ t("common.yes") if detail.vee_exception.blocking_finalization else t("common.no") }}</dd>
+          <dt class="col-sm-4">{{ t("table.detected_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_exception.detected_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.acknowledged_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_exception.acknowledged_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.resolved_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_exception.resolved_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.resolution_type") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_exception.resolution_type or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_exception.operator_memo or t("common.none") }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.lineage") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("field.hes_system") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.raw_row and detail.raw_row.hes_system %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=detail.raw_row.hes_system.id, lang=current_locale) }}">
+              {{ detail.raw_row.hes_system.display_name }}
+            </a>
+            <div class="small text-secondary">{{ detail.raw_row.hes_system.hes_code }}</div>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("table.batch_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.ingest_batch.batch_id if detail.ingest_batch else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.meter") }}</dt>
+          <dd class="col-sm-8">{{ detail.raw_row.meter_identifier if detail.raw_row else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.channel") }}</dt>
+          <dd class="col-sm-8">{{ detail.raw_row.channel_identifier if detail.raw_row else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.initial_measurement_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.initial_measurement.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.id") }} / Canonical</dt>
+          <dd class="col-sm-8">{{ detail.canonical_measurement.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.id") }} / Raw</dt>
+          <dd class="col-sm-8">{{ detail.raw_row.id if detail.raw_row else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
+          <dd class="col-sm-8">{{ detail.initial_measurement.service_point.external_id if detail.initial_measurement.service_point else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.device") }}</dt>
+          <dd class="col-sm-8">{{ detail.initial_measurement.device.external_meter_id if detail.initial_measurement.device else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.unit_of_measure") }}</dt>
+          <dd class="col-sm-8">{{ detail.initial_measurement.unit_of_measure }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.execution_context") }}</h2>
+        {% if detail.vee_execution_log %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.vee_execution_log_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_execution_log.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.rule_set_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_execution_log.rule_set_code }}</dd>
+          <dt class="col-sm-4">{{ t("table.execution_status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("vee.execution_status." ~ detail.vee_execution_log.execution_status, detail.vee_execution_log.execution_status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.summary_code") }}</dt>
+          <dd class="col-sm-8">{{ t_or("vee.summary_code." ~ detail.vee_execution_log.summary_code, detail.vee_execution_log.summary_code or t("common.none")) }}</dd>
+          <dt class="col-sm-4">{{ t("table.created_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_execution_log.started_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.completed_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_execution_log.completed_at|dt }}</dd>
+        </dl>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.final_context") }}</h2>
+        {% if detail.final_measurement %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.final_measurement.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.measured_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.final_measurement.measured_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.value") }}</dt>
+          <dd class="col-sm-8">{{ detail.final_measurement.value }}</dd>
+          <dt class="col-sm-4">{{ t("field.unit_of_measure") }}</dt>
+          <dd class="col-sm-8">{{ detail.final_measurement.unit_of_measure }}</dd>
+          <dt class="col-sm-4">{{ t("table.finalized_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.final_measurement.finalized_at|dt }}</dd>
+        </dl>
+        {% else %}
+        <div class="text-secondary">{{ t("page.vee_exception_detail.no_final_context") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.raw_context") }}</h2>
+        {% if detail.raw_row %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.raw_row.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.batch_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.ingest_batch.batch_id if detail.ingest_batch else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.measured_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.raw_row.measured_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.value") }}</dt>
+          <dd class="col-sm-8">{{ detail.raw_row.reading_value if detail.raw_row.reading_value is not none else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("canonical_status." ~ detail.raw_row.canonical_status, detail.raw_row.canonical_status) }}</dd>
+        </dl>
+        {% else %}
+        <div class="text-secondary">{{ t("page.vee_exception_detail.no_raw_context") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.canonical_context") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.canonical_measurement.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.measured_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.canonical_measurement.measured_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.value") }}</dt>
+          <dd class="col-sm-8">{{ detail.canonical_measurement.value }}</dd>
+          <dt class="col-sm-4">{{ t("field.unit_of_measure") }}</dt>
+          <dd class="col-sm-8">{{ detail.canonical_measurement.unit_of_measure }}</dd>
+          <dt class="col-sm-4">{{ t("table.device_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.canonical_measurement.device_id }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("table.details") }}</h2>
+    {% if detail.vee_exception.details %}
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ detail.vee_exception.details | tojson(indent=2) }}</code></pre>
+    {% else %}
+    <div class="text-secondary">{{ t("page.vee_exception_detail.no_details") }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

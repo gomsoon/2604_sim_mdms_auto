@@ -20,6 +20,12 @@ class VeeRuleHit:
     details: dict[str, object]
 
 
+@dataclass(frozen=True, slots=True)
+class VeeExceptionActionError(Exception):
+    error_code: str
+    fallback_message: str
+
+
 def _find_existing_baseline_execution(
     session: Session,
     initial_row: InitialMeasurement,
@@ -117,6 +123,24 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
     return "vee_completed_with_exception"
 
 
+def is_vee_exception_active(exception: VeeException) -> bool:
+    return exception.exception_status in {"open", "acknowledged"}
+
+
+def has_active_blocking_vee_exception(initial_row: InitialMeasurement) -> bool:
+    return any(
+        exception.blocking_finalization and is_vee_exception_active(exception)
+        for exception in initial_row.vee_exceptions
+    )
+
+
+def refresh_initial_measurement_status(initial_row: InitialMeasurement) -> None:
+    if has_active_blocking_vee_exception(initial_row):
+        initial_row.initial_status = "exception"
+    elif initial_row.initial_status == "exception":
+        initial_row.initial_status = "accepted"
+
+
 def create_or_get_vee_exception(
     session: Session,
     *,
@@ -163,10 +187,7 @@ def evaluate_or_get_vee_baseline(
 ) -> tuple[VeeExecutionLog, bool]:
     existing = _find_existing_baseline_execution(session, initial_row)
     if existing is not None:
-        if any(
-            exception.exception_status == "open" and exception.blocking_finalization
-            for exception in initial_row.vee_exceptions
-        ):
+        if has_active_blocking_vee_exception(initial_row):
             initial_row.initial_status = "exception"
         elif existing.execution_status == "passed":
             initial_row.initial_status = "accepted"
@@ -213,3 +234,66 @@ def evaluate_or_get_vee_baseline(
             hit=hit,
         )
     return execution, True
+
+
+def _get_vee_exception(session: Session, vee_exception_id: int) -> VeeException:
+    vee_exception = session.get(VeeException, vee_exception_id)
+    if vee_exception is None:
+        raise VeeExceptionActionError("not_found", "The selected VEE exception does not exist.")
+    return vee_exception
+
+
+def acknowledge_vee_exception(
+    session: Session,
+    vee_exception_id: int,
+    *,
+    acknowledged_by: str,
+    acknowledged_at: datetime | None = None,
+) -> VeeException:
+    vee_exception = _get_vee_exception(session, vee_exception_id)
+    if vee_exception.exception_status == "resolved":
+        raise VeeExceptionActionError(
+            "already_resolved", "The selected VEE exception is already resolved."
+        )
+    if vee_exception.exception_status == "acknowledged":
+        raise VeeExceptionActionError(
+            "already_acknowledged",
+            "The selected VEE exception is already acknowledged.",
+        )
+
+    vee_exception.exception_status = "acknowledged"
+    vee_exception.acknowledged_at = acknowledged_at or datetime.now(timezone.utc)
+    vee_exception.acknowledged_by = acknowledged_by
+    if vee_exception.blocking_finalization:
+        vee_exception.initial_measurement.initial_status = "exception"
+    else:
+        refresh_initial_measurement_status(vee_exception.initial_measurement)
+    session.flush()
+    return vee_exception
+
+
+def resolve_vee_exception(
+    session: Session,
+    vee_exception_id: int,
+    *,
+    resolution_type: str,
+    operator_memo: str | None = None,
+    resolved_at: datetime | None = None,
+) -> VeeException:
+    vee_exception = _get_vee_exception(session, vee_exception_id)
+    if vee_exception.exception_status == "resolved":
+        raise VeeExceptionActionError(
+            "already_resolved", "The selected VEE exception is already resolved."
+        )
+
+    normalized_resolution_type = (resolution_type or "").strip() or "operator_resolution"
+    normalized_memo = (operator_memo or "").strip() or None
+
+    vee_exception.exception_status = "resolved"
+    vee_exception.resolution_type = normalized_resolution_type
+    vee_exception.resolved_at = resolved_at or datetime.now(timezone.utc)
+    if normalized_memo:
+        vee_exception.operator_memo = normalized_memo
+    refresh_initial_measurement_status(vee_exception.initial_measurement)
+    session.flush()
+    return vee_exception

@@ -11,6 +11,7 @@ from app.i18n import (
     translate_hes_system_error,
     translate,
     translate_operational_alert_error,
+    translate_vee_exception_error,
     translate_finalization_result,
     translate_master_data_error,
     translate_reprocess_error,
@@ -76,17 +77,25 @@ from app.services.operational_events import (
     acknowledge_operational_alert,
     close_operational_alert,
 )
+from app.services.vee import (
+    VeeExceptionActionError,
+    acknowledge_vee_exception,
+    resolve_vee_exception,
+)
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
     build_final_filters,
     build_ingest_batch_filters,
     build_operational_event_filters,
+    build_vee_exception_filters,
+    get_vee_exception_detail_context,
     get_operational_event_detail_context,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
     list_operational_events,
+    list_vee_exceptions,
 )
 
 
@@ -227,6 +236,74 @@ def reprocess_exception_view(exception_id: int):
         flash(translate_reprocess_error(exc.error_code, exc.fallback_message), "danger")
 
     return redirect(_exception_redirect(exception_id))
+
+
+@bp.get("/vee-exceptions")
+def vee_exceptions():
+    session = get_session()
+    try:
+        filters = build_vee_exception_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_vee_exception_filters({})
+
+    rows = list_vee_exceptions(session, filters)
+    hes_system_options = session.scalars(
+        select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
+    ).all()
+    return render_template(
+        "vee_exceptions.html",
+        rows=rows,
+        filters=filters,
+        hes_system_options=hes_system_options,
+    )
+
+
+def _vee_exception_redirect(vee_exception_id: int) -> str:
+    return url_for("web.vee_exception_detail", vee_exception_id=vee_exception_id, lang=get_locale())
+
+
+@bp.get("/vee-exceptions/<int:vee_exception_id>")
+def vee_exception_detail(vee_exception_id: int):
+    session = get_session()
+    detail = get_vee_exception_detail_context(session, vee_exception_id)
+    if detail is None:
+        abort(404)
+
+    return render_template("vee_exception_detail.html", detail=detail)
+
+
+@bp.post("/vee-exceptions/<int:vee_exception_id>/acknowledge")
+def acknowledge_vee_exception_view(vee_exception_id: int):
+    session = get_session()
+    try:
+        acknowledge_vee_exception(session, vee_exception_id, acknowledged_by="operator_ui")
+        session.commit()
+        flash(translate("vee_exception.flash.acknowledged"), "success")
+    except VeeExceptionActionError as exc:
+        session.rollback()
+        flash(translate_vee_exception_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
+
+
+@bp.post("/vee-exceptions/<int:vee_exception_id>/resolve")
+def resolve_vee_exception_view(vee_exception_id: int):
+    session = get_session()
+    try:
+        resolve_vee_exception(
+            session,
+            vee_exception_id,
+            resolution_type=request.form.get("resolution_type") or "operator_resolution",
+            operator_memo=request.form.get("operator_memo"),
+        )
+        session.commit()
+        flash(translate("vee_exception.flash.resolved"), "success")
+    except VeeExceptionActionError as exc:
+        session.rollback()
+        flash(translate_vee_exception_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
 
 
 @bp.get("/ingest-batches")

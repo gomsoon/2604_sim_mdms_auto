@@ -14,11 +14,14 @@ from app.models import (
     CanonicalMeasurement,
     FinalMeasurement,
     HesReadRaw,
+    InitialMeasurement,
     IngestBatch,
     IngestErrorLog,
     OperationalEvent,
     PipelineRun,
     ReprocessRequest,
+    VeeException,
+    VeeExecutionLog,
 )
 
 
@@ -71,6 +74,17 @@ class OperationalEventFilters:
 
 
 @dataclass(frozen=True, slots=True)
+class VeeExceptionFilters:
+    hes_system_id: int | None = None
+    exception_status: str | None = None
+    exception_code: str | None = None
+    severity: str | None = None
+    meter_id: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class OperationalEventDetailContext:
     event: OperationalEvent
     adapter_instance: AdapterInstance | None = None
@@ -82,6 +96,17 @@ class OperationalEventDetailContext:
     raw_rows: list[HesReadRaw] = ()
     canonical_rows: list[CanonicalMeasurement] = ()
     final_rows: list[FinalMeasurement] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class VeeExceptionDetailContext:
+    vee_exception: VeeException
+    initial_measurement: InitialMeasurement
+    canonical_measurement: CanonicalMeasurement
+    raw_row: HesReadRaw | None = None
+    ingest_batch: IngestBatch | None = None
+    vee_execution_log: VeeExecutionLog | None = None
+    final_measurement: FinalMeasurement | None = None
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -217,6 +242,43 @@ def build_operational_event_filters(args) -> OperationalEventFilters:
     )
 
 
+def build_vee_exception_filters(args) -> VeeExceptionFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    exception_status = _normalize_text(args.get("exception_status"))
+    if exception_status not in {None, "open", "acknowledged", "resolved"}:
+        raise VisibilityFilterError(
+            "invalid_vee_exception_status",
+            "VEE exception status must be open, acknowledged, or resolved when provided.",
+        )
+
+    severity = _normalize_text(args.get("severity"))
+    if severity not in {None, "info", "warning", "error", "critical"}:
+        raise VisibilityFilterError(
+            "invalid_vee_exception_severity",
+            "VEE exception severity must be info, warning, error, or critical when provided.",
+        )
+
+    return VeeExceptionFilters(
+        hes_system_id=_parse_optional_int(
+            args.get("hes_system_id"),
+            error_code="invalid_hes_system_filter",
+            fallback_message="HES system filter must be a positive integer.",
+        ),
+        exception_status=exception_status,
+        exception_code=_normalize_text(args.get("exception_code")),
+        severity=severity,
+        meter_id=_normalize_text(args.get("meter_id")),
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
 def list_ingest_batches(
     session: Session, filters: IngestBatchFilters, *, limit: int = 100
 ) -> list[IngestBatch]:
@@ -333,6 +395,52 @@ def list_operational_events(
     return session.scalars(statement).all()
 
 
+def list_vee_exceptions(
+    session: Session,
+    filters: VeeExceptionFilters,
+    *,
+    limit: int = 200,
+) -> list[VeeException]:
+    statement: Select[tuple[VeeException]] = (
+        select(VeeException)
+        .join(VeeException.initial_measurement)
+        .join(InitialMeasurement.canonical_measurement)
+        .join(CanonicalMeasurement.hes_read_raw)
+        .options(
+            selectinload(VeeException.initial_measurement)
+            .selectinload(InitialMeasurement.canonical_measurement)
+            .selectinload(CanonicalMeasurement.hes_read_raw)
+            .selectinload(HesReadRaw.ingest_batch),
+            selectinload(VeeException.initial_measurement)
+            .selectinload(InitialMeasurement.canonical_measurement)
+            .selectinload(CanonicalMeasurement.hes_read_raw)
+            .selectinload(HesReadRaw.hes_system),
+            selectinload(VeeException.initial_measurement).selectinload(
+                InitialMeasurement.final_measurement
+            ),
+            selectinload(VeeException.vee_execution_log),
+        )
+    )
+
+    if filters.hes_system_id is not None:
+        statement = statement.where(HesReadRaw.hes_system_id == filters.hes_system_id)
+    if filters.exception_status:
+        statement = statement.where(VeeException.exception_status == filters.exception_status)
+    if filters.exception_code:
+        statement = statement.where(VeeException.exception_code == filters.exception_code)
+    if filters.severity:
+        statement = statement.where(VeeException.severity == filters.severity)
+    if filters.meter_id:
+        statement = statement.where(HesReadRaw.meter_identifier == filters.meter_id)
+    if filters.date_from:
+        statement = statement.where(VeeException.detected_at >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(VeeException.detected_at <= filters.date_to)
+
+    statement = statement.order_by(VeeException.detected_at.desc(), VeeException.id.desc()).limit(limit)
+    return session.execute(statement).scalars().unique().all()
+
+
 def get_operational_event_detail_context(
     session: Session,
     event_id: int,
@@ -413,6 +521,57 @@ def get_operational_event_detail_context(
         raw_rows=raw_rows,
         canonical_rows=canonical_rows,
         final_rows=final_rows,
+    )
+
+
+def get_vee_exception_detail_context(
+    session: Session,
+    vee_exception_id: int,
+) -> VeeExceptionDetailContext | None:
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.id == vee_exception_id)
+        .options(
+            joinedload(VeeException.initial_measurement)
+            .joinedload(InitialMeasurement.canonical_measurement)
+            .joinedload(CanonicalMeasurement.hes_read_raw)
+            .joinedload(HesReadRaw.ingest_batch),
+            joinedload(VeeException.initial_measurement)
+            .joinedload(InitialMeasurement.canonical_measurement)
+            .joinedload(CanonicalMeasurement.hes_read_raw)
+            .joinedload(HesReadRaw.hes_system),
+            joinedload(VeeException.initial_measurement).joinedload(
+                InitialMeasurement.final_measurement
+            ),
+            joinedload(VeeException.vee_execution_log),
+            joinedload(VeeException.initial_measurement).joinedload(
+                InitialMeasurement.device
+            ),
+            joinedload(VeeException.initial_measurement).joinedload(
+                InitialMeasurement.service_point
+            ),
+            joinedload(VeeException.initial_measurement).joinedload(
+                InitialMeasurement.measuring_component
+            ),
+        )
+        .limit(1)
+    )
+    if vee_exception is None:
+        return None
+
+    initial_measurement = vee_exception.initial_measurement
+    canonical_measurement = initial_measurement.canonical_measurement
+    raw_row = canonical_measurement.hes_read_raw if canonical_measurement is not None else None
+    ingest_batch = raw_row.ingest_batch if raw_row is not None else None
+
+    return VeeExceptionDetailContext(
+        vee_exception=vee_exception,
+        initial_measurement=initial_measurement,
+        canonical_measurement=canonical_measurement,
+        raw_row=raw_row,
+        ingest_batch=ingest_batch,
+        vee_execution_log=vee_exception.vee_execution_log,
+        final_measurement=initial_measurement.final_measurement,
     )
 
 

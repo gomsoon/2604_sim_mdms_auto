@@ -36,7 +36,7 @@
         <label class="form-label">{{ t("table.source_layer") }}</label>
         <select class="form-select" name="source_layer">
           <option value="">{{ t("common.none") }}</option>
-          {% for value in ["integration", "ingest", "processing", "system", "operator_action"] %}
+          {% for value in ["integration", "ingest", "processing", "master_data", "system", "operator_action"] %}
           <option value="{{ value }}" {% if filters.source_layer == value %}selected{% endif %}>{{ t_or("operational_event.source_layer." ~ value, value) }}</option>
           {% endfor %}
         </select>
