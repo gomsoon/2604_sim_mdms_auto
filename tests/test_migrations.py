@@ -55,6 +55,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "processing_watermark" in tables
         assert "vee_execution_log" in tables
         assert "vee_exception" in tables
+        assert "usage_transaction" in tables
         assert "adapter_definition" in tables
         assert "hes_system" in tables
         assert "hes_meter_reference" in tables
@@ -109,6 +110,14 @@ def test_alembic_upgrade_creates_expected_tables():
         vee_exception_columns = {
             column["name"] for column in inspector.get_columns("vee_exception", schema=schema_name)
         }
+        usage_transaction_columns = {
+            column["name"]
+            for column in inspector.get_columns("usage_transaction", schema=schema_name)
+        }
+        usage_transaction_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("usage_transaction", schema=schema_name)
+        }
         ingest_error_log_columns = {
             column["name"] for column in inspector.get_columns("ingest_error_log", schema=schema_name)
         }
@@ -153,6 +162,18 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "initial_measurement_id" in vee_exception_columns
         assert "vee_execution_log_id" in vee_exception_columns
         assert "blocking_finalization" in vee_exception_columns
+        assert "pipeline_run_id" in usage_transaction_columns
+        assert "usage_type" in usage_transaction_columns
+        assert "period_start_at" in usage_transaction_columns
+        assert "period_end_at" in usage_transaction_columns
+        assert "window_timezone_name" in usage_transaction_columns
+        assert "interval_size_minutes" in usage_transaction_columns
+        assert "usage_value" in usage_transaction_columns
+        assert "source_final_count" in usage_transaction_columns
+        assert "missing_interval_count" in usage_transaction_columns
+        assert "quality_summary" in usage_transaction_columns
+        assert "calculation_status" in usage_transaction_columns
+        assert "calculated_at" in usage_transaction_columns
         assert "initial_measurement_id" in final_column_defs
         assert "hes_read_raw_measured_at" in ingest_error_log_columns
         assert "hes_read_raw_measured_at" in reprocess_request_columns
@@ -172,6 +193,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert initial_measurement_column_defs["value"]["type"].scale == 4
         assert final_column_defs["value"]["type"].precision == 19
         assert final_column_defs["value"]["type"].scale == 4
+        assert usage_transaction_column_defs["usage_value"]["type"].precision == 19
+        assert usage_transaction_column_defs["usage_value"]["type"].scale == 4
 
         engine = create_engine(schema_url)
         with engine.connect() as connection:
@@ -187,7 +210,8 @@ def test_alembic_upgrade_creates_expected_tables():
                         'operational_event',
                         'initial_measurement',
                         'vee_execution_log',
-                        'vee_exception'
+                        'vee_exception',
+                        'usage_transaction'
                       )
                     order by tablename, indexname
                     """
@@ -213,6 +237,13 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_vee_exception_exception_code" in index_defs
         assert "ix_vee_exception_detected_at" in index_defs
         assert "ix_vee_exception_blocking_finalization" in index_defs
+        assert "uq_usage_transaction_scope" in index_defs
+        assert "UNIQUE INDEX" in index_defs["uq_usage_transaction_scope"]
+        assert "ix_usage_transaction_usage_type" in index_defs
+        assert "ix_usage_transaction_period_start_at" in index_defs
+        assert "ix_usage_transaction_calculation_status" in index_defs
+        assert "ix_usage_transaction_service_point_period_start_at" in index_defs
+        assert "ix_usage_transaction_measuring_component_period_start_at" in index_defs
         assert "uq_adapter_run_single_running_per_instance" in index_defs
         assert "run_status" in index_defs[
             "uq_adapter_run_single_running_per_instance"

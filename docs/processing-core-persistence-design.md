@@ -33,6 +33,12 @@ This document does not yet define the full `usage_transaction` table implementat
 
 That remains the next persistence slice after the first VEE boundary is established.
 
+First follow-up implementation note:
+
+- the first `usage_transaction` rollout should read only from `final_measurement`
+- it may derive operational window timezone from `hes_system.timezone_name` until a dedicated service-point timezone field exists
+- it may derive `interval_size_minutes` through final-to-raw lineage until final rows carry that value directly
+
 ## Current starting point
 
 The repository currently persists:

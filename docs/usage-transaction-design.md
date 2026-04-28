@@ -130,6 +130,12 @@ Recommended rule:
 - local business windows should use the service-point timezone when available
 - otherwise use the parent `hes_system` timezone
 
+First implementation note:
+
+- the current repository does not yet persist a dedicated service-point timezone field
+- the first `usage_transaction` rollout should therefore use `hes_system.timezone_name` as the operational window timezone
+- if that value is absent or invalid, the first rollout may fall back to `UTC`, but it should record that fallback in `details`
+
 This matters for:
 
 - daily usage
@@ -145,6 +151,12 @@ Recommended baseline:
 
 - interval sum into daily usage
 - interval sum into monthly usage
+
+First implementation note:
+
+- `final_measurement` does not yet carry `interval_size_minutes` directly
+- the first rollout should derive interval size through `final_measurement -> initial_measurement -> canonical_measurement -> hes_read_raw`
+- mixed or missing interval-size lineage within one usage window should produce a `blocked` usage result rather than an ambiguous aggregate
 
 Deferred:
 

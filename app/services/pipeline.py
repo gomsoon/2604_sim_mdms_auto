@@ -14,6 +14,7 @@ PIPELINE_SUCCESS_EVENT_CODES = {
     "raw_ingest": "raw_ingest_completed",
     "canonical": "canonical_completed",
     "finalization": "finalization_completed",
+    "usage": "usage_completed",
     "exception_reprocess": "exception_reprocess_completed",
 }
 
@@ -21,6 +22,7 @@ PIPELINE_FAILURE_EVENT_CODES = {
     "raw_ingest": "raw_ingest_failed",
     "canonical": "canonical_failed",
     "finalization": "finalization_failed",
+    "usage": "usage_failed",
     "exception_reprocess": "exception_reprocess_failed",
 }
 

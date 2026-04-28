@@ -313,6 +313,9 @@ class ServicePoint(TimestampMixin, Base):
     initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
         back_populates="service_point"
     )
+    usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
+        back_populates="service_point"
+    )
 
 
 class Device(TimestampMixin, Base):
@@ -331,6 +334,9 @@ class Device(TimestampMixin, Base):
         back_populates="device"
     )
     initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
+        back_populates="device"
+    )
+    usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="device"
     )
 
@@ -353,6 +359,9 @@ class MeasuringComponent(TimestampMixin, Base):
         back_populates="measuring_component"
     )
     initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
+        back_populates="measuring_component"
+    )
+    usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="measuring_component"
     )
 
@@ -636,6 +645,61 @@ class FinalMeasurement(TimestampMixin, Base):
     )
 
 
+class UsageTransaction(TimestampMixin, Base):
+    __tablename__ = "usage_transaction"
+    __table_args__ = (
+        UniqueConstraint(
+            "service_point_id",
+            "measuring_component_id",
+            "usage_type",
+            "period_start_at",
+            "period_end_at",
+            name="uq_usage_transaction_scope",
+        ),
+        Index("ix_usage_transaction_usage_type", "usage_type"),
+        Index("ix_usage_transaction_period_start_at", "period_start_at"),
+        Index("ix_usage_transaction_calculation_status", "calculation_status"),
+        Index(
+            "ix_usage_transaction_service_point_period_start_at",
+            "service_point_id",
+            "period_start_at",
+        ),
+        Index(
+            "ix_usage_transaction_measuring_component_period_start_at",
+            "measuring_component_id",
+            "period_start_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pipeline_run_id: Mapped[int] = mapped_column(ForeignKey("pipeline_run.id"), nullable=False)
+    service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    measuring_component_id: Mapped[int] = mapped_column(
+        ForeignKey("measuring_component.id"), nullable=False
+    )
+    device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
+    usage_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    period_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_timezone_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    interval_size_minutes: Mapped[int | None] = mapped_column(Integer)
+    unit_of_measure: Mapped[str | None] = mapped_column(String(20))
+    usage_value: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    source_final_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    missing_interval_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quality_summary: Mapped[str] = mapped_column(String(80), nullable=False)
+    calculation_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    pipeline_run: Mapped["PipelineRun"] = relationship(back_populates="usage_transactions")
+    service_point: Mapped["ServicePoint"] = relationship(back_populates="usage_transactions")
+    measuring_component: Mapped["MeasuringComponent"] = relationship(
+        back_populates="usage_transactions"
+    )
+    device: Mapped["Device"] = relationship(back_populates="usage_transactions")
+
+
 class RawIntervalWindowState(TimestampMixin, Base):
     __tablename__ = "raw_interval_window_state"
     __table_args__ = (
@@ -735,6 +799,9 @@ class PipelineRun(TimestampMixin, Base):
     ingest_batch: Mapped[IngestBatch | None] = relationship(back_populates="pipeline_runs")
     reprocess_request: Mapped[ReprocessRequest | None] = relationship(back_populates="pipeline_runs")
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(back_populates="pipeline_run")
+    usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
+        back_populates="pipeline_run"
+    )
 
 
 class ProcessingWatermark(TimestampMixin, Base):
