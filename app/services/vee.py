@@ -7,6 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import InitialMeasurement, PipelineRun, VeeException, VeeExecutionLog
+from app.services.operational_events import (
+    acknowledge_operational_alerts,
+    close_operational_alerts,
+    record_operational_event,
+)
 
 BASELINE_RULE_SET_CODE = "vee_baseline_v1"
 BASELINE_EXECUTION_SCOPE = "measurement"
@@ -175,6 +180,12 @@ def create_or_get_vee_exception(
     )
     session.add(exception)
     session.flush()
+    _record_vee_exception_opened(
+        session,
+        exception=exception,
+        initial_row=initial_row,
+        execution=execution,
+    )
     return exception, True
 
 
@@ -243,6 +254,40 @@ def _get_vee_exception(session: Session, vee_exception_id: int) -> VeeException:
     return vee_exception
 
 
+def _record_vee_exception_opened(
+    session: Session,
+    *,
+    exception: VeeException,
+    initial_row: InitialMeasurement,
+    execution: VeeExecutionLog,
+) -> None:
+    canonical_row = initial_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    ingest_batch = raw_row.ingest_batch if raw_row is not None else None
+    record_operational_event(
+        session,
+        "vee_exception_opened",
+        severity=exception.severity,
+        is_alert=exception.blocking_finalization,
+        entity_type="vee_exception",
+        entity_id=exception.id,
+        pipeline_run=execution.pipeline_run,
+        ingest_batch=ingest_batch,
+        hes_system=raw_row.hes_system if raw_row is not None else None,
+        meter_identifier=raw_row.meter_identifier if raw_row is not None else None,
+        batch_id=ingest_batch.batch_id if ingest_batch is not None else None,
+        details={
+            "vee_exception_id": exception.id,
+            "initial_measurement_id": initial_row.id,
+            "canonical_measurement_id": canonical_row.id if canonical_row is not None else None,
+            "hes_read_raw_id": raw_row.id if raw_row is not None else None,
+            "blocking_finalization": exception.blocking_finalization,
+        },
+        exception_code=exception.exception_code,
+        initial_measurement_id=initial_row.id,
+    )
+
+
 def acknowledge_vee_exception(
     session: Session,
     vee_exception_id: int,
@@ -268,6 +313,14 @@ def acknowledge_vee_exception(
         vee_exception.initial_measurement.initial_status = "exception"
     else:
         refresh_initial_measurement_status(vee_exception.initial_measurement)
+    acknowledge_operational_alerts(
+        session,
+        event_code="vee_exception_opened",
+        entity_type="vee_exception",
+        entity_id=vee_exception.id,
+        acknowledged_by=acknowledged_by,
+        acknowledged_at=vee_exception.acknowledged_at,
+    )
     session.flush()
     return vee_exception
 
@@ -295,5 +348,36 @@ def resolve_vee_exception(
     if normalized_memo:
         vee_exception.operator_memo = normalized_memo
     refresh_initial_measurement_status(vee_exception.initial_measurement)
+    close_operational_alerts(
+        session,
+        event_code="vee_exception_opened",
+        entity_type="vee_exception",
+        entity_id=vee_exception.id,
+        closed_at=vee_exception.resolved_at,
+        operator_memo=normalized_memo,
+    )
+    canonical_row = vee_exception.initial_measurement.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    ingest_batch = raw_row.ingest_batch if raw_row is not None else None
+    record_operational_event(
+        session,
+        "vee_exception_resolved",
+        entity_type="vee_exception",
+        entity_id=vee_exception.id,
+        pipeline_run=vee_exception.vee_execution_log.pipeline_run
+        if vee_exception.vee_execution_log is not None
+        else None,
+        ingest_batch=ingest_batch,
+        hes_system=raw_row.hes_system if raw_row is not None else None,
+        meter_identifier=raw_row.meter_identifier if raw_row is not None else None,
+        batch_id=ingest_batch.batch_id if ingest_batch is not None else None,
+        details={
+            "vee_exception_id": vee_exception.id,
+            "initial_measurement_id": vee_exception.initial_measurement_id,
+            "resolution_type": normalized_resolution_type,
+        },
+        exception_code=vee_exception.exception_code,
+        resolution_type=normalized_resolution_type,
+    )
     session.flush()
     return vee_exception

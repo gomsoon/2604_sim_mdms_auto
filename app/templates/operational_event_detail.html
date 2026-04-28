@@ -150,6 +150,21 @@
           </dd>
           <dt class="col-sm-4">{{ t("table.reprocess_request_id") }}</dt>
           <dd class="col-sm-8">{{ detail.reprocess_request.id if detail.reprocess_request else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.initial_measurement_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.initial_measurement.id if detail.initial_measurement else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.vee_execution_log_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.vee_execution_log.id if detail.vee_execution_log else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("nav.vee_exceptions") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.vee_exception %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+              {{ detail.vee_exception.id }}
+            </a>
+            <div class="small text-secondary">{{ t_or("vee.exception_code." ~ detail.vee_exception.exception_code, detail.vee_exception.exception_code) }}</div>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
           <dt class="col-sm-4">{{ t("table.meter") }}</dt>
           <dd class="col-sm-8">{{ detail.event.meter_identifier or t("common.none") }}</dd>
         </dl>

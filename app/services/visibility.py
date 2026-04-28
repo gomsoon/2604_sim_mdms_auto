@@ -93,6 +93,9 @@ class OperationalEventDetailContext:
     ingest_batch: IngestBatch | None = None
     ingest_error_log: IngestErrorLog | None = None
     reprocess_request: ReprocessRequest | None = None
+    initial_measurement: InitialMeasurement | None = None
+    vee_execution_log: VeeExecutionLog | None = None
+    vee_exception: VeeException | None = None
     raw_rows: list[HesReadRaw] = ()
     canonical_rows: list[CanonicalMeasurement] = ()
     final_rows: list[FinalMeasurement] = ()
@@ -488,12 +491,35 @@ def get_operational_event_detail_context(
         if event.reprocess_request_id is not None
         else None
     )
+    vee_exception = None
+    initial_measurement = None
+    vee_execution_log = None
+    if event.entity_type == "vee_exception" and event.entity_id is not None:
+        vee_exception = session.scalar(
+            select(VeeException)
+            .where(VeeException.id == event.entity_id)
+            .options(
+                joinedload(VeeException.initial_measurement)
+                .joinedload(InitialMeasurement.canonical_measurement)
+                .joinedload(CanonicalMeasurement.hes_read_raw)
+                .joinedload(HesReadRaw.ingest_batch),
+                joinedload(VeeException.vee_execution_log),
+                joinedload(VeeException.initial_measurement).joinedload(
+                    InitialMeasurement.final_measurement
+                ),
+            )
+            .limit(1)
+        )
+        if vee_exception is not None:
+            initial_measurement = vee_exception.initial_measurement
+            vee_execution_log = vee_exception.vee_execution_log
 
     raw_rows = _list_related_raw_rows(
         session,
         event,
         ingest_error_log=ingest_error_log,
         reprocess_request=reprocess_request,
+        vee_exception=vee_exception,
         limit=raw_limit,
     )
     canonical_rows = [
@@ -518,6 +544,9 @@ def get_operational_event_detail_context(
         ingest_batch=ingest_batch,
         ingest_error_log=ingest_error_log,
         reprocess_request=reprocess_request,
+        initial_measurement=initial_measurement,
+        vee_execution_log=vee_execution_log,
+        vee_exception=vee_exception,
         raw_rows=raw_rows,
         canonical_rows=canonical_rows,
         final_rows=final_rows,
@@ -581,6 +610,7 @@ def _list_related_raw_rows(
     *,
     ingest_error_log: IngestErrorLog | None,
     reprocess_request: ReprocessRequest | None,
+    vee_exception: VeeException | None,
     limit: int,
 ) -> list[HesReadRaw]:
     statement: Select[tuple[HesReadRaw]] = (
@@ -596,6 +626,16 @@ def _list_related_raw_rows(
         statement = statement.where(HesReadRaw.id == ingest_error_log.hes_read_raw_id)
     elif reprocess_request is not None:
         statement = statement.where(HesReadRaw.id == reprocess_request.hes_read_raw_id)
+    elif (
+        vee_exception is not None
+        and vee_exception.initial_measurement is not None
+        and vee_exception.initial_measurement.canonical_measurement is not None
+        and vee_exception.initial_measurement.canonical_measurement.hes_read_raw is not None
+    ):
+        statement = statement.where(
+            HesReadRaw.id
+            == vee_exception.initial_measurement.canonical_measurement.hes_read_raw.id
+        )
     elif event.ingest_batch_id is not None and event.meter_identifier:
         statement = statement.where(
             HesReadRaw.ingest_batch_id == event.ingest_batch_id,

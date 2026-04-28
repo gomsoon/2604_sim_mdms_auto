@@ -240,6 +240,41 @@ def test_operational_event_detail_page_shows_lineage_and_related_measurements(cl
     assert "관련 표준 계측" in text
 
 
+def test_operational_event_detail_page_links_to_vee_exception_lineage(client, session):
+    from app.models import InitialMeasurement
+    from app.services.vee import evaluate_or_get_vee_baseline
+
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).order_by(InitialMeasurement.id.asc()).limit(1))
+    assert initial is not None
+    for row in list(initial.vee_exceptions):
+        session.delete(row)
+    for row in list(initial.vee_execution_logs):
+        session.delete(row)
+    initial.initial_status = "ready"
+    initial.unit_of_measure = ""
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    event = session.scalar(
+        select(OperationalEvent)
+        .where(OperationalEvent.event_code == "vee_exception_opened")
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert event is not None
+
+    response = client.get(f"/operational-events/{event.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "VEE 예외" in text
+    assert f"/vee-exceptions/{event.entity_id}?lang=ko" in text
+
+
 def test_operational_events_api_rejects_invalid_stream_type_in_korean(client):
     response = client.get("/api/v1/operational-events?lang=ko&stream_type=alerts")
 

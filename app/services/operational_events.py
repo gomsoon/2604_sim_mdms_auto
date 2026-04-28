@@ -204,6 +204,26 @@ EVENT_SPECS: dict[str, OperationalEventSpec] = {
         message_en="Canonical processing for batch {batch_id} completed with issues.",
         message_ko="배치 {batch_id}의 표준화가 문제를 포함한 상태로 끝났습니다.",
     ),
+    "vee_exception_opened": OperationalEventSpec(
+        source_layer="processing",
+        event_category="vee_exception",
+        severity="error",
+        is_alert=True,
+        title_en="VEE exception opened",
+        title_ko="VEE 예외 발생",
+        message_en="VEE exception {exception_code} opened for initial measurement {initial_measurement_id}.",
+        message_ko="초기 계측 {initial_measurement_id}에 대해 VEE 예외 {exception_code}가 발생했습니다.",
+    ),
+    "vee_exception_resolved": OperationalEventSpec(
+        source_layer="operator_action",
+        event_category="vee_exception",
+        severity="info",
+        is_alert=False,
+        title_en="VEE exception resolved",
+        title_ko="VEE 예외 해결",
+        message_en="VEE exception {exception_code} was resolved with {resolution_type}.",
+        message_ko="VEE 예외 {exception_code}가 {resolution_type} 방식으로 해결되었습니다.",
+    ),
     "finalization_completed": OperationalEventSpec(
         source_layer="processing",
         event_category="finalization",
@@ -458,6 +478,53 @@ def close_operational_alerts(
         row.closed_at = effective_closed_at
         if operator_memo:
             row.operator_memo = operator_memo
+    session.flush()
+    return len(rows)
+
+
+def acknowledge_operational_alerts(
+    session: Session,
+    *,
+    event_code: str,
+    acknowledged_by: str,
+    adapter_instance_id: int | None = None,
+    adapter_run_id: int | None = None,
+    pipeline_run_id: int | None = None,
+    ingest_batch_id: int | None = None,
+    ingest_error_log_id: int | None = None,
+    reprocess_request_id: int | None = None,
+    entity_type: str | None = None,
+    entity_id: int | None = None,
+    acknowledged_at: datetime | None = None,
+) -> int:
+    statement = select(OperationalEvent).where(
+        OperationalEvent.is_alert.is_(True),
+        OperationalEvent.event_code == event_code,
+        OperationalEvent.alert_status == "open",
+    )
+    if adapter_instance_id is not None:
+        statement = statement.where(OperationalEvent.adapter_instance_id == adapter_instance_id)
+    if adapter_run_id is not None:
+        statement = statement.where(OperationalEvent.adapter_run_id == adapter_run_id)
+    if pipeline_run_id is not None:
+        statement = statement.where(OperationalEvent.pipeline_run_id == pipeline_run_id)
+    if ingest_batch_id is not None:
+        statement = statement.where(OperationalEvent.ingest_batch_id == ingest_batch_id)
+    if ingest_error_log_id is not None:
+        statement = statement.where(OperationalEvent.ingest_error_log_id == ingest_error_log_id)
+    if reprocess_request_id is not None:
+        statement = statement.where(OperationalEvent.reprocess_request_id == reprocess_request_id)
+    if entity_type is not None:
+        statement = statement.where(OperationalEvent.entity_type == entity_type)
+    if entity_id is not None:
+        statement = statement.where(OperationalEvent.entity_id == entity_id)
+
+    rows = session.scalars(statement).all()
+    effective_acknowledged_at = acknowledged_at or datetime.now(timezone.utc)
+    for row in rows:
+        row.alert_status = "acknowledged"
+        row.acknowledged_at = effective_acknowledged_at
+        row.acknowledged_by = acknowledged_by
     session.flush()
     return len(rows)
 

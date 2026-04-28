@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import InitialMeasurement, VeeException
+from app.models import InitialMeasurement, OperationalEvent, VeeException
 from app.services.finalization import is_initial_measurement_finalizable
 from app.services.seeds import seed_demo_environment
 from app.services.vee import (
@@ -43,15 +43,29 @@ def _prepare_required_field_exception(session) -> tuple[InitialMeasurement, VeeE
 def test_acknowledge_vee_exception_keeps_initial_measurement_blocked_for_finalization(session):
     initial, vee_exception = _prepare_required_field_exception(session)
 
+    opened_alert = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "vee_exception_opened",
+            OperationalEvent.entity_type == "vee_exception",
+            OperationalEvent.entity_id == vee_exception.id,
+        )
+        .limit(1)
+    )
+    assert opened_alert is not None
+
     acknowledge_vee_exception(session, vee_exception.id, acknowledged_by="operator_ui")
     session.commit()
     session.refresh(initial)
     session.refresh(vee_exception)
+    session.refresh(opened_alert)
 
     assert vee_exception.exception_status == "acknowledged"
     assert vee_exception.acknowledged_by == "operator_ui"
     assert initial.initial_status == "exception"
     assert is_initial_measurement_finalizable(initial) is False
+    assert opened_alert.alert_status == "acknowledged"
+    assert opened_alert.acknowledged_by == "operator_ui"
 
 
 def test_resolve_vee_exception_restores_finalizable_initial_measurement_when_last_blocker_clears(
@@ -74,3 +88,53 @@ def test_resolve_vee_exception_restores_finalizable_initial_measurement_when_las
     assert vee_exception.operator_memo == "Reviewed by operator."
     assert initial.initial_status == "accepted"
     assert is_initial_measurement_finalizable(initial) is True
+
+
+def test_vee_exception_open_and_resolve_are_connected_to_operational_events(session):
+    initial, vee_exception = _prepare_required_field_exception(session)
+
+    opened_alert = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "vee_exception_opened",
+            OperationalEvent.entity_type == "vee_exception",
+            OperationalEvent.entity_id == vee_exception.id,
+        )
+        .limit(1)
+    )
+
+    assert opened_alert is not None
+    assert opened_alert.is_alert is True
+    assert opened_alert.alert_status == "open"
+    assert opened_alert.meter_identifier == "MTR-1001"
+
+    resolve_vee_exception(
+        session,
+        vee_exception.id,
+        resolution_type="operator_resolution",
+        operator_memo="Reviewed by operator.",
+    )
+    session.commit()
+
+    closed_alert = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.id == opened_alert.id,
+        )
+        .limit(1)
+    )
+    resolved_event = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "vee_exception_resolved",
+            OperationalEvent.entity_type == "vee_exception",
+            OperationalEvent.entity_id == vee_exception.id,
+        )
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+
+    assert closed_alert is not None
+    assert closed_alert.alert_status == "closed"
+    assert resolved_event is not None
+    assert resolved_event.is_alert is False
