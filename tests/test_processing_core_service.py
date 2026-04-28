@@ -109,3 +109,59 @@ def test_evaluate_or_get_vee_baseline_marks_duplicate_source_as_exception(sessio
     assert execution.summary_code == "vee_completed_with_duplicate"
     assert exception is not None
     assert exception.exception_code == "vee_duplicate_detected"
+
+
+def test_evaluate_or_get_vee_baseline_marks_zero_value_as_non_blocking_warning(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial is not None
+    _reset_vee_baseline(session, initial)
+    initial.value = 0
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "accepted"
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_completed_with_zero_value"
+    assert exception is not None
+    assert exception.exception_code == "vee_zero_value_detected"
+    assert exception.blocking_finalization is False
+
+
+def test_evaluate_or_get_vee_baseline_marks_invalid_interval_size_as_blocking(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    canonical = session.scalar(select(CanonicalMeasurement).limit(1))
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert canonical is not None
+    assert initial is not None
+    _reset_vee_baseline(session, initial)
+    canonical.hes_read_raw.interval_size_minutes = 17
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "exception"
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_failed_interval_size"
+    assert exception is not None
+    assert exception.exception_code == "vee_interval_size_invalid"
+    assert exception.blocking_finalization is True

@@ -122,6 +122,36 @@ def test_finalize_canonical_measurements_skips_rows_with_open_blocking_vee_excep
     assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 0
 
 
+def test_finalize_canonical_measurements_allows_non_blocking_vee_warning(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial_row is not None
+    session.add(
+        VeeException(
+            initial_measurement_id=initial_row.id,
+            exception_code="vee_zero_value_detected",
+            severity="warning",
+            exception_status="open",
+            blocking_finalization=False,
+            detected_at=datetime.now(timezone.utc),
+            details={"value": "0.0000"},
+        )
+    )
+    initial_row.initial_status = "accepted"
+    session.commit()
+
+    summary = finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    assert summary.candidates == 1
+    assert summary.finalized == 1
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 0
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 1
+
+
 def test_finalize_canonical_measurements_respects_exact_date_boundaries(session):
     seed_demo_environment(session)
     ingest_reads(

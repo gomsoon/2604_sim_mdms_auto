@@ -85,6 +85,33 @@ def _build_negative_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | N
     )
 
 
+def _build_zero_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+    if initial_row.value is None or initial_row.value != 0:
+        return None
+
+    return VeeRuleHit(
+        exception_code="vee_zero_value_detected",
+        severity="warning",
+        blocking_finalization=False,
+        details={"value": str(initial_row.value)},
+    )
+
+
+def _build_interval_size_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+    canonical_row = initial_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    interval_size_minutes = raw_row.interval_size_minutes if raw_row is not None else None
+    if interval_size_minutes in {15, 30, 60}:
+        return None
+
+    return VeeRuleHit(
+        exception_code="vee_interval_size_invalid",
+        severity="error",
+        blocking_finalization=True,
+        details={"interval_size_minutes": interval_size_minutes},
+    )
+
+
 def _build_duplicate_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
     canonical_row = initial_row.canonical_measurement
     raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
@@ -107,6 +134,8 @@ def evaluate_initial_measurement_rule_hits(initial_row: InitialMeasurement) -> l
     for hit in (
         _build_required_field_hit(initial_row),
         _build_negative_value_hit(initial_row),
+        _build_zero_value_hit(initial_row),
+        _build_interval_size_hit(initial_row),
         _build_duplicate_hit(initial_row),
     ):
         if hit is not None:
@@ -123,6 +152,10 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
         return "vee_failed_required_field"
     if first_code == "vee_negative_value_detected":
         return "vee_failed_negative_value"
+    if first_code == "vee_zero_value_detected":
+        return "vee_completed_with_zero_value"
+    if first_code == "vee_interval_size_invalid":
+        return "vee_failed_interval_size"
     if first_code == "vee_duplicate_detected":
         return "vee_completed_with_duplicate"
     return "vee_completed_with_exception"
@@ -200,7 +233,7 @@ def evaluate_or_get_vee_baseline(
     if existing is not None:
         if has_active_blocking_vee_exception(initial_row):
             initial_row.initial_status = "exception"
-        elif existing.execution_status == "passed":
+        elif existing.execution_status in {"passed", "completed_with_exception"}:
             initial_row.initial_status = "accepted"
         return existing, False
 
@@ -224,6 +257,8 @@ def evaluate_or_get_vee_baseline(
             "active_rules": [
                 "required_field_missing",
                 "negative_value_detected",
+                "zero_value_detected",
+                "interval_size_invalid",
                 "duplicate_detected",
             ],
             "rule_hits": [hit.exception_code for hit in rule_hits],
@@ -236,7 +271,9 @@ def evaluate_or_get_vee_baseline(
         initial_row.initial_status = "accepted"
         return execution, True
 
-    initial_row.initial_status = "exception"
+    initial_row.initial_status = (
+        "exception" if any(hit.blocking_finalization for hit in rule_hits) else "accepted"
+    )
     for hit in rule_hits:
         create_or_get_vee_exception(
             session,

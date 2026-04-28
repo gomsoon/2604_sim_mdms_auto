@@ -151,6 +151,8 @@ Recommended first active rules in the first executable rollout:
 
 - `required_field_missing`
 - `negative_value_detected`
+- `zero_value_detected`
+- `interval_size_invalid`
 - `duplicate_detected`
 
 Recommended first rollout policy:
@@ -158,6 +160,11 @@ Recommended first rollout policy:
 - activate only a small blocking subset first
 - keep the remaining rules documented but deferred
 - expand rule coverage only after regression and operator visibility are stable
+
+Current implementation note:
+
+- `zero_value_detected` is active as a non-blocking warning
+- `interval_size_invalid` is active as a blocking error
 
 Notes:
 
