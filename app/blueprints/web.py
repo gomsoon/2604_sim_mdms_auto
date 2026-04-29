@@ -80,6 +80,7 @@ from app.services.operational_events import (
 from app.services.vee import (
     VeeExceptionActionError,
     acknowledge_vee_exception,
+    reevaluate_vee_exception,
     resolve_vee_exception,
 )
 from app.services.visibility import (
@@ -299,6 +300,24 @@ def resolve_vee_exception_view(vee_exception_id: int):
         )
         session.commit()
         flash(translate("vee_exception.flash.resolved"), "success")
+    except VeeExceptionActionError as exc:
+        session.rollback()
+        flash(translate_vee_exception_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
+
+
+@bp.post("/vee-exceptions/<int:vee_exception_id>/re-evaluate")
+def reevaluate_vee_exception_view(vee_exception_id: int):
+    session = get_session()
+    try:
+        reevaluate_vee_exception(
+            session,
+            vee_exception_id,
+            reevaluated_by="operator_ui",
+        )
+        session.commit()
+        flash(translate("vee_exception.flash.re_evaluated"), "success")
     except VeeExceptionActionError as exc:
         session.rollback()
         flash(translate_vee_exception_error(exc.error_code, exc.fallback_message), "danger")

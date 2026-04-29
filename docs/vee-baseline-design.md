@@ -228,12 +228,16 @@ Important distinction:
 ## Reprocessing expectations
 
 The first VEE baseline does not need full re-VEE orchestration, but it should prepare for it.
+The current baseline may support manual re-evaluation before introducing more advanced automated replay policies.
 
 Recommended preparation:
 
 - preserve links from `initial_measurement` to `canonical_measurement`
 - preserve links from `final_measurement` to `initial_measurement` or equivalent lineage in a later step
 - make exception resolution explicit enough that a later re-VEE flow can replay decisions
+- allow a manual `re-evaluate` action that supersedes active VEE exceptions and records a fresh baseline `vee_execution_log`
+
+The current manual baseline is documented in [re-vee-baseline-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/re-vee-baseline-runbook.md).
 
 ## Testing expectations
 

@@ -224,6 +224,16 @@ EVENT_SPECS: dict[str, OperationalEventSpec] = {
         message_en="VEE exception {exception_code} was resolved with {resolution_type}.",
         message_ko="VEE 예외 {exception_code}가 {resolution_type} 방식으로 해결되었습니다.",
     ),
+    "vee_re_evaluated": OperationalEventSpec(
+        source_layer="operator_action",
+        event_category="vee_exception",
+        severity="info",
+        is_alert=False,
+        title_en="VEE re-evaluated",
+        title_ko="VEE 재평가",
+        message_en="Initial measurement {initial_measurement_id} was re-evaluated through the current VEE baseline.",
+        message_ko="초기 계측 {initial_measurement_id}가 현재 VEE baseline으로 다시 평가되었습니다.",
+    ),
     "finalization_completed": OperationalEventSpec(
         source_layer="processing",
         event_category="finalization",

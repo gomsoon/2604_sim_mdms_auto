@@ -209,6 +209,26 @@ Use operational filters to trace ingest behavior for a specific delivery or sour
 - Operators can troubleshoot a single ingest delivery without scanning all data
 - Lineage can be verified within a bounded operational context
 
+## Workflow 8. Re-evaluate a VEE exception after correction
+
+### Goal
+
+Re-run baseline VEE for one corrected measurement context without losing the old exception history.
+
+### Typical steps
+
+1. Open the `VEE exception` detail page
+2. Review linked raw, canonical, initial, and final lineage
+3. Correct the source or master-data issue first
+4. Trigger `Re-evaluate`
+5. Confirm whether the issue cleared or reappeared in a fresh snapshot
+
+### Expected operator outcome
+
+- the previous active VEE exception remains auditable
+- the operator can see a new execution snapshot after re-evaluation
+- finalization becomes eligible again only when the new evaluation has no open blocking exception
+
 ## Master data maintenance expectations
 
 The minimal stage should support at least the following operator questions:

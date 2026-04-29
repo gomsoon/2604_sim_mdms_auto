@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.models import InitialMeasurement, VeeException
+from app.models import InitialMeasurement, VeeException, VeeExecutionLog
 from app.services.seeds import seed_demo_environment
 from app.services.vee import evaluate_or_get_vee_baseline
 
@@ -101,3 +101,33 @@ def test_vee_exception_resolve_via_web_updates_status(client, session):
     assert updated.exception_status == "resolved"
     assert updated.resolution_type == "operator_resolution"
     assert updated.operator_memo == "운영 확인 완료"
+
+
+def test_vee_exception_re_evaluate_via_web_creates_new_execution(session, client):
+    vee_exception = _create_open_vee_exception(session)
+    initial = session.get(InitialMeasurement, vee_exception.initial_measurement_id)
+    assert initial is not None
+    initial.unit_of_measure = "kWh"
+    session.commit()
+
+    response = client.post(
+        f"/vee-exceptions/{vee_exception.id}/re-evaluate?lang=ko",
+        data={"next": f"/vee-exceptions/{vee_exception.id}?lang=ko"},
+        follow_redirects=True,
+    )
+    text = response.get_data(as_text=True)
+    updated = session.get(VeeException, vee_exception.id)
+    refreshed_initial = session.get(InitialMeasurement, vee_exception.initial_measurement_id)
+
+    assert response.status_code == 200
+    assert "VEE 예외가 재평가되었습니다." in text
+    assert updated is not None
+    assert updated.exception_status == "resolved"
+    assert updated.resolution_type == "re_evaluated_superseded"
+    assert refreshed_initial is not None
+    assert refreshed_initial.initial_status == "accepted"
+    assert session.scalar(
+        select(func.count())
+        .select_from(VeeExecutionLog)
+        .where(VeeExecutionLog.initial_measurement_id == refreshed_initial.id)
+    ) == 2

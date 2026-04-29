@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.models import InitialMeasurement, OperationalEvent, VeeException
+from app.models import InitialMeasurement, OperationalEvent, VeeException, VeeExecutionLog
 from app.services.finalization import is_initial_measurement_finalizable
 from app.services.seeds import seed_demo_environment
 from app.services.vee import (
     acknowledge_vee_exception,
     evaluate_or_get_vee_baseline,
+    reevaluate_vee_exception,
     resolve_vee_exception,
 )
 
@@ -138,3 +139,78 @@ def test_vee_exception_open_and_resolve_are_connected_to_operational_events(sess
     assert closed_alert.alert_status == "closed"
     assert resolved_event is not None
     assert resolved_event.is_alert is False
+
+
+def test_reevaluate_vee_exception_clears_old_blocker_and_creates_new_execution(session):
+    initial, vee_exception = _prepare_required_field_exception(session)
+    initial.unit_of_measure = "kWh"
+    session.flush()
+
+    execution = reevaluate_vee_exception(
+        session,
+        vee_exception.id,
+        reevaluated_by="operator_ui",
+    )
+    session.commit()
+    session.refresh(initial)
+    session.refresh(vee_exception)
+
+    assert execution.execution_status == "passed"
+    assert execution.trigger_type == "manual_re_evaluate"
+    assert vee_exception.exception_status == "resolved"
+    assert vee_exception.resolution_type == "re_evaluated_superseded"
+    assert initial.initial_status == "accepted"
+    assert is_initial_measurement_finalizable(initial) is True
+    assert session.scalar(
+        select(func.count())
+        .select_from(VeeExecutionLog)
+        .where(VeeExecutionLog.initial_measurement_id == initial.id)
+    ) == 2
+    assert session.scalar(
+        select(func.count())
+        .select_from(VeeException)
+        .where(
+            VeeException.initial_measurement_id == initial.id,
+            VeeException.exception_status.in_(("open", "acknowledged")),
+        )
+    ) == 0
+    reevaluated_event = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "vee_re_evaluated",
+            OperationalEvent.entity_type == "initial_measurement",
+            OperationalEvent.entity_id == initial.id,
+        )
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert reevaluated_event is not None
+
+
+def test_reevaluate_vee_exception_can_reopen_same_exception_code_in_new_snapshot(session):
+    initial, vee_exception = _prepare_required_field_exception(session)
+
+    execution = reevaluate_vee_exception(
+        session,
+        vee_exception.id,
+        reevaluated_by="operator_ui",
+    )
+    session.commit()
+    session.refresh(initial)
+    session.refresh(vee_exception)
+
+    reopened = session.scalars(
+        select(VeeException)
+        .where(
+            VeeException.initial_measurement_id == initial.id,
+            VeeException.exception_code == "vee_required_field_missing",
+        )
+        .order_by(VeeException.id.asc())
+    ).all()
+
+    assert execution.execution_status == "completed_with_exception"
+    assert vee_exception.exception_status == "resolved"
+    assert vee_exception.resolution_type == "re_evaluated_superseded"
+    assert initial.initial_status == "exception"
+    assert len(reopened) == 2
+    assert reopened[-1].exception_status == "open"

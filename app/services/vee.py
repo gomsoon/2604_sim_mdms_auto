@@ -289,6 +289,7 @@ def create_or_get_vee_exception(
         .where(
             VeeException.initial_measurement_id == initial_row.id,
             VeeException.exception_code == hit.exception_code,
+            VeeException.exception_status.in_(("open", "acknowledged")),
         )
         .order_by(VeeException.id.asc())
         .limit(1)
@@ -300,8 +301,8 @@ def create_or_get_vee_exception(
         return existing, False
 
     exception = VeeException(
-        initial_measurement_id=initial_row.id,
-        vee_execution_log_id=execution.id,
+        initial_measurement=initial_row,
+        vee_execution_log=execution,
         exception_code=hit.exception_code,
         severity=hit.severity,
         exception_status="open",
@@ -326,14 +327,16 @@ def evaluate_or_get_vee_baseline(
     *,
     pipeline_run: PipelineRun | None = None,
     trigger_type: str = "system",
+    force: bool = False,
 ) -> tuple[VeeExecutionLog, bool]:
-    existing = _find_existing_baseline_execution(session, initial_row)
-    if existing is not None:
-        if has_active_blocking_vee_exception(initial_row):
-            initial_row.initial_status = "exception"
-        elif existing.execution_status in {"passed", "completed_with_exception"}:
-            initial_row.initial_status = "accepted"
-        return existing, False
+    if not force:
+        existing = _find_existing_baseline_execution(session, initial_row)
+        if existing is not None:
+            if has_active_blocking_vee_exception(initial_row):
+                initial_row.initial_status = "exception"
+            elif existing.execution_status in {"passed", "completed_with_exception"}:
+                initial_row.initial_status = "accepted"
+            return existing, False
 
     rule_hits = evaluate_initial_measurement_rule_hits(session, initial_row)
     now = datetime.now(timezone.utc)
@@ -462,20 +465,14 @@ def acknowledge_vee_exception(
     return vee_exception
 
 
-def resolve_vee_exception(
+def _resolve_vee_exception_row(
     session: Session,
-    vee_exception_id: int,
+    vee_exception: VeeException,
     *,
     resolution_type: str,
     operator_memo: str | None = None,
     resolved_at: datetime | None = None,
-) -> VeeException:
-    vee_exception = _get_vee_exception(session, vee_exception_id)
-    if vee_exception.exception_status == "resolved":
-        raise VeeExceptionActionError(
-            "already_resolved", "The selected VEE exception is already resolved."
-        )
-
+) -> None:
     normalized_resolution_type = (resolution_type or "").strip() or "operator_resolution"
     normalized_memo = (operator_memo or "").strip() or None
 
@@ -515,6 +512,112 @@ def resolve_vee_exception(
         },
         exception_code=vee_exception.exception_code,
         resolution_type=normalized_resolution_type,
+    )
+
+
+def reevaluate_initial_measurement(
+    session: Session,
+    initial_measurement_id: int,
+    *,
+    reevaluated_by: str,
+    operator_memo: str | None = None,
+    reevaluated_at: datetime | None = None,
+) -> VeeExecutionLog:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    if initial_row is None:
+        raise VeeExceptionActionError(
+            "not_found",
+            "The selected VEE exception does not exist.",
+        )
+
+    active_exceptions = session.scalars(
+        select(VeeException)
+        .where(
+            VeeException.initial_measurement_id == initial_row.id,
+            VeeException.exception_status.in_(("open", "acknowledged")),
+        )
+        .order_by(VeeException.id.asc())
+    ).all()
+    for row in active_exceptions:
+        _resolve_vee_exception_row(
+            session,
+            row,
+            resolution_type="re_evaluated_superseded",
+            operator_memo=operator_memo,
+            resolved_at=reevaluated_at,
+        )
+
+    initial_row.initial_status = "ready"
+    execution, _ = evaluate_or_get_vee_baseline(
+        session,
+        initial_row,
+        trigger_type="manual_re_evaluate",
+        force=True,
+    )
+    canonical_row = initial_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    ingest_batch = raw_row.ingest_batch if raw_row is not None else None
+    record_operational_event(
+        session,
+        "vee_re_evaluated",
+        entity_type="initial_measurement",
+        entity_id=initial_row.id,
+        pipeline_run=execution.pipeline_run,
+        ingest_batch=ingest_batch,
+        hes_system=raw_row.hes_system if raw_row is not None else None,
+        meter_identifier=raw_row.meter_identifier if raw_row is not None else None,
+        batch_id=ingest_batch.batch_id if ingest_batch is not None else None,
+        details={
+            "initial_measurement_id": initial_row.id,
+            "vee_execution_log_id": execution.id,
+            "resolved_exception_ids": [row.id for row in active_exceptions],
+            "reevaluated_by": reevaluated_by,
+            "summary_code": execution.summary_code,
+        },
+        initial_measurement_id=initial_row.id,
+    )
+    session.flush()
+    return execution
+
+
+def reevaluate_vee_exception(
+    session: Session,
+    vee_exception_id: int,
+    *,
+    reevaluated_by: str,
+    operator_memo: str | None = None,
+    reevaluated_at: datetime | None = None,
+) -> VeeExecutionLog:
+    vee_exception = _get_vee_exception(session, vee_exception_id)
+    return reevaluate_initial_measurement(
+        session,
+        vee_exception.initial_measurement_id,
+        reevaluated_by=reevaluated_by,
+        operator_memo=operator_memo,
+        reevaluated_at=reevaluated_at,
+    )
+
+
+def resolve_vee_exception(
+    session: Session,
+    vee_exception_id: int,
+    *,
+    resolution_type: str,
+    operator_memo: str | None = None,
+    resolved_at: datetime | None = None,
+) -> VeeException:
+    vee_exception = _get_vee_exception(session, vee_exception_id)
+    if vee_exception.exception_status == "resolved":
+        raise VeeExceptionActionError(
+            "already_resolved", "The selected VEE exception is already resolved."
+        )
+
+    _resolve_vee_exception_row(
+        session,
+        vee_exception,
+        resolution_type=resolution_type,
+        operator_memo=operator_memo,
+        resolved_at=resolved_at,
     )
     session.flush()
     return vee_exception

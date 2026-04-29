@@ -110,6 +110,27 @@ Make `final_measurement` depend on accepted processing state rather than only on
 - current minimal finalization semantics are replaced by explicit VEE-aware promotion
 - regression remains stable on previously working canonical cases
 
+## Phase 4a. Manual re-VEE baseline
+
+### Goal
+
+Allow operators to trigger a fresh baseline VEE evaluation after source-data or master-data corrections.
+
+### Scope
+
+- resolve active VEE exceptions as `re_evaluated_superseded`
+- create a fresh baseline `vee_execution_log`
+- create a new `vee_exception` snapshot when issues persist
+- expose the action from the VEE exception detail view
+
+### Acceptance gate
+
+- resolved old exceptions remain auditable
+- the same exception code may reappear in a new snapshot
+- accepted re-evaluation restores finalization eligibility
+
+Operational, UI, and backend behavior for this step are described in [re-vee-baseline-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/re-vee-baseline-runbook.md).
+
 ## Phase 5. Usage persistence introduction
 
 ### Goal

@@ -26,6 +26,10 @@
       <div class="small text-secondary">{{ detail.vee_exception.exception_code }}</div>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
+      <form method="post" action="{{ url_for('web.reevaluate_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+        <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+        <button type="submit" class="btn btn-outline-secondary">{{ t("button.re_evaluate") }}</button>
+      </form>
       {% if detail.vee_exception.exception_status == "open" %}
       <form method="post" action="{{ url_for('web.acknowledge_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
         <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
