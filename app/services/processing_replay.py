@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import timedelta
 
 from sqlalchemy import func, select
@@ -37,6 +37,25 @@ class ReVeeReplaySummary:
     daily_usage_rows_deleted: int
     monthly_usage_groups_updated: int
     monthly_usage_rows_deleted: int
+    usage_recalculation_results: list["UsageRecalculationResult"]
+
+
+@dataclass(frozen=True, slots=True)
+class UsageRecalculationResult:
+    usage_type: str
+    service_point_id: int
+    measuring_component_id: int
+    period_start_at: str
+    period_end_at: str
+    action: str
+    previous_usage_transaction_id: int | None
+    current_usage_transaction_id: int | None
+    previous_calculation_status: str | None
+    current_calculation_status: str | None
+    previous_usage_value: str | None
+    current_usage_value: str | None
+    previous_missing_interval_count: int | None
+    current_missing_interval_count: int | None
 
 
 def _get_current_final_measurement_for_initial(
@@ -110,13 +129,90 @@ def _delete_usage_transaction_for_window(
     return 1
 
 
+def _get_usage_transaction_for_window(
+    session: Session,
+    *,
+    window: UsageWindowScope,
+) -> UsageTransaction | None:
+    return session.scalar(
+        select(UsageTransaction)
+        .where(UsageTransaction.service_point_id == window.service_point_id)
+        .where(UsageTransaction.measuring_component_id == window.measuring_component_id)
+        .where(UsageTransaction.usage_type == window.usage_type)
+        .where(UsageTransaction.period_start_at == window.period_start_at)
+        .where(UsageTransaction.period_end_at == window.period_end_at)
+        .limit(1)
+    )
+
+
+def _build_usage_recalculation_result(
+    *,
+    window: UsageWindowScope,
+    previous_snapshot: dict[str, object] | None,
+    current_snapshot: dict[str, object] | None,
+    action: str,
+) -> UsageRecalculationResult:
+    return UsageRecalculationResult(
+        usage_type=window.usage_type,
+        service_point_id=window.service_point_id,
+        measuring_component_id=window.measuring_component_id,
+        period_start_at=window.period_start_at.isoformat(),
+        period_end_at=window.period_end_at.isoformat(),
+        action=action,
+        previous_usage_transaction_id=(
+            int(previous_snapshot["id"]) if previous_snapshot is not None else None
+        ),
+        current_usage_transaction_id=(
+            int(current_snapshot["id"]) if current_snapshot is not None else None
+        ),
+        previous_calculation_status=(
+            str(previous_snapshot["calculation_status"])
+            if previous_snapshot is not None
+            else None
+        ),
+        current_calculation_status=(
+            str(current_snapshot["calculation_status"])
+            if current_snapshot is not None
+            else None
+        ),
+        previous_usage_value=(
+            str(previous_snapshot["usage_value"]) if previous_snapshot is not None else None
+        ),
+        current_usage_value=(
+            str(current_snapshot["usage_value"]) if current_snapshot is not None else None
+        ),
+        previous_missing_interval_count=(
+            int(previous_snapshot["missing_interval_count"])
+            if previous_snapshot is not None
+            else None
+        ),
+        current_missing_interval_count=(
+            int(current_snapshot["missing_interval_count"])
+            if current_snapshot is not None
+            else None
+        ),
+    )
+
+
+def _snapshot_usage_transaction(row: UsageTransaction | None) -> dict[str, object] | None:
+    if row is None:
+        return None
+    return {
+        "id": row.id,
+        "calculation_status": row.calculation_status,
+        "usage_value": str(row.usage_value),
+        "missing_interval_count": row.missing_interval_count,
+        "quality_summary": row.quality_summary,
+    }
+
+
 def _recalculate_impacted_usage_windows(
     session: Session,
     *,
     previous_final: FinalMeasurement | None,
     current_final: FinalMeasurement | None,
     trigger_type: str,
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int, list[UsageRecalculationResult]]:
     impacted_daily: set[UsageWindowScope] = set()
     impacted_monthly: set[UsageWindowScope] = set()
 
@@ -136,6 +232,8 @@ def _recalculate_impacted_usage_windows(
             )
         )
 
+    all_results: list[UsageRecalculationResult] = []
+
     def _apply(windows: set[UsageWindowScope]) -> tuple[int, int]:
         groups_updated = 0
         rows_deleted = 0
@@ -149,12 +247,23 @@ def _recalculate_impacted_usage_windows(
                 row.usage_type,
             ),
         ):
+            previous_row = _get_usage_transaction_for_window(session, window=window)
+            previous_snapshot = _snapshot_usage_transaction(previous_row)
             current_final_count = _count_current_finals_in_window(session, window=window)
             if current_final_count == 0:
-                rows_deleted += _delete_usage_transaction_for_window(session, window=window)
+                deleted = _delete_usage_transaction_for_window(session, window=window)
+                rows_deleted += deleted
+                all_results.append(
+                    _build_usage_recalculation_result(
+                        window=window,
+                        previous_snapshot=previous_snapshot,
+                        current_snapshot=None,
+                        action="deleted" if deleted else "unchanged",
+                    )
+                )
                 continue
 
-            summary = calculate_usage_transactions(
+            calculate_usage_transactions(
                 session,
                 usage_type=window.usage_type,
                 service_point_id=window.service_point_id,
@@ -163,7 +272,29 @@ def _recalculate_impacted_usage_windows(
                 date_to=window.period_end_at - timedelta(microseconds=1),
                 trigger_type=trigger_type,
             )
-            groups_updated += summary.groups
+            current_row = _get_usage_transaction_for_window(session, window=window)
+            current_snapshot = _snapshot_usage_transaction(current_row)
+            action = "unchanged"
+            if previous_snapshot is None and current_snapshot is not None:
+                action = "updated"
+            elif previous_snapshot is not None and current_snapshot is not None and (
+                previous_snapshot["calculation_status"] != current_snapshot["calculation_status"]
+                or previous_snapshot["usage_value"] != current_snapshot["usage_value"]
+                or previous_snapshot["missing_interval_count"]
+                != current_snapshot["missing_interval_count"]
+                or previous_snapshot["quality_summary"] != current_snapshot["quality_summary"]
+            ):
+                action = "updated"
+            if action == "updated":
+                groups_updated += 1
+            all_results.append(
+                _build_usage_recalculation_result(
+                    window=window,
+                    previous_snapshot=previous_snapshot,
+                    current_snapshot=current_snapshot,
+                    action=action,
+                )
+            )
         return groups_updated, rows_deleted
 
     daily_groups_updated, daily_rows_deleted = _apply(impacted_daily)
@@ -173,6 +304,7 @@ def _recalculate_impacted_usage_windows(
         daily_rows_deleted,
         monthly_groups_updated,
         monthly_rows_deleted,
+        all_results,
     )
 
 
@@ -223,6 +355,7 @@ def reevaluate_vee_exception_and_replay(
     daily_usage_rows_deleted = 0
     monthly_usage_groups_updated = 0
     monthly_usage_rows_deleted = 0
+    usage_recalculation_results: list[UsageRecalculationResult] = []
 
     if not active_exceptions and is_initial_measurement_finalizable(initial_row):
         current_final, final_created = create_or_get_final_measurement(
@@ -256,6 +389,7 @@ def reevaluate_vee_exception_and_replay(
                 daily_usage_rows_deleted,
                 monthly_usage_groups_updated,
                 monthly_usage_rows_deleted,
+                usage_recalculation_results,
             ) = _recalculate_impacted_usage_windows(
                 session,
                 previous_final=previous_final,
@@ -274,6 +408,9 @@ def reevaluate_vee_exception_and_replay(
                     "daily_usage_rows_deleted": daily_usage_rows_deleted,
                     "monthly_usage_groups_updated": monthly_usage_groups_updated,
                     "monthly_usage_rows_deleted": monthly_usage_rows_deleted,
+                    "usage_recalculation_results": [
+                        asdict(row) for row in usage_recalculation_results
+                    ],
                 },
                 initial_measurement_id=initial_measurement_id,
                 daily_usage_groups_updated=daily_usage_groups_updated,
@@ -300,4 +437,5 @@ def reevaluate_vee_exception_and_replay(
         daily_usage_rows_deleted=daily_usage_rows_deleted,
         monthly_usage_groups_updated=monthly_usage_groups_updated,
         monthly_usage_rows_deleted=monthly_usage_rows_deleted,
+        usage_recalculation_results=usage_recalculation_results,
     )

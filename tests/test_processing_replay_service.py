@@ -75,6 +75,14 @@ def test_reevaluate_replay_creates_final_and_usage_when_issue_clears(session):
     assert summary.final_unchanged is False
     assert summary.daily_usage_groups_updated == 1
     assert summary.monthly_usage_groups_updated == 1
+    assert len(summary.usage_recalculation_results) == 2
+    assert {row.usage_type for row in summary.usage_recalculation_results} == {
+        "daily_consumption",
+        "monthly_consumption",
+    }
+    assert {row.action for row in summary.usage_recalculation_results} == {"updated"}
+    assert all(row.previous_usage_transaction_id is None for row in summary.usage_recalculation_results)
+    assert all(row.current_usage_transaction_id is not None for row in summary.usage_recalculation_results)
     assert final_row is not None
     assert final_row.revision_number == 1
     assert len(usage_rows) == 2
@@ -82,12 +90,14 @@ def test_reevaluate_replay_creates_final_and_usage_when_issue_clears(session):
         "daily_consumption",
         "monthly_consumption",
     }
-    assert session.scalar(
+    usage_event = session.scalar(
         select(OperationalEvent)
         .where(OperationalEvent.event_code == "usage_recalculated_after_vee")
         .order_by(OperationalEvent.id.desc())
         .limit(1)
-    ) is not None
+    )
+    assert usage_event is not None
+    assert len(usage_event.details["usage_recalculation_results"]) == 2
 
 
 def test_reevaluate_replay_supersedes_final_and_updates_usage(session):
@@ -167,13 +177,35 @@ def test_reevaluate_replay_supersedes_final_and_updates_usage(session):
     assert summary.current_final_id == current_final.id
     assert summary.daily_usage_groups_updated == 1
     assert summary.monthly_usage_groups_updated == 1
+    assert len(summary.usage_recalculation_results) == 2
+    daily_result = next(
+        row for row in summary.usage_recalculation_results if row.usage_type == "daily_consumption"
+    )
+    monthly_result = next(
+        row for row in summary.usage_recalculation_results if row.usage_type == "monthly_consumption"
+    )
+    assert daily_result.action == "updated"
+    assert daily_result.previous_usage_value == "14.2000"
+    assert daily_result.current_usage_value == "42.0000"
+    assert monthly_result.action == "updated"
+    assert monthly_result.previous_usage_value == "14.2000"
+    assert monthly_result.current_usage_value == "42.0000"
     assert daily_usage is not None
     assert monthly_usage is not None
     assert daily_usage.usage_value == Decimal("42.0000")
     assert monthly_usage.usage_value == Decimal("42.0000")
-    assert session.scalar(
+    final_event = session.scalar(
         select(OperationalEvent)
         .where(OperationalEvent.event_code == "final_measurement_superseded")
         .order_by(OperationalEvent.id.desc())
         .limit(1)
-    ) is not None
+    )
+    usage_event = session.scalar(
+        select(OperationalEvent)
+        .where(OperationalEvent.event_code == "usage_recalculated_after_vee")
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert final_event is not None
+    assert usage_event is not None
+    assert len(usage_event.details["usage_recalculation_results"]) == 2

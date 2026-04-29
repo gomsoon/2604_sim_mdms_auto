@@ -133,6 +133,7 @@ The detail view provides the operator enough context to decide whether re-evalua
   - whether the exception cleared or reopened
   - whether finalization created or superseded a current final
   - whether daily or monthly usage windows were recalculated or deleted
+  - per-window usage recalculation results that keep before/after outcome context for later drill-down
 
 ### What the operator should see after re-VEE
 
@@ -165,6 +166,14 @@ The current backend flow is:
 7. If the result is acceptable again, attempt re-finalization.
 8. If the authoritative final changes, recalculate only the directly impacted usage windows.
 9. Record `vee_re_evaluated` and any downstream processing events as `operational_event`.
+
+The usage recalculation payload should preserve per-window result detail, not only aggregate counts.
+This allows later screens to show:
+
+- which day or month window changed
+- whether the usage row was updated, deleted, or effectively unchanged
+- the previous and current usage values
+- the previous and current calculation status
 
 ### Important implementation rule
 
