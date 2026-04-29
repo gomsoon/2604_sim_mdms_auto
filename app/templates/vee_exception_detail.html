@@ -82,6 +82,50 @@
         </div>
       </div>
     </div>
+    {% if replay_summary.usage_recalculation_results %}
+    <div class="mt-4">
+      <h3 class="h6 mb-3">{{ t("page.vee_exception_detail.usage_recalculation_results") }}</h3>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>{{ t("table.usage_type") }}</th>
+              <th>{{ t("table.period") }}</th>
+              <th>{{ t("table.action") }}</th>
+              <th>{{ t("field.previous") }}</th>
+              <th>{{ t("field.current") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in replay_summary.usage_recalculation_results %}
+            <tr>
+              <td>{{ t_or("usage.type." ~ row.usage_type, row.usage_type) }}</td>
+              <td class="small">
+                <div>{{ row.period_start_at|dt }}</div>
+                <div class="text-secondary">{{ row.period_end_at|dt }}</div>
+              </td>
+              <td>
+                <span class="badge text-bg-light">
+                  {{ t_or("usage.recalculation_action." ~ row.action, row.action) }}
+                </span>
+              </td>
+              <td class="small">
+                <div>{{ t("table.value") }}: {{ row.previous_usage_value or t("common.none") }}</div>
+                <div>{{ t("table.status") }}: {{ t_or("usage.calculation_status." ~ row.previous_calculation_status, row.previous_calculation_status or t("common.none")) }}</div>
+                <div>{{ t("table.missing_interval_count") }}: {{ row.previous_missing_interval_count if row.previous_missing_interval_count is not none else t("common.none") }}</div>
+              </td>
+              <td class="small">
+                <div>{{ t("table.value") }}: {{ row.current_usage_value or t("common.none") }}</div>
+                <div>{{ t("table.status") }}: {{ t_or("usage.calculation_status." ~ row.current_calculation_status, row.current_calculation_status or t("common.none")) }}</div>
+                <div>{{ t("table.missing_interval_count") }}: {{ row.current_missing_interval_count if row.current_missing_interval_count is not none else t("common.none") }}</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endif %}

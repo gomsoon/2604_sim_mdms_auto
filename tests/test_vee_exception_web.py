@@ -131,6 +131,10 @@ def test_vee_exception_re_evaluate_via_web_creates_new_execution(session, client
     assert "재평가 결과" in text
     assert "현재 최종 생성" in text
     assert "일별 사용량 재계산" in text
+    assert "영향받은 사용량 window" in text
+    assert "일별 사용량" in text
+    assert "월별 사용량" in text
+    assert "재계산됨" in text
     assert updated is not None
     assert updated.exception_status == "resolved"
     assert updated.resolution_type == "re_evaluated_superseded"
