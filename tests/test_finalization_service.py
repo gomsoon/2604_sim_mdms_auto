@@ -72,6 +72,43 @@ def test_finalize_canonical_measurements_is_idempotent_on_second_run(session):
     assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 1
 
 
+def test_finalize_canonical_measurements_creates_superseding_revision_when_snapshot_changes(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    first_summary = finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial_row is not None
+    initial_row.value = Decimal("42.0000")
+    session.commit()
+
+    second_summary = finalize_canonical_measurements(
+        session,
+        batch_id="demo-read-batch",
+        revision_reason_code="vee_re_evaluated",
+    )
+    session.commit()
+
+    rows = session.scalars(select(FinalMeasurement).order_by(FinalMeasurement.id.asc())).all()
+    refreshed_initial = session.scalar(select(InitialMeasurement).limit(1))
+
+    assert first_summary.finalized == 1
+    assert second_summary.finalized == 1
+    assert len(rows) == 2
+    assert rows[0].final_status == "superseded"
+    assert rows[0].is_current is False
+    assert rows[1].final_status == "finalized"
+    assert rows[1].is_current is True
+    assert rows[1].revision_number == 2
+    assert rows[1].revision_reason_code == "vee_re_evaluated"
+    assert rows[1].supersedes_final_measurement_id == rows[0].id
+    assert refreshed_initial is not None
+    assert refreshed_initial.final_measurement is not None
+    assert refreshed_initial.final_measurement.id == rows[1].id
+
+
 def test_finalize_canonical_measurements_skips_non_well_formed_rows(session):
     seed_demo_environment(session)
     session.commit()

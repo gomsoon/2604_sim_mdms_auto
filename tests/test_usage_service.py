@@ -309,3 +309,55 @@ def test_calculate_usage_transactions_ignores_non_current_final_rows(session):
     assert summary.created == 0
     assert summary.updated == 0
     assert rows == []
+
+
+def test_calculate_usage_transactions_uses_only_current_final_revision(session):
+    hes_system_id, service_point_id = _prepare_usage_environment(session)
+    _ingest_and_finalize_batch(
+        session,
+        hes_system_id=hes_system_id,
+        batch_id="usage-current-final-only",
+        received_at="2026-04-23T09:00:00+09:00",
+        reads=_build_hourly_reads(local_date="2026-04-23"),
+    )
+
+    final_rows = session.scalars(select(FinalMeasurement).order_by(FinalMeasurement.id.asc())).all()
+    assert final_rows
+    superseded_row = final_rows[0]
+    superseded_row.is_current = False
+    superseded_row.final_status = "superseded"
+    session.flush()
+
+    replacement = FinalMeasurement(
+        initial_measurement_id=superseded_row.initial_measurement_id,
+        canonical_measurement_id=superseded_row.canonical_measurement_id,
+        measuring_component_id=superseded_row.measuring_component_id,
+        device_id=superseded_row.device_id,
+        service_point_id=superseded_row.service_point_id,
+        measured_at=superseded_row.measured_at,
+        value=Decimal("5.0000"),
+        quality_code=superseded_row.quality_code,
+        status_code=superseded_row.status_code,
+        unit_of_measure=superseded_row.unit_of_measure,
+        final_status="finalized",
+        finalized_at=superseded_row.finalized_at,
+        revision_number=2,
+        revision_reason_code="vee_re_evaluated",
+        is_current=True,
+        supersedes_final_measurement_id=superseded_row.id,
+    )
+    session.add(replacement)
+    session.commit()
+
+    summary = calculate_usage_transactions(
+        session,
+        usage_type="daily_consumption",
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    row = session.scalar(select(UsageTransaction).limit(1))
+
+    assert summary.groups == 1
+    assert row is not None
+    assert row.usage_value == Decimal("28.0000")

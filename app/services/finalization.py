@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
@@ -46,22 +46,68 @@ def is_initial_measurement_finalizable(row: InitialMeasurement) -> bool:
     )
 
 
-def create_or_get_final_measurement(
-    session: Session, initial_row: InitialMeasurement
-) -> tuple[FinalMeasurement, bool]:
-    if initial_row.final_measurement is not None:
-        return initial_row.final_measurement, False
+def _get_current_final_measurement(
+    session: Session,
+    initial_row: InitialMeasurement,
+) -> FinalMeasurement | None:
+    canonical_row = initial_row.canonical_measurement
+    if canonical_row is None:
+        return None
 
+    return session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.is_current.is_(True),
+            or_(
+                FinalMeasurement.initial_measurement_id == initial_row.id,
+                (
+                    FinalMeasurement.initial_measurement_id.is_(None)
+                    & (FinalMeasurement.canonical_measurement_id == canonical_row.id)
+                ),
+            ),
+        )
+        .order_by(FinalMeasurement.revision_number.desc(), FinalMeasurement.id.desc())
+        .limit(1)
+    )
+
+
+def _final_measurement_matches_initial(
+    final_row: FinalMeasurement,
+    initial_row: InitialMeasurement,
+) -> bool:
+    return (
+        final_row.measuring_component_id == initial_row.measuring_component_id
+        and final_row.device_id == initial_row.device_id
+        and final_row.service_point_id == initial_row.service_point_id
+        and final_row.measured_at == initial_row.measured_at
+        and final_row.value == initial_row.value
+        and final_row.quality_code == initial_row.quality_code
+        and final_row.status_code == initial_row.status_code
+        and final_row.unit_of_measure == initial_row.unit_of_measure
+    )
+
+
+def create_or_get_final_measurement(
+    session: Session,
+    initial_row: InitialMeasurement,
+    *,
+    revision_reason_code: str | None = None,
+) -> tuple[FinalMeasurement, bool]:
     canonical_row = initial_row.canonical_measurement
     if canonical_row is None:
         raise ValueError("initial_measurement must link to canonical_measurement")
 
-    if canonical_row.final_measurement is not None:
-        final_row = canonical_row.final_measurement
-        if final_row.initial_measurement_id is None:
-            final_row.initial_measurement = initial_row
+    current_final = _get_current_final_measurement(session, initial_row)
+    if current_final is not None:
+        if current_final.initial_measurement_id is None:
+            current_final.initial_measurement = initial_row
             session.flush()
-        return final_row, False
+        if _final_measurement_matches_initial(current_final, initial_row):
+            return current_final, False
+
+        current_final.final_status = "superseded"
+        current_final.is_current = False
+        session.flush()
 
     final_row = FinalMeasurement(
         initial_measurement=initial_row,
@@ -76,12 +122,15 @@ def create_or_get_final_measurement(
         unit_of_measure=initial_row.unit_of_measure,
         final_status="finalized",
         finalized_at=datetime.now(timezone.utc),
-        revision_number=1,
-        revision_reason_code=None,
+        revision_number=1 if current_final is None else current_final.revision_number + 1,
+        revision_reason_code=None if current_final is None else revision_reason_code or "re_finalized",
         is_current=True,
+        supersedes_final_measurement=current_final,
     )
     session.add(final_row)
     session.flush()
+    session.expire(initial_row, ["final_measurement", "final_measurements"])
+    session.expire(canonical_row, ["final_measurement", "final_measurements"])
     return final_row, True
 
 
@@ -94,6 +143,7 @@ def finalize_canonical_measurements(
     date_to: datetime | None = None,
     limit: int = 100,
     trigger_type: str = "manual",
+    revision_reason_code: str | None = None,
 ) -> FinalizationSummary:
     ingest_batch = None
     if batch_id:
@@ -157,17 +207,15 @@ def finalize_canonical_measurements(
         if source_system is None and raw_row is not None:
             source_system = raw_row.source_system
 
-        if row.final_measurement is not None or (
-            canonical_row is not None and canonical_row.final_measurement is not None
-        ):
-            skipped_existing += 1
-            continue
-
         if not is_initial_measurement_finalizable(row):
             skipped_not_well_formed += 1
             continue
 
-        final_row, created = create_or_get_final_measurement(session, row)
+        final_row, created = create_or_get_final_measurement(
+            session,
+            row,
+            revision_reason_code=revision_reason_code,
+        )
         if created:
             finalized += 1
             finalized_at_values.append(final_row.finalized_at)

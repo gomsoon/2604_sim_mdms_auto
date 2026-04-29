@@ -253,6 +253,10 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_usage_transaction_measuring_component_period_start_at" in index_defs
         assert "ix_final_measurement_is_current" in index_defs
         assert "ix_final_measurement_supersedes_final_measurement_id" in index_defs
+        assert "ix_final_measurement_initial_measurement_id" in index_defs
+        assert "ix_final_measurement_canonical_measurement_id" in index_defs
+        assert "uq_final_measurement_current_initial_measurement_id" in index_defs
+        assert "UNIQUE INDEX" in index_defs["uq_final_measurement_current_initial_measurement_id"]
         assert "uq_adapter_run_single_running_per_instance" in index_defs
         assert "run_status" in index_defs[
             "uq_adapter_run_single_running_per_instance"

@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    and_,
     ForeignKeyConstraint,
     Index,
     JSON,
@@ -517,8 +518,18 @@ class CanonicalMeasurement(TimestampMixin, Base):
     initial_measurement: Mapped["InitialMeasurement | None"] = relationship(
         back_populates="canonical_measurement", uselist=False
     )
+    final_measurements: Mapped[list["FinalMeasurement"]] = relationship(
+        back_populates="canonical_measurement",
+        overlaps="final_measurement",
+    )
     final_measurement: Mapped["FinalMeasurement | None"] = relationship(
-        back_populates="canonical_measurement", uselist=False
+        primaryjoin=lambda: and_(
+            CanonicalMeasurement.id == foreign(FinalMeasurement.canonical_measurement_id),
+            FinalMeasurement.is_current.is_(True),
+        ),
+        uselist=False,
+        viewonly=True,
+        overlaps="final_measurements,canonical_measurement",
     )
 
 
@@ -551,8 +562,18 @@ class InitialMeasurement(TimestampMixin, Base):
     )
     device: Mapped[Device] = relationship(back_populates="initial_measurements")
     service_point: Mapped[ServicePoint] = relationship(back_populates="initial_measurements")
+    final_measurements: Mapped[list["FinalMeasurement"]] = relationship(
+        back_populates="initial_measurement",
+        overlaps="final_measurement",
+    )
     final_measurement: Mapped["FinalMeasurement | None"] = relationship(
-        back_populates="initial_measurement", uselist=False
+        primaryjoin=lambda: and_(
+            InitialMeasurement.id == foreign(FinalMeasurement.initial_measurement_id),
+            FinalMeasurement.is_current.is_(True),
+        ),
+        uselist=False,
+        viewonly=True,
+        overlaps="final_measurements,initial_measurement",
     )
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(
         back_populates="initial_measurement"
@@ -619,10 +640,10 @@ class FinalMeasurement(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     initial_measurement_id: Mapped[int | None] = mapped_column(
-        ForeignKey("initial_measurement.id"), unique=True, index=True
+        ForeignKey("initial_measurement.id"), index=True
     )
     canonical_measurement_id: Mapped[int] = mapped_column(
-        ForeignKey("canonical_measurement.id"), nullable=False, unique=True
+        ForeignKey("canonical_measurement.id"), nullable=False, index=True
     )
     measuring_component_id: Mapped[int] = mapped_column(
         ForeignKey("measuring_component.id"), nullable=False
@@ -645,10 +666,12 @@ class FinalMeasurement(TimestampMixin, Base):
     )
 
     initial_measurement: Mapped["InitialMeasurement | None"] = relationship(
-        back_populates="final_measurement"
+        back_populates="final_measurements",
+        overlaps="final_measurement",
     )
     canonical_measurement: Mapped[CanonicalMeasurement] = relationship(
-        back_populates="final_measurement"
+        back_populates="final_measurements",
+        overlaps="final_measurement",
     )
     supersedes_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
         remote_side=lambda: [FinalMeasurement.id]
