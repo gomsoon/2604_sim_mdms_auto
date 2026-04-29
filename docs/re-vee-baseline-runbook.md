@@ -10,6 +10,42 @@ This document explains the current manual `re-VEE` baseline from three angles:
 
 The current baseline is intentionally narrow. It supports targeted re-evaluation of one `vee_exception` and its linked `initial_measurement`. It does not yet provide bulk replay, scheduled re-VEE, or rule-version-based automatic reprocessing.
 
+## UX principles
+
+Manual `re-VEE` starts from a single operator button, but the backend may now touch more than one processing stage:
+
+- VEE re-evaluation
+- VEE exception supersession or reopening
+- re-finalization when the initial measurement becomes acceptable again
+- targeted usage recalculation when the authoritative final changes
+
+Because of that, one generic success flash is not enough as the only operator feedback.
+
+The current UX baseline follows these rules:
+
+- one `vee_exception` detail action may remain synchronous for now
+- the detail page should show a structured outcome summary after the request completes
+- the summary should distinguish `VEE cleared` vs `VEE reopened`
+- the summary should distinguish `final unchanged` vs `final created` vs `final superseded`
+- the summary should show whether daily or monthly usage windows were recalculated or deleted
+
+## Sync vs async boundary
+
+The current baseline intentionally keeps only the narrowest scope synchronous:
+
+- one `vee_exception`
+- one linked `initial_measurement`
+- any directly impacted final revision
+- any directly impacted daily/monthly usage windows
+
+The following cases should be treated as future asynchronous work rather than current synchronous UI actions:
+
+- HES-wide re-VEE
+- batch-wide re-VEE
+- date-range replay across many measurements
+- scheduled automatic re-evaluation after bulk master-data correction
+- mass usage recalculation after large final supersession events
+
 ## When re-VEE happens
 
 The current baseline assumes re-VEE is an operator action taken after some corrective work has already happened.
@@ -58,6 +94,8 @@ Give operators a safe way to confirm whether a blocking or warning VEE exception
 - the related operational alerts are closed
 - a fresh `vee_execution_log` row is created with `trigger_type = manual_re_evaluate`
 - the baseline rules are evaluated again
+- if the new result is `accepted`, finalization may run again immediately
+- if current final data changes, directly impacted daily and monthly usage windows may be recalculated immediately
 
 ### After re-VEE
 
@@ -90,6 +128,11 @@ The detail view provides the operator enough context to decide whether re-evalua
 - the action posts back to the application server
 - success feedback is shown after the request completes
 - the refreshed page reflects the new execution and exception state
+- the refreshed page also shows a result card summarizing:
+  - the new `vee_execution_log`
+  - whether the exception cleared or reopened
+  - whether finalization created or superseded a current final
+  - whether daily or monthly usage windows were recalculated or deleted
 
 ### What the operator should see after re-VEE
 
@@ -119,7 +162,9 @@ The current backend flow is:
 4. Create a fresh `vee_execution_log` for the same `initial_measurement`.
 5. Re-run the baseline VEE rules.
 6. Create new `vee_exception` rows only for the currently detected issues.
-7. Record `vee_re_evaluated` as an `operational_event`.
+7. If the result is acceptable again, attempt re-finalization.
+8. If the authoritative final changes, recalculate only the directly impacted usage windows.
+9. Record `vee_re_evaluated` and any downstream processing events as `operational_event`.
 
 ### Important implementation rule
 
@@ -141,6 +186,8 @@ Important event and alert behaviors are:
 - re-evaluation closes the old active alert when the old exception is superseded
 - successful re-evaluation records `vee_re_evaluated`
 - if a new issue remains, a fresh VEE alert opens again from the new snapshot
+- if re-finalization creates a new current final revision, `final_measurement_superseded` is recorded
+- if impacted usage windows are recalculated, `usage_recalculated_after_vee` is recorded
 
 ## Finalization impact
 
@@ -162,3 +209,9 @@ The current manual baseline does not yet include:
 - explicit side-by-side comparison UI between old and new VEE snapshots
 
 These remain follow-up work after the manual baseline proves stable in operation.
+
+Additional limitations that still remain:
+
+- the operator still waits synchronously for the single-object action to finish
+- there is no live sub-step progress bar inside the same request
+- bulk or long-running replays are not yet promoted to queue-backed pipeline UI

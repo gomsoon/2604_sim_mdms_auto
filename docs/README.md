@@ -93,7 +93,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `hes-centric-operations-plan.md` defines the next HES-first operating slice after the registry baseline, including HES-scoped adapter registration and stronger top-down drill-down.
 - `usage-and-billing-ready-architecture.md` defines the next processing/core shape after the current minimal finalization baseline, including the intended `initial -> VEE -> final -> usage` flow.
 - `vee-baseline-design.md` defines the first practical VEE persistence boundary, including `initial_measurement`, `vee_execution_log`, `vee_exception`, and the promotion conditions into final.
-- `re-vee-baseline-runbook.md` explains when manual re-VEE should be triggered, what operators see in the UI, and how the backend supersedes old VEE exceptions and records a fresh execution snapshot.
+- `re-vee-baseline-runbook.md` explains when manual re-VEE should be triggered, what operators see in the UI, how synchronous single-object re-VEE differs from future async replay, and how the backend supersedes old VEE exceptions, re-finalizes current data, and recalculates impacted usage windows.
 - `final-measurement-revision-design.md` defines how `final_measurement` should grow from a single promotion target into a current-plus-history authoritative layer with explicit supersession and revision lineage.
 - `usage-transaction-design.md` defines the first downstream usage layer and the boundary between usage-ready and later billing-ready outputs.
 - `processing-core-persistence-design.md` translates that processing/core direction into a concrete first persistence slice for `initial_measurement`, `vee_execution_log`, `vee_exception`, and the future change in `final_measurement` promotion rules.

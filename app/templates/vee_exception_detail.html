@@ -18,6 +18,74 @@
   </div>
 </div>
 
+{% if replay_summary %}
+<div class="card border-success-subtle shadow-sm mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+      <div>
+        <h2 class="h5 mb-1">{{ t("page.vee_exception_detail.replay_result") }}</h2>
+        <p class="text-secondary mb-0">{{ t("page.vee_exception_detail.replay_result_description") }}</p>
+      </div>
+      <div class="small text-secondary">
+        {{ t("table.vee_execution_log_id") }}: {{ replay_summary.vee_execution_log_id }}
+      </div>
+    </div>
+    <div class="row g-3 mt-1">
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.vee_outcome") }}</div>
+          {% if replay_summary.exception_cleared %}
+          <div class="fw-semibold text-success">{{ t("vee.replay_outcome.cleared") }}</div>
+          {% else %}
+          <div class="fw-semibold text-warning">{{ t("vee.replay_outcome.reopened") }}</div>
+          {% endif %}
+          <div class="small text-secondary mt-1">
+            {{ t("field.active_exceptions") }}: {{ replay_summary.active_exception_count }},
+            {{ t("field.blocking_exceptions") }}: {{ replay_summary.blocking_exception_count }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.finalization_outcome") }}</div>
+          {% if replay_summary.final_superseded %}
+          <div class="fw-semibold text-primary">{{ t("vee.replay_final.superseded") }}</div>
+          {% elif replay_summary.final_created %}
+          <div class="fw-semibold text-primary">{{ t("vee.replay_final.created") }}</div>
+          {% elif replay_summary.final_unchanged and replay_summary.current_final_id %}
+          <div class="fw-semibold text-secondary">{{ t("vee.replay_final.unchanged") }}</div>
+          {% else %}
+          <div class="fw-semibold text-secondary">{{ t("vee.replay_final.not_ready") }}</div>
+          {% endif %}
+          <div class="small text-secondary mt-1">
+            {{ t("field.previous_final") }}: {{ replay_summary.previous_final_id or t("common.none") }},
+            {{ t("field.current_final") }}: {{ replay_summary.current_final_id or t("common.none") }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.daily_usage_recalculation") }}</div>
+          <div class="fw-semibold">{{ replay_summary.daily_usage_groups_updated }}</div>
+          <div class="small text-secondary mt-1">
+            {{ t("field.rows_deleted") }}: {{ replay_summary.daily_usage_rows_deleted }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.monthly_usage_recalculation") }}</div>
+          <div class="fw-semibold">{{ replay_summary.monthly_usage_groups_updated }}</div>
+          <div class="small text-secondary mt-1">
+            {{ t("field.rows_deleted") }}: {{ replay_summary.monthly_usage_rows_deleted }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if detail.vee_exception.exception_status != "resolved" %}
 <div class="card shadow-sm mb-4">
   <div class="card-body d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between">

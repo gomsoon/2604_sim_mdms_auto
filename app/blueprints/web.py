@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from dataclasses import asdict
+
+from flask import Blueprint, abort, flash, redirect, render_template, request, session as browser_session, url_for
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
@@ -77,10 +79,10 @@ from app.services.operational_events import (
     acknowledge_operational_alert,
     close_operational_alert,
 )
+from app.services.processing_replay import reevaluate_vee_exception_and_replay
 from app.services.vee import (
     VeeExceptionActionError,
     acknowledge_vee_exception,
-    reevaluate_vee_exception,
     resolve_vee_exception,
 )
 from app.services.visibility import (
@@ -264,6 +266,20 @@ def _vee_exception_redirect(vee_exception_id: int) -> str:
     return url_for("web.vee_exception_detail", vee_exception_id=vee_exception_id, lang=get_locale())
 
 
+def _store_vee_replay_summary(summary) -> None:
+    browser_session["last_vee_replay_summary"] = asdict(summary)
+
+
+def _pop_vee_replay_summary(vee_exception_id: int) -> dict | None:
+    payload = browser_session.pop("last_vee_replay_summary", None)
+    if payload is None:
+        return None
+    if payload.get("target_vee_exception_id") == vee_exception_id:
+        return payload
+    browser_session["last_vee_replay_summary"] = payload
+    return None
+
+
 @bp.get("/vee-exceptions/<int:vee_exception_id>")
 def vee_exception_detail(vee_exception_id: int):
     session = get_session()
@@ -271,7 +287,11 @@ def vee_exception_detail(vee_exception_id: int):
     if detail is None:
         abort(404)
 
-    return render_template("vee_exception_detail.html", detail=detail)
+    return render_template(
+        "vee_exception_detail.html",
+        detail=detail,
+        replay_summary=_pop_vee_replay_summary(vee_exception_id),
+    )
 
 
 @bp.post("/vee-exceptions/<int:vee_exception_id>/acknowledge")
@@ -311,12 +331,14 @@ def resolve_vee_exception_view(vee_exception_id: int):
 def reevaluate_vee_exception_view(vee_exception_id: int):
     session = get_session()
     try:
-        reevaluate_vee_exception(
+        summary = reevaluate_vee_exception_and_replay(
             session,
             vee_exception_id,
             reevaluated_by="operator_ui",
+            operator_memo=request.form.get("operator_memo"),
         )
         session.commit()
+        _store_vee_replay_summary(summary)
         flash(translate("vee_exception.flash.re_evaluated"), "success")
     except VeeExceptionActionError as exc:
         session.rollback()

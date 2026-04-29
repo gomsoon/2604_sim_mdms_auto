@@ -33,6 +33,15 @@ class UsageCalculationSummary:
     blocked: int
 
 
+@dataclass(frozen=True, slots=True)
+class UsageWindowScope:
+    service_point_id: int
+    measuring_component_id: int
+    usage_type: str
+    period_start_at: datetime
+    period_end_at: datetime
+
+
 @dataclass(slots=True)
 class _UsageBucket:
     service_point_id: int
@@ -102,6 +111,28 @@ def _derive_window(
     return (
         period_start_local.astimezone(timezone.utc),
         period_end_local.astimezone(timezone.utc),
+    )
+
+
+def build_usage_window_scope(
+    final_row: FinalMeasurement,
+    *,
+    usage_type: str,
+) -> UsageWindowScope:
+    canonical_row = final_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    usage_timezone, _, _, _ = _resolve_usage_timezone(raw_row)
+    period_start_at, period_end_at = _derive_window(
+        final_row.measured_at,
+        usage_type,
+        usage_timezone,
+    )
+    return UsageWindowScope(
+        service_point_id=final_row.service_point_id,
+        measuring_component_id=final_row.measuring_component_id,
+        usage_type=usage_type,
+        period_start_at=period_start_at,
+        period_end_at=period_end_at,
     )
 
 

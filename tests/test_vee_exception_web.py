@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.models import InitialMeasurement, VeeException, VeeExecutionLog
+from app.models import FinalMeasurement, InitialMeasurement, UsageTransaction, VeeException, VeeExecutionLog
 from app.services.seeds import seed_demo_environment
 from app.services.vee import evaluate_or_get_vee_baseline
 
@@ -118,14 +118,26 @@ def test_vee_exception_re_evaluate_via_web_creates_new_execution(session, client
     text = response.get_data(as_text=True)
     updated = session.get(VeeException, vee_exception.id)
     refreshed_initial = session.get(InitialMeasurement, vee_exception.initial_measurement_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == refreshed_initial.id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    usage_rows = session.scalars(select(UsageTransaction).order_by(UsageTransaction.usage_type.asc())).all()
 
     assert response.status_code == 200
     assert "VEE 예외가 재평가되었습니다." in text
+    assert "재평가 결과" in text
+    assert "현재 최종 생성" in text
+    assert "일별 사용량 재계산" in text
     assert updated is not None
     assert updated.exception_status == "resolved"
     assert updated.resolution_type == "re_evaluated_superseded"
     assert refreshed_initial is not None
     assert refreshed_initial.initial_status == "accepted"
+    assert current_final is not None
+    assert len(usage_rows) == 2
     assert session.scalar(
         select(func.count())
         .select_from(VeeExecutionLog)

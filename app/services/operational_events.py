@@ -234,6 +234,40 @@ EVENT_SPECS: dict[str, OperationalEventSpec] = {
         message_en="Initial measurement {initial_measurement_id} was re-evaluated through the current VEE baseline.",
         message_ko="초기 계측 {initial_measurement_id}가 현재 VEE baseline으로 다시 평가되었습니다.",
     ),
+    "final_measurement_superseded": OperationalEventSpec(
+        source_layer="processing",
+        event_category="finalization",
+        severity="info",
+        is_alert=False,
+        title_en="Final measurement superseded",
+        title_ko="최종 계측 revision 생성",
+        message_en=(
+            "Final measurement changed after re-VEE. "
+            "Previous final {previous_final_measurement_id} was superseded by {current_final_measurement_id}."
+        ),
+        message_ko=(
+            "re-VEE 이후 최종 계측이 변경되었습니다. "
+            "이전 최종 계측 {previous_final_measurement_id}가 {current_final_measurement_id}로 대체되었습니다."
+        ),
+    ),
+    "usage_recalculated_after_vee": OperationalEventSpec(
+        source_layer="processing",
+        event_category="usage",
+        severity="info",
+        is_alert=False,
+        title_en="Usage recalculated after VEE",
+        title_ko="VEE 이후 사용량 재계산",
+        message_en=(
+            "Usage windows were recalculated after re-VEE. "
+            "Daily updated: {daily_usage_groups_updated}, daily deleted: {daily_usage_rows_deleted}, "
+            "monthly updated: {monthly_usage_groups_updated}, monthly deleted: {monthly_usage_rows_deleted}."
+        ),
+        message_ko=(
+            "re-VEE 이후 사용량 window를 다시 계산했습니다. "
+            "일별 갱신: {daily_usage_groups_updated}, 일별 삭제: {daily_usage_rows_deleted}, "
+            "월별 갱신: {monthly_usage_groups_updated}, 월별 삭제: {monthly_usage_rows_deleted}."
+        ),
+    ),
     "finalization_completed": OperationalEventSpec(
         source_layer="processing",
         event_category="finalization",
