@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import func, select
 
@@ -142,6 +143,33 @@ def test_finalize_canonical_measurements_allows_non_blocking_vee_warning(session
         )
     )
     initial_row.initial_status = "accepted"
+    session.commit()
+
+    summary = finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    assert summary.candidates == 1
+    assert summary.finalized == 1
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 0
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 1
+
+
+def test_finalize_canonical_measurements_allows_high_value_vee_warning(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial_row is not None
+    initial_row.value = Decimal("1500.0000")
+    initial_row.unit_of_measure = "kWh"
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row)
     session.commit()
 
     summary = finalize_canonical_measurements(session, batch_id="demo-read-batch")

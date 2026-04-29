@@ -81,7 +81,8 @@ Begin persisting blocking processing exceptions explicitly.
 - expose those exceptions in operator surfaces
 - first active rules: `required_field_missing`, `negative_value_detected`, `duplicate_detected`
 - expand active rules with `zero_value_detected`, `interval_size_invalid`,
-  and `missing_interval_detected` after regression and operator visibility are stable
+  `missing_interval_detected`, and non-blocking `high_value_detected` after
+  regression and operator visibility are stable
 
 ### Acceptance gate
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -21,6 +22,11 @@ from app.services.operational_events import (
 
 BASELINE_RULE_SET_CODE = "vee_baseline_v1"
 BASELINE_EXECUTION_SCOPE = "measurement"
+HIGH_VALUE_THRESHOLDS: dict[tuple[str, int], Decimal] = {
+    ("kwh", 15): Decimal("250.0000"),
+    ("kwh", 30): Decimal("500.0000"),
+    ("kwh", 60): Decimal("1000.0000"),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +141,33 @@ def _build_duplicate_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
     )
 
 
+def _build_high_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+    if initial_row.value is None:
+        return None
+    unit_of_measure = (initial_row.unit_of_measure or "").strip().lower()
+    canonical_row = initial_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    interval_size_minutes = raw_row.interval_size_minutes if raw_row is not None else None
+    if interval_size_minutes is None:
+        return None
+
+    threshold = HIGH_VALUE_THRESHOLDS.get((unit_of_measure, interval_size_minutes))
+    if threshold is None or initial_row.value <= threshold:
+        return None
+
+    return VeeRuleHit(
+        exception_code="vee_high_value_detected",
+        severity="warning",
+        blocking_finalization=False,
+        details={
+            "value": str(initial_row.value),
+            "threshold_value": str(threshold),
+            "unit_of_measure": initial_row.unit_of_measure,
+            "interval_size_minutes": interval_size_minutes,
+        },
+    )
+
+
 def _build_missing_interval_hit(
     session: Session,
     initial_row: InitialMeasurement,
@@ -197,6 +230,7 @@ def evaluate_initial_measurement_rule_hits(
         _build_interval_size_hit(initial_row),
         _build_duplicate_hit(initial_row),
         _build_missing_interval_hit(session, initial_row),
+        _build_high_value_hit(initial_row),
     ):
         if hit is not None:
             hits.append(hit)
@@ -220,6 +254,8 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
         return "vee_completed_with_duplicate"
     if first_code == "vee_missing_interval_detected":
         return "vee_failed_missing_interval"
+    if first_code == "vee_high_value_detected":
+        return "vee_completed_with_high_value"
     return "vee_completed_with_exception"
 
 
@@ -323,6 +359,7 @@ def evaluate_or_get_vee_baseline(
                 "interval_size_invalid",
                 "duplicate_detected",
                 "missing_interval_detected",
+                "high_value_detected",
             ],
             "rule_hits": [hit.exception_code for hit in rule_hits],
         },

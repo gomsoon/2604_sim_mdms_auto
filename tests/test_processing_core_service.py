@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from sqlalchemy import func, select
 
 from app.models import (
@@ -171,6 +173,34 @@ def test_evaluate_or_get_vee_baseline_marks_invalid_interval_size_as_blocking(se
     assert exception is not None
     assert exception.exception_code == "vee_interval_size_invalid"
     assert exception.blocking_finalization is True
+
+
+def test_evaluate_or_get_vee_baseline_marks_high_value_as_non_blocking_warning(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial is not None
+    _reset_vee_baseline(session, initial)
+    initial.value = Decimal("1500.0000")
+    initial.unit_of_measure = "kWh"
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "accepted"
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_completed_with_high_value"
+    assert exception is not None
+    assert exception.exception_code == "vee_high_value_detected"
+    assert exception.blocking_finalization is False
 
 
 def test_evaluate_or_get_vee_baseline_marks_partial_window_as_missing_interval(session):

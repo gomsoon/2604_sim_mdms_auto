@@ -155,6 +155,7 @@ Recommended first active rules in the first executable rollout:
 - `interval_size_invalid`
 - `duplicate_detected`
 - `missing_interval_detected`
+- `high_value_detected`
 
 Recommended first rollout policy:
 
@@ -168,6 +169,10 @@ Current implementation note:
 - `interval_size_invalid` is active as a blocking error
 - `missing_interval_detected` is active as a blocking error when a matching
   `raw_interval_window_state` exists with `open` or `partial` completeness
+- `high_value_detected` is active as a non-blocking warning through a
+  code-backed baseline threshold registry
+- `low_value_detected` remains deferred until a more reliable canonical or
+  source-side threshold basis is available
 
 Notes:
 
