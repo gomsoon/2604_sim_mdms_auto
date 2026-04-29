@@ -237,7 +237,10 @@ def _load_final_measurements(
 ) -> list[FinalMeasurement]:
     statement: Select[tuple[FinalMeasurement]] = (
         select(FinalMeasurement)
-        .where(FinalMeasurement.final_status == "finalized")
+        .where(
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.is_current.is_(True),
+        )
         .options(
             joinedload(FinalMeasurement.initial_measurement),
             joinedload(FinalMeasurement.canonical_measurement)

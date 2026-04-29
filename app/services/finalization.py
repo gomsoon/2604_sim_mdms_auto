@@ -76,6 +76,9 @@ def create_or_get_final_measurement(
         unit_of_measure=initial_row.unit_of_measure,
         final_status="finalized",
         finalized_at=datetime.now(timezone.utc),
+        revision_number=1,
+        revision_reason_code=None,
+        is_current=True,
     )
     session.add(final_row)
     session.flush()

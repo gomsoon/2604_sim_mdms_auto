@@ -636,12 +636,22 @@ class FinalMeasurement(TimestampMixin, Base):
     unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False)
     final_status: Mapped[str] = mapped_column(String(30), nullable=False, default="finalized")
     finalized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    revision_reason_code: Mapped[str | None] = mapped_column(String(60))
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    supersedes_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id"),
+        index=True,
+    )
 
     initial_measurement: Mapped["InitialMeasurement | None"] = relationship(
         back_populates="final_measurement"
     )
     canonical_measurement: Mapped[CanonicalMeasurement] = relationship(
         back_populates="final_measurement"
+    )
+    supersedes_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        remote_side=lambda: [FinalMeasurement.id]
     )
 
 

@@ -5,7 +5,13 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
-from app.models import FinalMeasurement, PipelineRun, ProcessingWatermark, ServicePoint, UsageTransaction
+from app.models import (
+    FinalMeasurement,
+    PipelineRun,
+    ProcessingWatermark,
+    ServicePoint,
+    UsageTransaction,
+)
 from app.services.finalization import finalize_canonical_measurements
 from app.services.hes_systems import ensure_hes_system
 from app.services.ingestion import ingest_reads
@@ -272,3 +278,34 @@ def test_calculate_usage_transactions_updates_existing_scope_on_recalculation(se
     assert second_summary.updated == 1
     assert len(rows) == 1
     assert rows[0].usage_value == Decimal("25.0000")
+
+
+def test_calculate_usage_transactions_ignores_non_current_final_rows(session):
+    hes_system_id, service_point_id = _prepare_usage_environment(session)
+    _ingest_and_finalize_batch(
+        session,
+        hes_system_id=hes_system_id,
+        batch_id="usage-ignore-non-current",
+        received_at="2026-04-22T09:00:00+09:00",
+        reads=_build_hourly_reads(local_date="2026-04-22"),
+    )
+
+    final_rows = session.scalars(select(FinalMeasurement)).all()
+    assert final_rows
+    for final_row in final_rows:
+        final_row.is_current = False
+    session.commit()
+
+    summary = calculate_usage_transactions(
+        session,
+        usage_type="daily_consumption",
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    rows = session.scalars(select(UsageTransaction)).all()
+
+    assert summary.groups == 0
+    assert summary.created == 0
+    assert summary.updated == 0
+    assert rows == []

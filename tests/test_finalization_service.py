@@ -44,6 +44,10 @@ def test_finalize_canonical_measurements_creates_final_measurement(session):
     assert final_row is not None
     assert final_row.final_status == "finalized"
     assert final_row.initial_measurement_id is not None
+    assert final_row.revision_number == 1
+    assert final_row.revision_reason_code is None
+    assert final_row.is_current is True
+    assert final_row.supersedes_final_measurement_id is None
     assert pipeline_run is not None
     assert pipeline_run.status == "completed"
     assert pipeline_run.result_code == "finalization_completed"

@@ -175,6 +175,10 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "calculation_status" in usage_transaction_columns
         assert "calculated_at" in usage_transaction_columns
         assert "initial_measurement_id" in final_column_defs
+        assert "revision_number" in final_column_defs
+        assert "revision_reason_code" in final_column_defs
+        assert "is_current" in final_column_defs
+        assert "supersedes_final_measurement_id" in final_column_defs
         assert "hes_read_raw_measured_at" in ingest_error_log_columns
         assert "hes_read_raw_measured_at" in reprocess_request_columns
         assert "hes_system_id" in hes_event_raw_columns
@@ -193,6 +197,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert initial_measurement_column_defs["value"]["type"].scale == 4
         assert final_column_defs["value"]["type"].precision == 19
         assert final_column_defs["value"]["type"].scale == 4
+        assert final_column_defs["revision_number"]["nullable"] is False
+        assert final_column_defs["is_current"]["nullable"] is False
         assert usage_transaction_column_defs["usage_value"]["type"].precision == 19
         assert usage_transaction_column_defs["usage_value"]["type"].scale == 4
 
@@ -206,6 +212,7 @@ def test_alembic_upgrade_creates_expected_tables():
                     where schemaname = :schema_name
                       and tablename in (
                         'hes_read_raw',
+                        'final_measurement',
                         'adapter_run',
                         'operational_event',
                         'initial_measurement',
@@ -244,6 +251,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_usage_transaction_calculation_status" in index_defs
         assert "ix_usage_transaction_service_point_period_start_at" in index_defs
         assert "ix_usage_transaction_measuring_component_period_start_at" in index_defs
+        assert "ix_final_measurement_is_current" in index_defs
+        assert "ix_final_measurement_supersedes_final_measurement_id" in index_defs
         assert "uq_adapter_run_single_running_per_instance" in index_defs
         assert "run_status" in index_defs[
             "uq_adapter_run_single_running_per_instance"
