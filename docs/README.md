@@ -31,19 +31,20 @@ This directory captures the working engineering baseline for the `Minimal End-to
 25. [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
 26. [vee-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/vee-baseline-design.md)
 27. [re-vee-baseline-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/re-vee-baseline-runbook.md)
-28. [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
-29. [processing-core-persistence-design.md](/home/tprover/2604_sim_mdms_auto/docs/processing-core-persistence-design.md)
-30. [processing-core-rollout-plan.md](/home/tprover/2604_sim_mdms_auto/docs/processing-core-rollout-plan.md)
-31. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
-32. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
-33. [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md)
-34. [adapter-backlog.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-backlog.md)
-35. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
-36. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
-37. [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
-38. [adapter-live-hardening-plan.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-live-hardening-plan.md)
-39. [adapter-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-test-matrix.md)
-40. [adapter-operator-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operator-runbook.md)
+28. [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md)
+29. [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+30. [processing-core-persistence-design.md](/home/tprover/2604_sim_mdms_auto/docs/processing-core-persistence-design.md)
+31. [processing-core-rollout-plan.md](/home/tprover/2604_sim_mdms_auto/docs/processing-core-rollout-plan.md)
+32. [adapter-runtime-lifecycle.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-runtime-lifecycle.md)
+33. [adapter-operations-ui.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operations-ui.md)
+34. [minimal-adapter-operations-boundary.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-adapter-operations-boundary.md)
+35. [adapter-backlog.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-backlog.md)
+36. [polling-adapter-baseline.md](/home/tprover/2604_sim_mdms_auto/docs/polling-adapter-baseline.md)
+37. [lp-em-adapter-mapping.md](/home/tprover/2604_sim_mdms_auto/docs/lp-em-adapter-mapping.md)
+38. [nuri-aimir-hes-lp-em-polling-adapter.md](/home/tprover/2604_sim_mdms_auto/docs/nuri-aimir-hes-lp-em-polling-adapter.md)
+39. [adapter-live-hardening-plan.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-live-hardening-plan.md)
+40. [adapter-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-test-matrix.md)
+41. [adapter-operator-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-operator-runbook.md)
 40. [adapter-data-model.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-data-model.md)
 41. [replay-idempotency-operations.md](/home/tprover/2604_sim_mdms_auto/docs/replay-idempotency-operations.md)
 42. [adapter-gap-analysis.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-gap-analysis.md)
@@ -93,6 +94,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `usage-and-billing-ready-architecture.md` defines the next processing/core shape after the current minimal finalization baseline, including the intended `initial -> VEE -> final -> usage` flow.
 - `vee-baseline-design.md` defines the first practical VEE persistence boundary, including `initial_measurement`, `vee_execution_log`, `vee_exception`, and the promotion conditions into final.
 - `re-vee-baseline-runbook.md` explains when manual re-VEE should be triggered, what operators see in the UI, and how the backend supersedes old VEE exceptions and records a fresh execution snapshot.
+- `final-measurement-revision-design.md` defines how `final_measurement` should grow from a single promotion target into a current-plus-history authoritative layer with explicit supersession and revision lineage.
 - `usage-transaction-design.md` defines the first downstream usage layer and the boundary between usage-ready and later billing-ready outputs.
 - `processing-core-persistence-design.md` translates that processing/core direction into a concrete first persistence slice for `initial_measurement`, `vee_execution_log`, `vee_exception`, and the future change in `final_measurement` promotion rules.
 - `processing-core-rollout-plan.md` defines the safe staged rollout order for introducing the new processing/core persistence while keeping the current minimal finalization path stable during transition.

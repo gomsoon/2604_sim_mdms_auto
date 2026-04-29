@@ -253,11 +253,15 @@ These items are not blockers for the current minimal baseline, but they should r
 
 ### X4. Final measurement revision model
 
+- Define the first `current + history` model for `final_measurement`
 - Review whether the final layer needs:
   - supersession
   - revision lineage
   - re-finalization support
   - correction handling
+- Prefer `initial_measurement_id` as the business lineage anchor
+- Keep `usage_transaction` dependent only on the current authoritative final rows
+- Align later partitioning work with the revision model rather than designing it in isolation
 
 ### X5. Common raw naming neutrality review
 

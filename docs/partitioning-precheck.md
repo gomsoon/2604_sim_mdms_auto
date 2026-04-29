@@ -256,6 +256,8 @@ The current one-to-one finalization model is fine for minimal scope, but later s
 - revision lineage
 - correction handling
 
+The current recommended direction is captured in [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md).
+
 ### P-CHK-5. Naming neutrality review
 
 The current names are good enough for now, but the team may later review whether:

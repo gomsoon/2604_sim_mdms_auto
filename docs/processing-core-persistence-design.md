@@ -300,6 +300,8 @@ It should be distinct from:
 
 `final_measurement` should remain the first authoritative downstream measurement layer, but its creation rule should change.
 
+The next follow-up design for revision and supersession is described in [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md).
+
 Current direction:
 
 - final is created from `well_formed canonical`
