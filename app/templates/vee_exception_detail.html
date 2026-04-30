@@ -121,12 +121,21 @@
                 <div>{{ t("table.missing_interval_count") }}: {{ row.current_missing_interval_count if row.current_missing_interval_count is not none else t("common.none") }}</div>
               </td>
               <td>
+                {% if row.current_usage_transaction_id %}
                 <a
                   class="btn btn-sm btn-outline-secondary"
-                  href="{{ url_for('web.usage_transactions', lang=current_locale, usage_transaction_id=row.current_usage_transaction_id if row.current_usage_transaction_id else None, service_point_id=row.service_point_id, measuring_component_id=row.measuring_component_id, usage_type=row.usage_type, date_from=row.period_start_at[:10], date_to=row.period_start_at[:10]) }}"
+                  href="{{ url_for('web.usage_transaction_detail', usage_transaction_id=row.current_usage_transaction_id, lang=current_locale) }}"
                 >
                   {{ t("button.view") }}
                 </a>
+                {% else %}
+                <a
+                  class="btn btn-sm btn-outline-secondary"
+                  href="{{ url_for('web.usage_transactions', lang=current_locale, service_point_id=row.service_point_id, measuring_component_id=row.measuring_component_id, usage_type=row.usage_type, date_from=row.period_start_at[:10], date_to=row.period_start_at[:10]) }}"
+                >
+                  {{ t("button.view") }}
+                </a>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

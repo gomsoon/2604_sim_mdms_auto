@@ -143,7 +143,7 @@ def test_vee_exception_re_evaluate_via_web_creates_new_execution(session, client
     assert current_final is not None
     assert len(usage_rows) == 2
     for row in usage_rows:
-        assert f"usage_transaction_id={row.id}" in text
+        assert f"/usage-transactions/{row.id}?lang=ko" in text
     assert session.scalar(
         select(func.count())
         .select_from(VeeExecutionLog)

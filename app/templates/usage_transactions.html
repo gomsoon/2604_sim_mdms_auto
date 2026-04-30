@@ -87,7 +87,14 @@
         <tbody>
           {% for row in rows %}
           <tr>
-            <td>{{ row.id }}</td>
+            <td>
+              <a
+                class="link-primary text-decoration-none"
+                href="{{ url_for('web.usage_transaction_detail', usage_transaction_id=row.id, lang=current_locale) }}"
+              >
+                {{ row.id }}
+              </a>
+            </td>
             <td>{{ row.service_point.external_id }}</td>
             <td>{{ row.device.external_meter_id }}</td>
             <td>{{ row.measuring_component.external_channel_id }}</td>

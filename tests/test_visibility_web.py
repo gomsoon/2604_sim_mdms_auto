@@ -133,6 +133,25 @@ def test_usage_transactions_page_filters_by_service_point_and_channel(client, se
     assert "일별 사용량" in text
 
 
+def test_usage_transaction_detail_page_shows_lineage_and_final_context(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    session.commit()
+
+    response = client.get("/usage-transactions/1?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "사용량 거래 상세" in text
+    assert "구성 최종 계측" in text
+    assert "SP-1001" in text
+    assert "MTR-1001" in text
+    assert "CH-01" in text
+
+
 def test_canonical_measurements_promote_final_via_web_uses_current_filters(client, session):
     seed_demo_environment(session)
     ingest_reads(

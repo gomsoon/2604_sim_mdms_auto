@@ -93,6 +93,7 @@ from app.services.visibility import (
     build_operational_event_filters,
     build_usage_transaction_filters,
     build_vee_exception_filters,
+    get_usage_transaction_detail_context,
     get_vee_exception_detail_context,
     get_operational_event_detail_context,
     list_canonical_measurements,
@@ -438,6 +439,16 @@ def usage_transactions():
 
     rows = list_usage_transactions(session, filters)
     return render_template("usage_transactions.html", rows=rows, filters=filters)
+
+
+@bp.get("/usage-transactions/<int:usage_transaction_id>")
+def usage_transaction_detail(usage_transaction_id: int):
+    session = get_session()
+    detail = get_usage_transaction_detail_context(session, usage_transaction_id)
+    if detail is None:
+        abort(404)
+
+    return render_template("usage_transaction_detail.html", detail=detail)
 
 
 @bp.get("/operational-events")

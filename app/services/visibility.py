@@ -128,6 +128,13 @@ class VeeExceptionDetailContext:
     final_measurement: FinalMeasurement | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class UsageTransactionDetailContext:
+    usage_transaction: UsageTransaction
+    pipeline_run: PipelineRun | None = None
+    final_rows: list[FinalMeasurement] = ()
+
+
 def _normalize_text(value: str | None) -> str | None:
     if value is None:
         return None
@@ -471,6 +478,53 @@ def list_usage_transactions(
         UsageTransaction.id.desc(),
     ).limit(limit)
     return session.execute(statement).scalars().unique().all()
+
+
+def get_usage_transaction_detail_context(
+    session: Session,
+    usage_transaction_id: int,
+    *,
+    final_limit: int = 200,
+) -> UsageTransactionDetailContext | None:
+    usage_transaction = session.scalar(
+        select(UsageTransaction)
+        .where(UsageTransaction.id == usage_transaction_id)
+        .options(
+            joinedload(UsageTransaction.pipeline_run),
+            joinedload(UsageTransaction.service_point),
+            joinedload(UsageTransaction.device),
+            joinedload(UsageTransaction.measuring_component),
+        )
+        .limit(1)
+    )
+    if usage_transaction is None:
+        return None
+
+    final_rows = session.scalars(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.service_point_id == usage_transaction.service_point_id,
+            FinalMeasurement.measuring_component_id == usage_transaction.measuring_component_id,
+            FinalMeasurement.measured_at >= usage_transaction.period_start_at,
+            FinalMeasurement.measured_at < usage_transaction.period_end_at,
+        )
+        .options(
+            joinedload(FinalMeasurement.canonical_measurement).joinedload(
+                CanonicalMeasurement.hes_read_raw
+            ),
+            joinedload(FinalMeasurement.initial_measurement),
+        )
+        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
+        .limit(final_limit)
+    ).all()
+
+    return UsageTransactionDetailContext(
+        usage_transaction=usage_transaction,
+        pipeline_run=usage_transaction.pipeline_run,
+        final_rows=final_rows,
+    )
 
 
 def list_operational_events(

@@ -159,4 +159,4 @@ def test_operational_event_detail_page_links_to_usage_transactions(client, sessi
     assert "일별 사용량" in text
     assert "월별 사용량" in text
     for row in usage_rows:
-        assert f"usage_transaction_id={row.id}" in text
+        assert f"/usage-transactions/{row.id}?lang=ko" in text
