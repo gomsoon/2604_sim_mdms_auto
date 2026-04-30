@@ -94,6 +94,7 @@
               <th>{{ t("table.action") }}</th>
               <th>{{ t("field.previous") }}</th>
               <th>{{ t("field.current") }}</th>
+              <th>{{ t("table.actions") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -118,6 +119,14 @@
                 <div>{{ t("table.value") }}: {{ row.current_usage_value or t("common.none") }}</div>
                 <div>{{ t("table.status") }}: {{ t_or("usage.calculation_status." ~ row.current_calculation_status, row.current_calculation_status or t("common.none")) }}</div>
                 <div>{{ t("table.missing_interval_count") }}: {{ row.current_missing_interval_count if row.current_missing_interval_count is not none else t("common.none") }}</div>
+              </td>
+              <td>
+                <a
+                  class="btn btn-sm btn-outline-secondary"
+                  href="{{ url_for('web.usage_transactions', lang=current_locale, usage_transaction_id=row.current_usage_transaction_id if row.current_usage_transaction_id else None, service_point_id=row.service_point_id, measuring_component_id=row.measuring_component_id, usage_type=row.usage_type, date_from=row.period_start_at[:10], date_to=row.period_start_at[:10]) }}"
+                >
+                  {{ t("button.view") }}
+                </a>
               </td>
             </tr>
             {% endfor %}

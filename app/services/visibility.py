@@ -78,6 +78,9 @@ class OperationalEventFilters:
 
 @dataclass(frozen=True, slots=True)
 class UsageTransactionFilters:
+    usage_transaction_id: int | None = None
+    service_point_id: int | None = None
+    measuring_component_id: int | None = None
     service_point: str | None = None
     external_channel_id: str | None = None
     usage_type: str | None = None
@@ -249,6 +252,21 @@ def build_usage_transaction_filters(args) -> UsageTransactionFilters:
         )
 
     return UsageTransactionFilters(
+        usage_transaction_id=_parse_optional_int(
+            args.get("usage_transaction_id"),
+            error_code="invalid_usage_transaction_filter",
+            fallback_message="Usage transaction filter must be a positive integer.",
+        ),
+        service_point_id=_parse_optional_int(
+            args.get("service_point_id"),
+            error_code="invalid_service_point_filter",
+            fallback_message="Service point filter must be a positive integer.",
+        ),
+        measuring_component_id=_parse_optional_int(
+            args.get("measuring_component_id"),
+            error_code="invalid_measuring_component_filter",
+            fallback_message="Measuring component filter must be a positive integer.",
+        ),
         service_point=_normalize_text(args.get("service_point")),
         external_channel_id=_normalize_text(args.get("external_channel_id")),
         usage_type=usage_type,
@@ -423,6 +441,14 @@ def list_usage_transactions(
         )
     )
 
+    if filters.usage_transaction_id is not None:
+        statement = statement.where(UsageTransaction.id == filters.usage_transaction_id)
+    if filters.service_point_id is not None:
+        statement = statement.where(UsageTransaction.service_point_id == filters.service_point_id)
+    if filters.measuring_component_id is not None:
+        statement = statement.where(
+            UsageTransaction.measuring_component_id == filters.measuring_component_id
+        )
     if filters.service_point:
         statement = statement.where(ServicePoint.external_id == filters.service_point)
     if filters.external_channel_id:
