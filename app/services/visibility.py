@@ -17,9 +17,12 @@ from app.models import (
     InitialMeasurement,
     IngestBatch,
     IngestErrorLog,
+    MeasuringComponent,
     OperationalEvent,
     PipelineRun,
     ReprocessRequest,
+    ServicePoint,
+    UsageTransaction,
     VeeException,
     VeeExecutionLog,
 )
@@ -69,6 +72,16 @@ class OperationalEventFilters:
     alert_status: str | None = None
     batch_id: str | None = None
     meter_id: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UsageTransactionFilters:
+    service_point: str | None = None
+    external_channel_id: str | None = None
+    usage_type: str | None = None
+    calculation_status: str | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
 
@@ -208,6 +221,38 @@ def build_final_filters(args) -> FinalMeasurementFilters:
     return FinalMeasurementFilters(
         batch_id=_normalize_text(args.get("batch_id")),
         meter_id=_normalize_text(args.get("meter_id")),
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+def build_usage_transaction_filters(args) -> UsageTransactionFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    usage_type = _normalize_text(args.get("usage_type"))
+    if usage_type not in {None, "daily_consumption", "monthly_consumption"}:
+        raise VisibilityFilterError(
+            "invalid_usage_type_filter",
+            "Usage type must be daily_consumption or monthly_consumption when provided.",
+        )
+
+    calculation_status = _normalize_text(args.get("calculation_status"))
+    if calculation_status not in {None, "complete", "partial", "blocked"}:
+        raise VisibilityFilterError(
+            "invalid_usage_calculation_status_filter",
+            "Calculation status must be complete, partial, or blocked when provided.",
+        )
+
+    return UsageTransactionFilters(
+        service_point=_normalize_text(args.get("service_point")),
+        external_channel_id=_normalize_text(args.get("external_channel_id")),
+        usage_type=usage_type,
+        calculation_status=calculation_status,
         date_from=date_from,
         date_to=date_to,
     )
@@ -359,6 +404,46 @@ def list_final_measurements(
         statement = statement.where(FinalMeasurement.measured_at <= filters.date_to)
 
     statement = statement.order_by(FinalMeasurement.id.desc()).limit(limit)
+    return session.execute(statement).scalars().unique().all()
+
+
+def list_usage_transactions(
+    session: Session, filters: UsageTransactionFilters, *, limit: int = 200
+) -> list[UsageTransaction]:
+    statement: Select[tuple[UsageTransaction]] = (
+        select(UsageTransaction)
+        .join(UsageTransaction.service_point)
+        .join(UsageTransaction.measuring_component)
+        .join(UsageTransaction.device)
+        .options(
+            selectinload(UsageTransaction.service_point),
+            selectinload(UsageTransaction.measuring_component),
+            selectinload(UsageTransaction.device),
+            selectinload(UsageTransaction.pipeline_run),
+        )
+    )
+
+    if filters.service_point:
+        statement = statement.where(ServicePoint.external_id == filters.service_point)
+    if filters.external_channel_id:
+        statement = statement.where(
+            MeasuringComponent.external_channel_id == filters.external_channel_id
+        )
+    if filters.usage_type:
+        statement = statement.where(UsageTransaction.usage_type == filters.usage_type)
+    if filters.calculation_status:
+        statement = statement.where(
+            UsageTransaction.calculation_status == filters.calculation_status
+        )
+    if filters.date_from:
+        statement = statement.where(UsageTransaction.period_start_at >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(UsageTransaction.period_start_at <= filters.date_to)
+
+    statement = statement.order_by(
+        UsageTransaction.period_start_at.desc(),
+        UsageTransaction.id.desc(),
+    ).limit(limit)
     return session.execute(statement).scalars().unique().all()
 
 

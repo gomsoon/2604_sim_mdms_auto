@@ -13,13 +13,16 @@ from app.services.visibility import (
     build_final_filters,
     build_ingest_batch_filters,
     build_operational_event_filters,
+    build_usage_transaction_filters,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
     list_operational_events,
+    list_usage_transactions,
 )
 from app.services.finalization import finalize_canonical_measurements
 from app.services.operational_events import close_operational_alert
+from app.services.usage import calculate_usage_transactions
 
 
 def test_build_ingest_batch_filters_rejects_invalid_date_format():
@@ -122,6 +125,49 @@ def test_list_final_measurements_filters_by_batch_and_meter_id(session):
     assert len(matched_rows) == 1
     assert matched_rows[0].canonical_measurement.hes_read_raw.ingest_batch.batch_id == "demo-read-batch"
     assert matched_rows[0].canonical_measurement.hes_read_raw.meter_identifier == "MTR-1001"
+    assert unmatched_rows == []
+
+
+def test_build_usage_transaction_filters_rejects_invalid_usage_type():
+    with pytest.raises(VisibilityFilterError) as exc_info:
+        build_usage_transaction_filters({"usage_type": "hourly"})
+
+    assert exc_info.value.error_code == "invalid_usage_type_filter"
+
+
+def test_list_usage_transactions_filters_by_service_point_channel_and_status(session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    session.commit()
+
+    matched_rows = list_usage_transactions(
+        session,
+        build_usage_transaction_filters(
+            {
+                "service_point": "SP-1001",
+                "external_channel_id": "CH-01",
+                "usage_type": "daily_consumption",
+                "calculation_status": "partial",
+            }
+        ),
+    )
+    unmatched_rows = list_usage_transactions(
+        session,
+        build_usage_transaction_filters(
+            {
+                "service_point": "SP-4040",
+            }
+        ),
+    )
+
+    assert len(matched_rows) == 1
+    assert matched_rows[0].service_point.external_id == "SP-1001"
+    assert matched_rows[0].measuring_component.external_channel_id == "CH-01"
+    assert matched_rows[0].usage_type == "daily_consumption"
+    assert matched_rows[0].calculation_status == "partial"
     assert unmatched_rows == []
 
 

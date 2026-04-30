@@ -7,6 +7,7 @@ from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.operational_events import close_operational_alert
 from app.services.seeds import seed_demo_environment
+from app.services.usage import calculate_usage_transactions
 
 
 def test_ingest_batches_page_renders_filtered_results_in_korean(client, session):
@@ -109,6 +110,27 @@ def test_final_measurements_api_returns_filtered_measurement(client, session):
     assert row["value"] == 14.2
     assert row["unit_of_measure"] == "kWh"
     assert row["final_status"] == "finalized"
+
+
+def test_usage_transactions_page_filters_by_service_point_and_channel(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    session.commit()
+
+    response = client.get(
+        "/usage-transactions?lang=ko&service_point=SP-1001&external_channel_id=CH-01&usage_type=daily_consumption"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "사용량 거래" in text
+    assert "SP-1001" in text
+    assert "MTR-1001" in text
+    assert "CH-01" in text
+    assert "일별 사용량" in text
 
 
 def test_canonical_measurements_promote_final_via_web_uses_current_filters(client, session):

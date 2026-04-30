@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.usage_transactions.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.usage_transactions.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.service_point") }}</label>
+        <input class="form-control" name="service_point" value="{{ filters.service_point or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.external_channel_id") }}</label>
+        <input class="form-control" name="external_channel_id" value="{{ filters.external_channel_id or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.usage_type") }}</label>
+        <select class="form-select" name="usage_type">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="daily_consumption" {% if filters.usage_type == "daily_consumption" %}selected{% endif %}>
+            {{ t("usage.type.daily_consumption") }}
+          </option>
+          <option value="monthly_consumption" {% if filters.usage_type == "monthly_consumption" %}selected{% endif %}>
+            {{ t("usage.type.monthly_consumption") }}
+          </option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.calculation_status") }}</label>
+        <select class="form-select" name="calculation_status">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="complete" {% if filters.calculation_status == "complete" %}selected{% endif %}>
+            {{ t("usage.calculation_status.complete") }}
+          </option>
+          <option value="partial" {% if filters.calculation_status == "partial" %}selected{% endif %}>
+            {{ t("usage.calculation_status.partial") }}
+          </option>
+          <option value="blocked" {% if filters.calculation_status == "blocked" %}selected{% endif %}>
+            {{ t("usage.calculation_status.blocked") }}
+          </option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.usage_transactions', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.service_point") }}</th>
+            <th>{{ t("field.external_meter_id") }}</th>
+            <th>{{ t("field.external_channel_id") }}</th>
+            <th>{{ t("table.usage_type") }}</th>
+            <th>{{ t("table.period") }}</th>
+            <th>{{ t("table.usage_value") }}</th>
+            <th>{{ t("table.uom") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.missing_interval_count") }}</th>
+            <th>{{ t("table.source_final_count") }}</th>
+            <th>{{ t("field.timezone_name") }}</th>
+            <th>{{ t("table.calculated_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.service_point.external_id }}</td>
+            <td>{{ row.device.external_meter_id }}</td>
+            <td>{{ row.measuring_component.external_channel_id }}</td>
+            <td>{{ t_or("usage.type." ~ row.usage_type, row.usage_type) }}</td>
+            <td>
+              <div>{{ row.period_start_at|dt }}</div>
+              <div class="small text-secondary">{{ row.period_end_at|dt }}</div>
+            </td>
+            <td>{{ row.usage_value }}</td>
+            <td>{{ row.unit_of_measure or t("common.none") }}</td>
+            <td>{{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}</td>
+            <td>{{ row.missing_interval_count }}</td>
+            <td>{{ row.source_final_count }}</td>
+            <td>{{ row.window_timezone_name }}</td>
+            <td>{{ row.calculated_at|dt }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="13" class="text-secondary">{{ t("page.usage_transactions.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

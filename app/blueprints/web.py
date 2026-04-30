@@ -91,6 +91,7 @@ from app.services.visibility import (
     build_final_filters,
     build_ingest_batch_filters,
     build_operational_event_filters,
+    build_usage_transaction_filters,
     build_vee_exception_filters,
     get_vee_exception_detail_context,
     get_operational_event_detail_context,
@@ -98,6 +99,7 @@ from app.services.visibility import (
     list_final_measurements,
     list_ingest_batches,
     list_operational_events,
+    list_usage_transactions,
     list_vee_exceptions,
 )
 
@@ -423,6 +425,19 @@ def final_measurements():
 
     rows = list_final_measurements(session, filters)
     return render_template("final_measurements.html", rows=rows, filters=filters)
+
+
+@bp.get("/usage-transactions")
+def usage_transactions():
+    session = get_session()
+    try:
+        filters = build_usage_transaction_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_usage_transaction_filters({})
+
+    rows = list_usage_transactions(session, filters)
+    return render_template("usage_transactions.html", rows=rows, filters=filters)
 
 
 @bp.get("/operational-events")
