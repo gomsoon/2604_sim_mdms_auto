@@ -231,3 +231,22 @@ Additional limitations that still remain:
 - the operator still waits synchronously for the single-object action to finish
 - there is no live sub-step progress bar inside the same request
 - bulk or long-running replays are not yet promoted to queue-backed pipeline UI
+
+## Future bulk and async replay direction
+
+The current synchronous baseline is intentionally limited to one `vee_exception`.
+
+The next replay step should introduce:
+
+- `vee_replay_request` as operator-facing request truth
+- `vee_replay_request_item` as per-target progress truth
+- `pipeline_run` linkage for execution attempts
+- queue-backed replay for `hes_system`, `ingest_batch`, and `date_range` scopes
+
+That future design should keep:
+
+- single-object replay synchronous
+- bulk replay asynchronous
+- the existing `reevaluate_vee_exception_and_replay(...)` logic as the per-item replay engine
+
+See [bulk-async-vee-replay-design.md](/home/tprover/2604_sim_mdms_auto/docs/bulk-async-vee-replay-design.md) for the recommended first persistence model and worker behavior.

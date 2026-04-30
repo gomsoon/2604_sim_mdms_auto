@@ -131,6 +131,33 @@ Allow operators to trigger a fresh baseline VEE evaluation after source-data or 
 
 Operational, UI, and backend behavior for this step are described in [re-vee-baseline-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/re-vee-baseline-runbook.md).
 
+## Phase 4b. Bulk and async re-VEE replay baseline
+
+### Goal
+
+Extend `re-VEE` from one synchronous operator action into queue-backed replay for broader operational scopes.
+
+### Scope
+
+- add replay request persistence
+- add replay request item persistence
+- support replay by:
+  - `hes_system`
+  - `ingest_batch`
+  - bounded `date_range`
+- keep target discovery limited to active `vee_exception`
+- link replay requests to `pipeline_run`
+- keep single `vee_exception` replay synchronous
+
+### Acceptance gate
+
+- operators can create a replay request for a supported scope
+- replay progress is visible at request and item level
+- item execution reuses the existing single-object replay orchestration
+- replay completion and failure are auditable through `pipeline_run` and `operational_event`
+
+Recommended persistence and worker behavior for this step are described in [bulk-async-vee-replay-design.md](/home/tprover/2604_sim_mdms_auto/docs/bulk-async-vee-replay-design.md).
+
 ## Phase 5. Usage persistence introduction
 
 ### Goal

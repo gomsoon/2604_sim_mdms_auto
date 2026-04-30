@@ -193,6 +193,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Re-ingest
 - Re-map
 - Re-VEE
+- queue-backed bulk `re-VEE` by `hes_system`, `ingest_batch`, and bounded `date_range`
+- replay request progress and item-level failure visibility
 - Re-finalize
 - Reprocessing selection UI and API
 

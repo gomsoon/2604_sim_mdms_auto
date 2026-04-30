@@ -258,6 +258,35 @@ Shift integration operations from an adapter-first posture to an HES-first postu
 #### Key tasks
 
 - complete HES-scoped adapter registration
+
+### Stage 10. Processing replay and usage visibility hardening
+
+#### Goal
+
+Turn the current single-object processing replay flow into a broader operationally manageable replay model while keeping usage visibility operator-friendly.
+
+#### Key tasks
+
+- complete manual `re-VEE` visibility and downstream usage drill-down
+- introduce queue-backed replay requests for:
+  - `hes_system`
+  - `ingest_batch`
+  - bounded `date_range`
+- link replay requests to `pipeline_run`
+- expose replay progress and failure visibility
+
+#### Test gate
+
+- single-object `re-VEE` remains stable
+- replay request creation is auditable
+- replay item processing is traceable
+- usage recalculation visibility remains intact after replay
+
+#### Related documents
+
+- [re-vee-baseline-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/re-vee-baseline-runbook.md)
+- [bulk-async-vee-replay-design.md](/home/tprover/2604_sim_mdms_auto/docs/bulk-async-vee-replay-design.md)
+- [processing-core-rollout-plan.md](/home/tprover/2604_sim_mdms_auto/docs/processing-core-rollout-plan.md)
 - align `source_system` with `hes_system.hes_code`
 - make HES detail the main drill-down anchor into adapters and recent ingest activity
 - improve HES-level summaries and navigation across the integration layer
