@@ -60,6 +60,9 @@ class _UsageBucket:
     quality_codes: set[str] = field(default_factory=set)
     status_codes: set[str] = field(default_factory=set)
     source_systems: set[str] = field(default_factory=set)
+    final_measurement_ids: set[int] = field(default_factory=set)
+    initial_measurement_ids: set[int] = field(default_factory=set)
+    canonical_measurement_ids: set[int] = field(default_factory=set)
 
 
 def _normalize_utc(value: datetime) -> datetime:
@@ -255,7 +258,36 @@ def _build_usage_row_payload(
         "quality_summary": "all_finalized",
         "calculation_status": "complete",
         "details": details,
+        }
+
+
+def _build_usage_provenance(
+    bucket: _UsageBucket,
+    *,
+    trigger_type: str,
+    details_context: dict[str, object] | None,
+) -> dict[str, object]:
+    provenance: dict[str, object] = {
+        "trigger_type": trigger_type,
+        "trigger_source": "usage_calculation",
+        "contributing_final_measurement_ids": sorted(bucket.final_measurement_ids),
+        "contributing_initial_measurement_ids": sorted(bucket.initial_measurement_ids),
+        "contributing_canonical_measurement_ids": sorted(bucket.canonical_measurement_ids),
     }
+    if not details_context:
+        return provenance
+
+    if details_context.get("trigger_source"):
+        provenance["trigger_source"] = str(details_context["trigger_source"])
+
+    replay_context = {
+        key: value
+        for key, value in details_context.items()
+        if key != "trigger_source"
+    }
+    if replay_context:
+        provenance["replay_context"] = replay_context
+    return provenance
 
 
 def _load_final_measurements(
@@ -340,6 +372,10 @@ def _build_usage_buckets(
 
         bucket.usage_value += row.value
         bucket.source_final_count += 1
+        bucket.final_measurement_ids.add(row.id)
+        bucket.canonical_measurement_ids.add(row.canonical_measurement_id)
+        if row.initial_measurement_id is not None:
+            bucket.initial_measurement_ids.add(row.initial_measurement_id)
         if row.unit_of_measure:
             bucket.unit_of_measure_values.add(row.unit_of_measure)
         interval_size_minutes = raw_row.interval_size_minutes if raw_row is not None else None
@@ -362,6 +398,7 @@ def calculate_usage_transactions(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     trigger_type: str = "manual",
+    details_context: dict[str, object] | None = None,
 ) -> UsageCalculationSummary:
     if usage_type not in SUPPORTED_USAGE_TYPES:
         raise ValueError(f"Unsupported usage type: {usage_type}")
@@ -383,6 +420,7 @@ def calculate_usage_transactions(
             "measuring_component_id": measuring_component_id,
             "date_from": date_from.isoformat() if date_from is not None else None,
             "date_to": date_to.isoformat() if date_to is not None else None,
+            "trigger_context": details_context or None,
         },
     )
 
@@ -398,6 +436,12 @@ def calculate_usage_transactions(
 
         for bucket in buckets.values():
             payload = _build_usage_row_payload(bucket)
+            row_details = dict(payload["details"])
+            row_details["provenance"] = _build_usage_provenance(
+                bucket,
+                trigger_type=trigger_type,
+                details_context=details_context,
+            )
             if payload["calculation_status"] == "complete":
                 complete += 1
             elif payload["calculation_status"] == "partial":
@@ -434,7 +478,7 @@ def calculate_usage_transactions(
                     quality_summary=payload["quality_summary"],
                     calculation_status=payload["calculation_status"],
                     calculated_at=calculated_at,
-                    details=payload["details"],
+                    details=row_details,
                 )
                 session.add(usage_row)
                 created += 1
@@ -450,7 +494,7 @@ def calculate_usage_transactions(
                 usage_row.quality_summary = payload["quality_summary"]
                 usage_row.calculation_status = payload["calculation_status"]
                 usage_row.calculated_at = calculated_at
-                usage_row.details = payload["details"]
+                usage_row.details = row_details
                 updated += 1
             latest_period_end_at = (
                 bucket.period_end_at

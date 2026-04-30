@@ -175,6 +175,10 @@ Recommended fields or details:
 - `missing_interval_count`
 - `quality_summary`
 - optional quality flags in `details`
+- provenance in `details`
+  - `trigger_type`
+  - contributing `final_measurement`, `initial_measurement`, and `canonical_measurement` identifiers
+  - optional replay context such as `vee_execution_log_id` and previous/current final lineage when usage was recalculated after `re-VEE`
 
 This allows downstream consumers and operators to distinguish:
 

@@ -175,6 +175,13 @@ This allows later screens to show:
 - the previous and current usage values
 - the previous and current calculation status
 
+The recalculated `usage_transaction` row should also preserve replay provenance in its own `details`.
+That provenance should make it possible to trace:
+
+- which `vee_execution_log` triggered the replay
+- which `initial_measurement` was re-evaluated
+- which previous/current `final_measurement` pair caused the recalculation
+
 ### Important implementation rule
 
 The baseline does not mutate the previous exception into the new result. It always keeps the previous active exception as an auditable historical row and creates a new snapshot when the issue still exists.

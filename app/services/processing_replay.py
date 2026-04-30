@@ -212,6 +212,7 @@ def _recalculate_impacted_usage_windows(
     previous_final: FinalMeasurement | None,
     current_final: FinalMeasurement | None,
     trigger_type: str,
+    details_context: dict[str, object] | None = None,
 ) -> tuple[int, int, int, int, list[UsageRecalculationResult]]:
     impacted_daily: set[UsageWindowScope] = set()
     impacted_monthly: set[UsageWindowScope] = set()
@@ -271,6 +272,7 @@ def _recalculate_impacted_usage_windows(
                 date_from=window.period_start_at,
                 date_to=window.period_end_at - timedelta(microseconds=1),
                 trigger_type=trigger_type,
+                details_context=details_context,
             )
             current_row = _get_usage_transaction_for_window(session, window=window)
             current_snapshot = _snapshot_usage_transaction(current_row)
@@ -395,6 +397,13 @@ def reevaluate_vee_exception_and_replay(
                 previous_final=previous_final,
                 current_final=current_final,
                 trigger_type="vee_re_evaluate",
+                details_context={
+                    "trigger_source": "re_vee",
+                    "initial_measurement_id": initial_measurement_id,
+                    "vee_execution_log_id": execution.id,
+                    "previous_final_measurement_id": previous_final_id,
+                    "current_final_measurement_id": current_final.id,
+                },
             )
             record_operational_event(
                 session,

@@ -126,6 +126,12 @@ def test_calculate_usage_transactions_creates_complete_daily_usage(session):
     assert row.missing_interval_count == 0
     assert row.quality_summary == "all_finalized"
     assert row.calculation_status == "complete"
+    assert row.details["provenance"]["trigger_type"] == "manual"
+    assert row.details["provenance"]["trigger_source"] == "usage_calculation"
+    assert len(row.details["provenance"]["contributing_final_measurement_ids"]) == 24
+    assert len(row.details["provenance"]["contributing_initial_measurement_ids"]) == 24
+    assert len(row.details["provenance"]["contributing_canonical_measurement_ids"]) == 24
+    assert "replay_context" not in row.details["provenance"]
     assert pipeline_run is not None
     assert pipeline_run.status == "completed"
     assert pipeline_run.result_code == "usage_completed"

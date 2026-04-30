@@ -146,6 +146,8 @@ def test_usage_transaction_detail_page_shows_lineage_and_final_context(client, s
 
     assert response.status_code == 200
     assert "사용량 거래 상세" in text
+    assert "계산 근거" in text
+    assert "수동 사용량 계산" in text
     assert "구성 최종 계측" in text
     assert "SP-1001" in text
     assert "MTR-1001" in text

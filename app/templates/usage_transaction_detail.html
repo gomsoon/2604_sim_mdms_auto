@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set usage_details = detail.usage_transaction.details or {} %}
+{% set provenance = usage_details.get("provenance") %}
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
   <div>
     <h1 class="h3 mb-1">{{ t("page.usage_transaction_detail.title") }}</h1>
@@ -64,13 +66,65 @@
           <dd class="col-sm-8">{{ detail.usage_transaction.measuring_component.external_channel_id }}</dd>
           <dt class="col-sm-4">{{ t("table.component_id") }}</dt>
           <dd class="col-sm-8">{{ detail.usage_transaction.measuring_component_id }}</dd>
-          <dt class="col-sm-4">{{ t("table.details") }}</dt>
+          <dt class="col-sm-4">{{ t("table.quality_summary") }}</dt>
           <dd class="col-sm-8">{{ detail.usage_transaction.quality_summary }}</dd>
         </dl>
       </div>
     </div>
   </div>
 </div>
+
+{% if provenance %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.usage_transaction_detail.provenance") }}</h2>
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.trigger_type") }}</dt>
+      <dd class="col-sm-8">
+        {{ t_or("usage.trigger." ~ provenance.trigger_type, provenance.trigger_type) }}
+      </dd>
+      <dt class="col-sm-4">{{ t("field.trigger_source") }}</dt>
+      <dd class="col-sm-8">
+        {{ t_or("usage.trigger_source." ~ provenance.trigger_source, provenance.trigger_source) }}
+      </dd>
+      <dt class="col-sm-4">{{ t("field.contributing_final_measurements") }}</dt>
+      <dd class="col-sm-8">
+        {% if provenance.contributing_final_measurement_ids %}
+          {{ provenance.contributing_final_measurement_ids|join(", ") }}
+        {% else %}
+          {{ t("common.none") }}
+        {% endif %}
+      </dd>
+      <dt class="col-sm-4">{{ t("field.contributing_initial_measurements") }}</dt>
+      <dd class="col-sm-8">
+        {% if provenance.contributing_initial_measurement_ids %}
+          {{ provenance.contributing_initial_measurement_ids|join(", ") }}
+        {% else %}
+          {{ t("common.none") }}
+        {% endif %}
+      </dd>
+      <dt class="col-sm-4">{{ t("field.contributing_canonical_measurements") }}</dt>
+      <dd class="col-sm-8">
+        {% if provenance.contributing_canonical_measurement_ids %}
+          {{ provenance.contributing_canonical_measurement_ids|join(", ") }}
+        {% else %}
+          {{ t("common.none") }}
+        {% endif %}
+      </dd>
+      {% if provenance.replay_context %}
+      <dt class="col-sm-4">{{ t("table.vee_execution_log_id") }}</dt>
+      <dd class="col-sm-8">{{ provenance.replay_context.vee_execution_log_id or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.initial_measurement") }}</dt>
+      <dd class="col-sm-8">{{ provenance.replay_context.initial_measurement_id or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.previous_final_measurement") }}</dt>
+      <dd class="col-sm-8">{{ provenance.replay_context.previous_final_measurement_id or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.current_final_measurement") }}</dt>
+      <dd class="col-sm-8">{{ provenance.replay_context.current_final_measurement_id or t("common.none") }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+{% endif %}
 
 <div class="card shadow-sm mb-4">
   <div class="card-body">
@@ -113,8 +167,8 @@
 <div class="card shadow-sm">
   <div class="card-body">
     <h2 class="h5 mb-3">{{ t("table.details") }}</h2>
-    {% if detail.usage_transaction.details %}
-    <pre class="bg-light border rounded p-3 mb-0"><code>{{ detail.usage_transaction.details | tojson(indent=2) }}</code></pre>
+    {% if usage_details %}
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ usage_details | tojson(indent=2) }}</code></pre>
     {% else %}
     <div class="text-secondary">{{ t("page.operational_event_detail.no_details") }}</div>
     {% endif %}

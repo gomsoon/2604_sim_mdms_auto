@@ -90,6 +90,14 @@ def test_reevaluate_replay_creates_final_and_usage_when_issue_clears(session):
         "daily_consumption",
         "monthly_consumption",
     }
+    for row in usage_rows:
+        provenance = row.details["provenance"]
+        assert provenance["trigger_type"] == "vee_re_evaluate"
+        assert provenance["trigger_source"] == "re_vee"
+        assert provenance["replay_context"]["initial_measurement_id"] == initial.id
+        assert provenance["replay_context"]["vee_execution_log_id"] == summary.vee_execution_log_id
+        assert provenance["replay_context"]["previous_final_measurement_id"] is None
+        assert provenance["replay_context"]["current_final_measurement_id"] == final_row.id
     usage_event = session.scalar(
         select(OperationalEvent)
         .where(OperationalEvent.event_code == "usage_recalculated_after_vee")
@@ -194,6 +202,14 @@ def test_reevaluate_replay_supersedes_final_and_updates_usage(session):
     assert monthly_usage is not None
     assert daily_usage.usage_value == Decimal("42.0000")
     assert monthly_usage.usage_value == Decimal("42.0000")
+    for row in (daily_usage, monthly_usage):
+        provenance = row.details["provenance"]
+        assert provenance["trigger_type"] == "vee_re_evaluate"
+        assert provenance["trigger_source"] == "re_vee"
+        assert provenance["replay_context"]["initial_measurement_id"] == initial.id
+        assert provenance["replay_context"]["vee_execution_log_id"] == summary.vee_execution_log_id
+        assert provenance["replay_context"]["previous_final_measurement_id"] == old_final.id
+        assert provenance["replay_context"]["current_final_measurement_id"] == current_final.id
     final_event = session.scalar(
         select(OperationalEvent)
         .where(OperationalEvent.event_code == "final_measurement_superseded")
