@@ -55,6 +55,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "processing_watermark" in tables
         assert "vee_execution_log" in tables
         assert "vee_exception" in tables
+        assert "vee_replay_request" in tables
+        assert "vee_replay_request_item" in tables
         assert "usage_transaction" in tables
         assert "adapter_definition" in tables
         assert "hes_system" in tables
@@ -103,12 +105,23 @@ def test_alembic_upgrade_creates_expected_tables():
             column["name"]: column
             for column in inspector.get_columns("initial_measurement", schema=schema_name)
         }
+        pipeline_run_columns = {
+            column["name"] for column in inspector.get_columns("pipeline_run", schema=schema_name)
+        }
         vee_execution_log_columns = {
             column["name"]
             for column in inspector.get_columns("vee_execution_log", schema=schema_name)
         }
         vee_exception_columns = {
             column["name"] for column in inspector.get_columns("vee_exception", schema=schema_name)
+        }
+        vee_replay_request_columns = {
+            column["name"]
+            for column in inspector.get_columns("vee_replay_request", schema=schema_name)
+        }
+        vee_replay_request_item_columns = {
+            column["name"]
+            for column in inspector.get_columns("vee_replay_request_item", schema=schema_name)
         }
         usage_transaction_columns = {
             column["name"]
@@ -156,12 +169,27 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "canonical_measurement_id" in initial_measurement_columns
         assert "initial_status" in initial_measurement_columns
         assert "ready_for_vee_at" in initial_measurement_columns
+        assert "vee_replay_request_id" in pipeline_run_columns
         assert "initial_measurement_id" in vee_execution_log_columns
         assert "rule_set_code" in vee_execution_log_columns
         assert "execution_status" in vee_execution_log_columns
         assert "initial_measurement_id" in vee_exception_columns
         assert "vee_execution_log_id" in vee_exception_columns
         assert "blocking_finalization" in vee_exception_columns
+        assert "request_scope" in vee_replay_request_columns
+        assert "status" in vee_replay_request_columns
+        assert "requested_by" in vee_replay_request_columns
+        assert "hes_system_id" in vee_replay_request_columns
+        assert "ingest_batch_id" in vee_replay_request_columns
+        assert "target_initial_count" in vee_replay_request_columns
+        assert "processed_count" in vee_replay_request_columns
+        assert "usage_recalculated_count" in vee_replay_request_columns
+        assert "vee_replay_request_id" in vee_replay_request_item_columns
+        assert "initial_measurement_id" in vee_replay_request_item_columns
+        assert "representative_vee_exception_id" in vee_replay_request_item_columns
+        assert "vee_execution_log_id" in vee_replay_request_item_columns
+        assert "previous_final_measurement_id" in vee_replay_request_item_columns
+        assert "current_final_measurement_id" in vee_replay_request_item_columns
         assert "pipeline_run_id" in usage_transaction_columns
         assert "usage_type" in usage_transaction_columns
         assert "period_start_at" in usage_transaction_columns
@@ -216,8 +244,11 @@ def test_alembic_upgrade_creates_expected_tables():
                         'adapter_run',
                         'operational_event',
                         'initial_measurement',
+                        'pipeline_run',
                         'vee_execution_log',
                         'vee_exception',
+                        'vee_replay_request',
+                        'vee_replay_request_item',
                         'usage_transaction'
                       )
                     order by tablename, indexname
@@ -244,6 +275,19 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_vee_exception_exception_code" in index_defs
         assert "ix_vee_exception_detected_at" in index_defs
         assert "ix_vee_exception_blocking_finalization" in index_defs
+        assert "ix_vee_replay_request_status" in index_defs
+        assert "ix_vee_replay_request_request_scope" in index_defs
+        assert "ix_vee_replay_request_hes_system_id" in index_defs
+        assert "ix_vee_replay_request_ingest_batch_id" in index_defs
+        assert "ix_vee_replay_request_requested_by" in index_defs
+        assert "ix_vee_replay_request_created_at" in index_defs
+        assert "uq_vee_replay_request_item_scope" in index_defs
+        assert "UNIQUE INDEX" in index_defs["uq_vee_replay_request_item_scope"]
+        assert "ix_vee_replay_request_item_vee_replay_request_id" in index_defs
+        assert "ix_vee_replay_request_item_status" in index_defs
+        assert "ix_vee_replay_request_item_initial_measurement_id" in index_defs
+        assert "ix_vee_replay_request_item_representative_vee_exception_id" in index_defs
+        assert "ix_pipeline_run_vee_replay_request_id" in index_defs
         assert "uq_usage_transaction_scope" in index_defs
         assert "UNIQUE INDEX" in index_defs["uq_usage_transaction_scope"]
         assert "ix_usage_transaction_usage_type" in index_defs

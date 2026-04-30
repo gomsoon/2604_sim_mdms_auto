@@ -62,6 +62,9 @@ class HesSystem(TimestampMixin, Base):
     operational_events: Mapped[list["OperationalEvent"]] = relationship(
         back_populates="hes_system"
     )
+    vee_replay_requests: Mapped[list["VeeReplayRequest"]] = relationship(
+        back_populates="hes_system"
+    )
 
 
 class IngestBatch(TimestampMixin, Base):
@@ -82,6 +85,9 @@ class IngestBatch(TimestampMixin, Base):
     hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="ingest_batch")
     hes_event_rows: Mapped[list["HesEventRaw"]] = relationship(back_populates="ingest_batch")
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(back_populates="ingest_batch")
+    vee_replay_requests: Mapped[list["VeeReplayRequest"]] = relationship(
+        back_populates="ingest_batch"
+    )
     hes_system: Mapped["HesSystem | None"] = relationship(back_populates="ingest_batches")
     adapter_instance: Mapped["AdapterInstance | None"] = relationship(back_populates="ingest_batches")
     adapter_run: Mapped["AdapterRun | None"] = relationship(back_populates="ingest_batches")
@@ -579,6 +585,9 @@ class InitialMeasurement(TimestampMixin, Base):
         back_populates="initial_measurement"
     )
     vee_exceptions: Mapped[list["VeeException"]] = relationship(back_populates="initial_measurement")
+    vee_replay_request_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
+        back_populates="initial_measurement"
+    )
 
 
 class VeeExecutionLog(TimestampMixin, Base):
@@ -632,6 +641,104 @@ class VeeException(TimestampMixin, Base):
     initial_measurement: Mapped["InitialMeasurement"] = relationship(back_populates="vee_exceptions")
     vee_execution_log: Mapped["VeeExecutionLog | None"] = relationship(
         back_populates="vee_exceptions"
+    )
+    representative_replay_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
+        back_populates="representative_vee_exception"
+    )
+
+
+class VeeReplayRequest(TimestampMixin, Base):
+    __tablename__ = "vee_replay_request"
+    __table_args__ = (
+        Index("ix_vee_replay_request_status", "status"),
+        Index("ix_vee_replay_request_request_scope", "request_scope"),
+        Index("ix_vee_replay_request_hes_system_id", "hes_system_id"),
+        Index("ix_vee_replay_request_ingest_batch_id", "ingest_batch_id"),
+        Index("ix_vee_replay_request_requested_by", "requested_by"),
+        Index("ix_vee_replay_request_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_scope: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    operator_memo: Mapped[str | None] = mapped_column(Text)
+    hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"))
+    ingest_batch_id: Mapped[int | None] = mapped_column(ForeignKey("ingest_batch.id"))
+    measured_at_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    measured_at_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    window_timezone_name: Mapped[str | None] = mapped_column(String(50))
+    target_initial_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    succeeded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reopened_exception_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cleared_exception_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    final_superseded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    usage_recalculated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    hes_system: Mapped["HesSystem | None"] = relationship(back_populates="vee_replay_requests")
+    ingest_batch: Mapped["IngestBatch | None"] = relationship(back_populates="vee_replay_requests")
+    request_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
+        back_populates="vee_replay_request"
+    )
+    pipeline_runs: Mapped[list["PipelineRun"]] = relationship(back_populates="vee_replay_request")
+
+
+class VeeReplayRequestItem(TimestampMixin, Base):
+    __tablename__ = "vee_replay_request_item"
+    __table_args__ = (
+        UniqueConstraint(
+            "vee_replay_request_id",
+            "initial_measurement_id",
+            name="uq_vee_replay_request_item_scope",
+        ),
+        Index("ix_vee_replay_request_item_status", "status"),
+        Index("ix_vee_replay_request_item_initial_measurement_id", "initial_measurement_id"),
+        Index(
+            "ix_vee_replay_request_item_representative_vee_exception_id",
+            "representative_vee_exception_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vee_replay_request_id: Mapped[int] = mapped_column(
+        ForeignKey("vee_replay_request.id"), nullable=False, index=True
+    )
+    initial_measurement_id: Mapped[int] = mapped_column(
+        ForeignKey("initial_measurement.id"), nullable=False
+    )
+    representative_vee_exception_id: Mapped[int] = mapped_column(
+        ForeignKey("vee_exception.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    result_code: Mapped[str | None] = mapped_column(String(80))
+    vee_execution_log_id: Mapped[int | None] = mapped_column(ForeignKey("vee_execution_log.id"))
+    previous_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    current_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    vee_replay_request: Mapped["VeeReplayRequest"] = relationship(back_populates="request_items")
+    initial_measurement: Mapped["InitialMeasurement"] = relationship(
+        back_populates="vee_replay_request_items"
+    )
+    representative_vee_exception: Mapped["VeeException"] = relationship(
+        back_populates="representative_replay_items"
+    )
+    vee_execution_log: Mapped["VeeExecutionLog | None"] = relationship()
+    previous_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        foreign_keys=[previous_final_measurement_id]
+    )
+    current_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        foreign_keys=[current_final_measurement_id]
     )
 
 
@@ -824,6 +931,10 @@ class PipelineRun(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="processing")
     ingest_batch_id: Mapped[int | None] = mapped_column(ForeignKey("ingest_batch.id"))
     reprocess_request_id: Mapped[int | None] = mapped_column(ForeignKey("reprocess_request.id"))
+    vee_replay_request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vee_replay_request.id"),
+        index=True,
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result_code: Mapped[str | None] = mapped_column(String(80))
@@ -831,6 +942,9 @@ class PipelineRun(TimestampMixin, Base):
 
     ingest_batch: Mapped[IngestBatch | None] = relationship(back_populates="pipeline_runs")
     reprocess_request: Mapped[ReprocessRequest | None] = relationship(back_populates="pipeline_runs")
+    vee_replay_request: Mapped["VeeReplayRequest | None"] = relationship(
+        back_populates="pipeline_runs"
+    )
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(back_populates="pipeline_run")
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="pipeline_run"
