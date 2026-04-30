@@ -13,7 +13,9 @@ def test_dashboard_smoke_flow(page: Page):
     expect(stage_cards.get_by_text("Raw Ingest", exact=True)).to_be_visible()
     expect(stage_cards.get_by_text("Canonical", exact=True)).to_be_visible()
     expect(stage_cards.get_by_text("Errors", exact=True)).to_be_visible()
-    expect(page.locator("table").first.get_by_text("MTR-1001").first).to_be_visible()
+    expect(stage_cards.get_by_text("Usage", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Recent Raw Reads")).to_be_visible()
+    expect(page.locator("table").get_by_text("MTR-1001").first).to_be_visible()
     expect(page.locator(".list-group").get_by_text("measuring_component_not_found")).to_be_visible()
 
 

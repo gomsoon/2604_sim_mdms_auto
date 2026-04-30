@@ -34,7 +34,7 @@
             {% if card.detail_endpoint and card.detail_link_key %}
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for(card.detail_endpoint) }}">{{ t(card.detail_link_key) }}</a>
             {% endif %}
-            <span class="badge text-bg-light">{{ card.waiting + card.processing + card.completed + card.failed }}</span>
+            <span class="badge text-bg-light">{{ card.total_count if card.total_count is not none else card.waiting + card.processing + card.completed + card.failed }}</span>
           </div>
         </div>
         <div class="row g-2 text-center">
@@ -83,6 +83,62 @@
     </div>
   </div>
   {% endfor %}
+</section>
+
+<section class="mb-4">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">{{ t("dashboard.recent_recalculated_usage") }}</h2>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.usage_transactions', lang=current_locale) }}">{{ t("dashboard.view_usage") }}</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>{{ t("table.id") }}</th>
+              <th>{{ t("table.usage_type") }}</th>
+              <th>{{ t("table.service_point") }}</th>
+              <th>{{ t("table.channel") }}</th>
+              <th>{{ t("table.period") }}</th>
+              <th>{{ t("table.status") }}</th>
+              <th>{{ t("table.usage_value") }}</th>
+              <th>{{ t("table.calculated_at") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in recent_recalculated_usage %}
+            <tr>
+              <td>
+                <a class="link-primary text-decoration-none" href="{{ url_for('web.usage_transaction_detail', usage_transaction_id=row.id, lang=current_locale) }}">
+                  {{ row.id }}
+                </a>
+              </td>
+              <td>{{ t_or("usage.type." ~ row.usage_type, row.usage_type) }}</td>
+              <td>{{ row.service_point.external_id }}</td>
+              <td>{{ row.measuring_component.external_channel_id }}</td>
+              <td>
+                <div>{{ row.period_start_at|dt }}</div>
+                <div class="small text-secondary">{{ row.period_end_at|dt }}</div>
+              </td>
+              <td>
+                <span class="badge text-bg-{% if row.calculation_status == 'complete' %}success{% elif row.calculation_status == 'partial' %}warning{% else %}danger{% endif %}">
+                  {{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}
+                </span>
+              </td>
+              <td>{{ row.usage_value }}</td>
+              <td>{{ row.calculated_at|dt }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="text-secondary">{{ t("dashboard.no_recent_recalculated_usage") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section class="row g-3 mb-4">

@@ -18,6 +18,7 @@ from app.models import (
     OperationalEvent,
     PipelineRun,
     ServicePoint,
+    UsageTransaction,
 )
 from app.services.adapters import derive_effective_status
 from app.services.adapters import derive_is_overdue, derive_is_stale
@@ -38,6 +39,7 @@ class StageStatusCard:
     processing: int
     completed: int
     failed: int
+    total_count: int | None = None
     waiting_label_key: str = "dashboard.stage.waiting"
     processing_label_key: str = "dashboard.stage.processing"
     completed_label_key: str = "dashboard.stage.completed"
@@ -59,6 +61,7 @@ class DashboardSnapshot:
     recent_exceptions: list[IngestErrorLog]
     open_alerts: list[OperationalEvent]
     recent_events: list[OperationalEvent]
+    recent_recalculated_usage: list[UsageTransaction]
 
 
 def _count(session: Session, statement) -> int:
@@ -79,6 +82,12 @@ def _load_latest_adapter_runs(session: Session, adapter_instance_ids: list[int])
     for run in runs:
         latest_runs.setdefault(run.adapter_instance_id, run)
     return latest_runs
+
+
+def _usage_recalculated_after_vee_filter():
+    return (
+        UsageTransaction.details["provenance"]["trigger_source"].as_string() == "re_vee"
+    )
 
 
 def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
@@ -234,6 +243,34 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         .select_from(PipelineRun)
         .where(PipelineRun.pipeline_name == "finalization", PipelineRun.status == "failed"),
     )
+    usage_complete = _count(
+        session,
+        select(func.count())
+        .select_from(UsageTransaction)
+        .where(UsageTransaction.calculation_status == "complete"),
+    )
+    usage_partial = _count(
+        session,
+        select(func.count())
+        .select_from(UsageTransaction)
+        .where(UsageTransaction.calculation_status == "partial"),
+    )
+    usage_blocked = _count(
+        session,
+        select(func.count())
+        .select_from(UsageTransaction)
+        .where(UsageTransaction.calculation_status == "blocked"),
+    )
+    usage_recalculated = _count(
+        session,
+        select(func.count())
+        .select_from(UsageTransaction)
+        .where(_usage_recalculated_after_vee_filter()),
+    )
+    latest_usage_calculated_at = session.scalar(select(func.max(UsageTransaction.calculated_at)))
+    latest_usage_recalculated_at = session.scalar(
+        select(func.max(UsageTransaction.calculated_at)).where(_usage_recalculated_after_vee_filter())
+    )
 
     stage_cards = [
         StageStatusCard(
@@ -299,6 +336,40 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
             completed=final_completed,
             failed=final_failed,
         ),
+        StageStatusCard(
+            title_key="dashboard.stage.usage",
+            waiting=usage_complete,
+            processing=usage_partial,
+            completed=usage_blocked,
+            failed=usage_recalculated,
+            total_count=usage_complete + usage_partial + usage_blocked,
+            waiting_label_key="usage.calculation_status.complete",
+            processing_label_key="usage.calculation_status.partial",
+            completed_label_key="usage.calculation_status.blocked",
+            failed_label_key="dashboard.usage.recalculated",
+            waiting_value_class="text-success",
+            processing_value_class="text-warning",
+            completed_value_class="text-danger",
+            failed_value_class="text-primary",
+            detail_endpoint="web.usage_transactions",
+            detail_link_key="dashboard.view_usage",
+            summary_rows=[
+                CardSummaryRow(
+                    label_key="dashboard.usage.last_calculated",
+                    value=latest_usage_calculated_at,
+                    is_datetime=True,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.usage.last_recalculated",
+                    value=latest_usage_recalculated_at,
+                    is_datetime=True,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.usage.partial_or_blocked",
+                    value=usage_partial + usage_blocked,
+                ),
+            ],
+        ),
     ]
 
     recent_reads = session.scalars(select(HesReadRaw).order_by(HesReadRaw.id.desc()).limit(10)).all()
@@ -319,6 +390,17 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         .order_by(OperationalEvent.occurred_at.desc(), OperationalEvent.id.desc())
         .limit(12)
     ).all()
+    recent_recalculated_usage = session.scalars(
+        select(UsageTransaction)
+        .options(
+            selectinload(UsageTransaction.service_point),
+            selectinload(UsageTransaction.measuring_component),
+            selectinload(UsageTransaction.device),
+        )
+        .where(_usage_recalculated_after_vee_filter())
+        .order_by(UsageTransaction.calculated_at.desc(), UsageTransaction.id.desc())
+        .limit(5)
+    ).all()
 
     return DashboardSnapshot(
         stats=stats,
@@ -327,4 +409,5 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         recent_exceptions=recent_exceptions,
         open_alerts=open_alerts,
         recent_events=recent_events,
+        recent_recalculated_usage=recent_recalculated_usage,
     )

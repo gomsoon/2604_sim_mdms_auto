@@ -11,6 +11,7 @@ def test_dashboard_renders_korean_when_locale_query_is_supported(client):
     assert "원시 검침" in text
     assert "원시 적재" in text
     assert "표준화" in text
+    assert "최근 재계산 사용량" in text
     assert "mdms_locale=ko" in response.headers.get("Set-Cookie", "")
 
 

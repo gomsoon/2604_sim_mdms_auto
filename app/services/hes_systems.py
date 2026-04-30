@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import (
     AdapterInstance,
     AdapterRun,
+    CanonicalMeasurement,
     Device,
+    FinalMeasurement,
     HesEventRaw,
     HesMeterReference,
     HesReadRaw,
@@ -18,6 +20,7 @@ from app.models import (
     IngestBatch,
     OperationalEvent,
     ServicePoint,
+    UsageTransaction,
 )
 from app.services.operational_events import close_operational_alerts, record_operational_event
 
@@ -60,6 +63,11 @@ class HesSystemDetail:
     recent_events: list[OperationalEvent]
     raw_reads_count: int
     raw_events_count: int
+    usage_transaction_count: int
+    partial_usage_transaction_count: int
+    blocked_usage_transaction_count: int
+    latest_usage_recalculated_at: object | None
+    recent_recalculated_usage_rows: list[UsageTransaction]
     meter_reference_rows: list["HesMeterReferenceComparisonRow"]
     meter_reference_count: int
     matched_meter_reference_count: int
@@ -384,6 +392,31 @@ def _summarize_hes_meter_reference_comparison_rows(
             1 for row in rows if row.comparison_status == "missing_installation"
         ),
     }
+
+
+def _usage_transaction_matches_hes_clause(hes_system_id: int):
+    return (
+        select(FinalMeasurement.id)
+        .join(
+            CanonicalMeasurement,
+            FinalMeasurement.canonical_measurement_id == CanonicalMeasurement.id,
+        )
+        .join(HesReadRaw, CanonicalMeasurement.hes_read_raw_id == HesReadRaw.id)
+        .where(
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.service_point_id == UsageTransaction.service_point_id,
+            FinalMeasurement.measuring_component_id == UsageTransaction.measuring_component_id,
+            FinalMeasurement.measured_at >= UsageTransaction.period_start_at,
+            FinalMeasurement.measured_at < UsageTransaction.period_end_at,
+            HesReadRaw.hes_system_id == hes_system_id,
+        )
+        .exists()
+    )
+
+
+def _usage_recalculated_after_vee_filter():
+    return UsageTransaction.details["provenance"]["trigger_source"].as_string() == "re_vee"
 
 
 HES_METER_REFERENCE_ALERT_RULES: tuple[HesMeterReferenceAlertRule, ...] = (
@@ -761,6 +794,55 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         )
         or 0
     )
+    usage_scope_clause = _usage_transaction_matches_hes_clause(hes_system.id)
+    usage_transaction_count = int(
+        session.scalar(
+            select(func.count()).select_from(UsageTransaction).where(usage_scope_clause)
+        )
+        or 0
+    )
+    partial_usage_transaction_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(UsageTransaction)
+            .where(
+                usage_scope_clause,
+                UsageTransaction.calculation_status == "partial",
+            )
+        )
+        or 0
+    )
+    blocked_usage_transaction_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(UsageTransaction)
+            .where(
+                usage_scope_clause,
+                UsageTransaction.calculation_status == "blocked",
+            )
+        )
+        or 0
+    )
+    latest_usage_recalculated_at = session.scalar(
+        select(func.max(UsageTransaction.calculated_at)).where(
+            usage_scope_clause,
+            _usage_recalculated_after_vee_filter(),
+        )
+    )
+    recent_recalculated_usage_rows = session.scalars(
+        select(UsageTransaction)
+        .options(
+            selectinload(UsageTransaction.service_point),
+            selectinload(UsageTransaction.measuring_component),
+            selectinload(UsageTransaction.device),
+        )
+        .where(
+            usage_scope_clause,
+            _usage_recalculated_after_vee_filter(),
+        )
+        .order_by(UsageTransaction.calculated_at.desc(), UsageTransaction.id.desc())
+        .limit(5)
+    ).all()
     all_meter_reference_rows = _build_hes_meter_reference_comparison_rows(session, hes_system)
     meter_reference_summary = _summarize_hes_meter_reference_comparison_rows(
         all_meter_reference_rows
@@ -781,6 +863,11 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         recent_events=recent_events,
         raw_reads_count=raw_reads_count,
         raw_events_count=raw_events_count,
+        usage_transaction_count=usage_transaction_count,
+        partial_usage_transaction_count=partial_usage_transaction_count,
+        blocked_usage_transaction_count=blocked_usage_transaction_count,
+        latest_usage_recalculated_at=latest_usage_recalculated_at,
+        recent_recalculated_usage_rows=recent_recalculated_usage_rows,
         meter_reference_rows=all_meter_reference_rows[:10],
         meter_reference_count=meter_reference_summary["meter_reference_count"],
         matched_meter_reference_count=meter_reference_summary["matched_meter_reference_count"],

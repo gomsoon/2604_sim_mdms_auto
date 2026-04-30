@@ -160,3 +160,15 @@ def test_operational_event_detail_page_links_to_usage_transactions(client, sessi
     assert "월별 사용량" in text
     for row in usage_rows:
         assert f"/usage-transactions/{row.id}?lang=ko" in text
+
+
+def test_dashboard_page_lists_recent_recalculated_usage(client, session):
+    _, usage_rows = _create_usage_recalculation_event(session)
+
+    response = client.get("/?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "최근 재계산 사용량" in text
+    for row in usage_rows:
+        assert f"/usage-transactions/{row.id}?lang=ko" in text

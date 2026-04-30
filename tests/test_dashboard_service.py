@@ -4,11 +4,14 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.models import AdapterInstance, AdapterRun, IngestErrorLog, OperationalEvent
+from app.models import AdapterInstance, AdapterRun, IngestErrorLog, InitialMeasurement, OperationalEvent, VeeException
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.exception_queue import reprocess_exception
 from app.services.finalization import finalize_canonical_measurements
+from app.services.processing_replay import reevaluate_vee_exception_and_replay
 from app.services.seeds import seed_demo_environment
+from app.services.usage import calculate_usage_transactions
+from app.services.vee import evaluate_or_get_vee_baseline
 
 
 def test_dashboard_snapshot_returns_zero_stage_counts_without_data(session):
@@ -20,7 +23,9 @@ def test_dashboard_snapshot_returns_zero_stage_counts_without_data(session):
     assert snapshot.stats["open_alerts"] == 0
     assert snapshot.open_alerts == []
     assert snapshot.recent_events == []
+    assert snapshot.recent_recalculated_usage == []
     assert [(card.waiting, card.processing, card.completed, card.failed) for card in snapshot.stage_cards] == [
+        (0, 0, 0, 0),
         (0, 0, 0, 0),
         (0, 0, 0, 0),
         (0, 0, 0, 0),
@@ -63,9 +68,14 @@ def test_dashboard_snapshot_derives_stage_counts_from_seeded_data(session):
     assert cards["dashboard.stage.final"].processing == 0
     assert cards["dashboard.stage.final"].completed == 0
     assert cards["dashboard.stage.final"].failed == 0
+    assert cards["dashboard.stage.usage"].waiting == 0
+    assert cards["dashboard.stage.usage"].processing == 0
+    assert cards["dashboard.stage.usage"].completed == 0
+    assert cards["dashboard.stage.usage"].failed == 0
     assert snapshot.stats["open_alerts"] == 1
     assert snapshot.open_alerts[0].event_code == "canonical_failed"
     assert len(snapshot.recent_events) >= 5
+    assert snapshot.recent_recalculated_usage == []
 
 
 def test_dashboard_snapshot_reflects_failed_reprocess_pipeline_runs(session):
@@ -237,3 +247,60 @@ def test_dashboard_snapshot_lists_open_alerts_and_recent_events_in_time_order(se
 
     assert snapshot.open_alerts[0].id == later_event.id
     assert snapshot.recent_events[0].id == later_event.id
+
+
+def test_dashboard_snapshot_includes_usage_spotlight_after_revee(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).order_by(InitialMeasurement.id.asc()).limit(1))
+    assert initial is not None
+
+    for row in list(initial.vee_exceptions):
+        session.delete(row)
+    for row in list(initial.vee_execution_logs):
+        session.delete(row)
+    initial.initial_status = "ready"
+    initial.unit_of_measure = ""
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .order_by(VeeException.id.asc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    initial.unit_of_measure = "kWh"
+    session.commit()
+
+    reevaluate_vee_exception_and_replay(
+        session,
+        vee_exception.id,
+        reevaluated_by="operator_ui",
+    )
+    session.commit()
+
+    snapshot = build_dashboard_snapshot(session)
+    card = {row.title_key: row for row in snapshot.stage_cards}["dashboard.stage.usage"]
+    summary = {row.label_key: row.value for row in card.summary_rows}
+
+    assert card.total_count == 2
+    assert card.processing >= 1
+    assert card.failed >= 1
+    assert summary["dashboard.usage.last_calculated"] is not None
+    assert summary["dashboard.usage.last_recalculated"] is not None
+    assert summary["dashboard.usage.partial_or_blocked"] == 2
+    assert len(snapshot.recent_recalculated_usage) >= 1
+    assert all(
+        row.details["provenance"]["trigger_source"] == "re_vee"
+        for row in snapshot.recent_recalculated_usage
+    )

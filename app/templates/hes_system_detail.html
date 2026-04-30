@@ -62,6 +62,14 @@
           <dd class="col-sm-7">{{ detail.raw_reads_count }}</dd>
           <dt class="col-sm-5">{{ t("table.raw_events_count") }}</dt>
           <dd class="col-sm-7">{{ detail.raw_events_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.usage_transaction_count") }}</dt>
+          <dd class="col-sm-7">{{ detail.usage_transaction_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.partial_usage_transactions") }}</dt>
+          <dd class="col-sm-7">{{ detail.partial_usage_transaction_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.blocked_usage_transactions") }}</dt>
+          <dd class="col-sm-7">{{ detail.blocked_usage_transaction_count }}</dd>
+          <dt class="col-sm-5">{{ t("table.latest_usage_recalculated") }}</dt>
+          <dd class="col-sm-7">{{ detail.latest_usage_recalculated_at|dt }}</dd>
           <dt class="col-sm-5">{{ t("table.meter_reference_count") }}</dt>
           <dd class="col-sm-7">{{ detail.meter_reference_count }}</dd>
           <dt class="col-sm-5">{{ t("table.matched_meter_references") }}</dt>
@@ -287,6 +295,66 @@
 </div>
 
 <div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="h5 mb-1">{{ t("page.hes_system_detail.usage_summary") }}</h2>
+            <div class="small text-secondary">{{ t("page.hes_system_detail.recent_recalculated_usage") }}</div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.usage_transactions', lang=current_locale) }}">
+            {{ t("button.view") }}
+          </a>
+        </div>
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <span class="badge rounded-pill text-bg-light border">{{ t("table.usage_transaction_count") }}: {{ detail.usage_transaction_count }}</span>
+          <span class="badge rounded-pill text-bg-warning-subtle text-warning-emphasis border">{{ t("table.partial_usage_transactions") }}: {{ detail.partial_usage_transaction_count }}</span>
+          <span class="badge rounded-pill text-bg-danger-subtle text-danger-emphasis border">{{ t("table.blocked_usage_transactions") }}: {{ detail.blocked_usage_transaction_count }}</span>
+        </div>
+        {% if detail.recent_recalculated_usage_rows %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.id") }}</th>
+                <th>{{ t("table.usage_type") }}</th>
+                <th>{{ t("table.service_point") }}</th>
+                <th>{{ t("table.channel") }}</th>
+                <th>{{ t("table.status") }}</th>
+                <th>{{ t("table.usage_value") }}</th>
+                <th>{{ t("table.calculated_at") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.recent_recalculated_usage_rows %}
+              <tr>
+                <td>
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.usage_transaction_detail', usage_transaction_id=row.id, lang=current_locale) }}">
+                    {{ row.id }}
+                  </a>
+                </td>
+                <td>{{ t_or("usage.type." ~ row.usage_type, row.usage_type) }}</td>
+                <td>{{ row.service_point.external_id }}</td>
+                <td>{{ row.measuring_component.external_channel_id }}</td>
+                <td>
+                  <span class="badge text-bg-{% if row.calculation_status == 'complete' %}success{% elif row.calculation_status == 'partial' %}warning{% else %}danger{% endif %}">
+                    {{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}
+                  </span>
+                </td>
+                <td>{{ row.usage_value }}</td>
+                <td>{{ row.calculated_at|dt }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_recalculated_usage") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
   <div class="col-xl-6">
     <div class="card shadow-sm h-100">
       <div class="card-body">

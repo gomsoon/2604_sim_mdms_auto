@@ -4,8 +4,10 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.models import AdapterInstance, HesSystem, OperationalEvent
+from app.models import AdapterInstance, HesSystem, InitialMeasurement, OperationalEvent, UsageTransaction, VeeException
+from app.services.processing_replay import reevaluate_vee_exception_and_replay
 from app.services.seeds import seed_demo_environment
+from app.services.vee import evaluate_or_get_vee_baseline
 
 
 def test_hes_systems_page_renders_seeded_registry_in_korean(client, session):
@@ -96,6 +98,7 @@ def test_hes_system_detail_page_renders_linked_adapter_and_recent_batch(client, 
     assert "demo-read-batch" in text
     assert "최근 적재" in text
     assert "최근 이벤트" in text
+    assert "사용량 요약" in text
     assert "계량기 참조" in text
     assert "정상 매핑" in text
     assert "장치 누락" in text
@@ -136,6 +139,55 @@ def test_hes_system_detail_page_renders_recent_alerts_and_events(client, session
     assert open_alert.event_code in text
     assert recent_event.event_code in text
     assert f"/operational-events?hes_system_id={hes_system.id}" in text
+
+
+def test_hes_system_detail_page_lists_recent_recalculated_usage(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).order_by(InitialMeasurement.id.asc()).limit(1))
+    assert initial is not None
+
+    for row in list(initial.vee_exceptions):
+        session.delete(row)
+    for row in list(initial.vee_execution_logs):
+        session.delete(row)
+    initial.initial_status = "ready"
+    initial.unit_of_measure = ""
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .order_by(VeeException.id.asc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+
+    initial.unit_of_measure = "kWh"
+    session.commit()
+
+    reevaluate_vee_exception_and_replay(
+        session,
+        vee_exception.id,
+        reevaluated_by="operator_ui",
+    )
+    session.commit()
+
+    usage_row = session.scalar(select(UsageTransaction).order_by(UsageTransaction.id.asc()).limit(1))
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert usage_row is not None
+    assert hes_system is not None
+
+    response = client.get(f"/hes-systems/{hes_system.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "사용량 요약" in text
+    assert "최근 사용량 재계산" in text
+    assert f"/usage-transactions/{usage_row.id}?lang=ko" in text
 
 
 def test_hes_meter_references_page_renders_comparison_rows(client, session):

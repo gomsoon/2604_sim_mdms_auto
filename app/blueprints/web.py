@@ -120,6 +120,7 @@ def dashboard():
         recent_exceptions=snapshot.recent_exceptions,
         open_alerts=snapshot.open_alerts,
         recent_events=snapshot.recent_events,
+        recent_recalculated_usage=snapshot.recent_recalculated_usage,
     )
 
 
