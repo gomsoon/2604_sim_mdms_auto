@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -14,6 +14,7 @@ from app.models import (
     VeeReplayRequest,
     VeeReplayRequestItem,
 )
+from app.services.operational_events import record_operational_event
 
 ACTIVE_VEE_EXCEPTION_STATUSES = ("open", "acknowledged")
 ACTIVE_VEE_REPLAY_REQUEST_STATUSES = ("queued", "processing")
@@ -294,7 +295,65 @@ def create_vee_replay_request(
     session.add_all(items)
     session.flush()
 
+    record_operational_event(
+        session,
+        "vee_replay_requested",
+        occurred_at=request.created_at,
+        entity_type="vee_replay_request",
+        entity_id=request.id,
+        hes_system=request.hes_system,
+        ingest_batch=request.ingest_batch,
+        details={
+            "request_id": request.id,
+            "request_scope": request.request_scope,
+            "target_initial_count": request.target_initial_count,
+            "requested_by": request.requested_by,
+        },
+        request_id=request.id,
+        request_scope=request.request_scope,
+        target_initial_count=request.target_initial_count,
+    )
+    session.flush()
+
     return VeeReplayRequestCreationResult(
         request=request,
         created_item_count=len(items),
     )
+
+
+def cancel_vee_replay_request(
+    session: Session,
+    request_id: int,
+    *,
+    cancelled_by: str,
+    operator_memo: str | None = None,
+) -> VeeReplayRequest:
+    request = session.get(VeeReplayRequest, request_id)
+    if request is None:
+        raise VeeReplayRequestError(
+            "not_found",
+            "The selected VEE replay request does not exist.",
+        )
+    if request.status == "cancelled":
+        raise VeeReplayRequestError(
+            "already_cancelled",
+            "The selected VEE replay request is already cancelled.",
+        )
+    if request.status != "queued":
+        raise VeeReplayRequestError(
+            "request_not_cancellable",
+            "Only queued VEE replay requests can be cancelled.",
+        )
+
+    details = dict(request.details or {})
+    details["cancelled_by"] = cancelled_by
+    details["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+    if operator_memo:
+        details["cancellation_memo"] = operator_memo
+
+    request.status = "cancelled"
+    if operator_memo is not None:
+        request.operator_memo = operator_memo
+    request.details = details
+    session.flush()
+    return request

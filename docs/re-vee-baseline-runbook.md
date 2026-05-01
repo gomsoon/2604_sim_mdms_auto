@@ -248,5 +248,8 @@ That future design should keep:
 - single-object replay synchronous
 - bulk replay asynchronous
 - the existing `reevaluate_vee_exception_and_replay(...)` logic as the per-item replay engine
+- more than one worker process may exist, but one replay request should be owned by only one worker
+- queued requests may be cancelled before they start
+- processing requests should expose progress through persisted request/item counters and polling-friendly status pages, not through hard-stop controls in the first baseline
 
 See [bulk-async-vee-replay-design.md](/home/tprover/2604_sim_mdms_auto/docs/bulk-async-vee-replay-design.md) for the recommended first persistence model and worker behavior.

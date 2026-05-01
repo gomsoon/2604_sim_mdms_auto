@@ -59,8 +59,8 @@ The first async replay baseline should stay intentionally narrow.
 - replay by arbitrary service point list
 - replay by arbitrary measuring component list
 - scheduled automatic replay after master-data correction
-- cancellation and resume semantics beyond a simple `queued/processing/completed/failed/cancelled` lifecycle
-- distributed worker execution across multiple processes
+- pause, hard-stop, and resume semantics for requests that are already `processing`
+- parallel item execution inside one replay request
 
 ## Design principles
 
@@ -214,6 +214,19 @@ This keeps the first baseline conservative and aligned with the current operator
 
 ## Worker behavior
 
+### Worker concurrency policy
+
+The first worker baseline should allow more than one replay worker process to exist at the same time, but it should not split one request across many workers.
+
+The recommended policy is:
+
+- multiple workers may run concurrently across the whole system
+- one `vee_replay_request` may be claimed by only one worker
+- request claim should use `FOR UPDATE SKIP LOCKED`
+- request items inside one request should be processed serially in the first baseline
+
+This keeps the worker model aligned with the existing adapter queue design while avoiding item-level race conditions during re-finalization and usage recalculation.
+
 ### High-level flow
 
 1. Claim one `vee_replay_request` with `status = queued`.
@@ -229,6 +242,15 @@ This keeps the first baseline conservative and aligned with the current operator
 6. Mark request `completed` or `failed`.
 7. Complete or fail the linked `pipeline_run`.
 
+To make progress visible to operators, the processor should persist state incrementally instead of hiding all work inside one long transaction.
+
+The first baseline should commit at least:
+
+- after one request is claimed
+- after each item enters `processing`
+- after each item ends in `completed` or `failed`
+- after the request transitions to `completed` or `failed`
+
 ### Error strategy
 
 The first baseline should be item-tolerant.
@@ -239,6 +261,19 @@ That means:
 - the request should finish all items it can
 - the request is `completed` when all items are processed and no item failed
 - the request is `failed` when one or more items failed
+
+### Request control policy
+
+The first async baseline should keep operator controls intentionally narrow.
+
+Recommended policy:
+
+- `queued` requests may be cancelled before execution begins
+- `processing` requests do not support pause in the first baseline
+- `processing` requests do not support hard stop in the first baseline
+- a future soft-stop model may be added later, but only as a cooperative stop between items
+
+This protects the replay pipeline from inconsistent mid-item interruption while still allowing operators to withdraw work that has not started yet.
 
 ## Aggregate counters
 
@@ -274,8 +309,10 @@ The detail page should show:
 - request scope
 - current request status
 - requested by / requested at
-- counts for processed, succeeded, failed
+- counts for processed, succeeded, failed, remaining
+- progress percent
 - counts for reopened, cleared, superseded, recalculated
+- started at / completed at / last updated at
 - recent failed items
 - related pipeline run
 - links to impacted `vee_exception`, `final_measurement`, and `usage_transaction` detail pages where available
@@ -288,6 +325,15 @@ Operators must be able to answer:
 - how many have already been processed
 - how many failed
 - whether replay only reopened exceptions or also changed final and usage layers
+- whether the request is still actively moving forward
+
+The first UI baseline does not need WebSocket infrastructure.
+
+Polling or periodic refresh is enough as long as:
+
+- request-level counters are updated incrementally
+- item statuses become visible while processing is still running
+- the page can show the last updated moment so operators can tell whether work is still advancing
 
 ## Operational-event baseline
 
@@ -342,9 +388,10 @@ The first async replay baseline should be gated by:
 3. add `vee_replay_request_item`
 4. link `pipeline_run` to replay requests
 5. add request creation service
-6. add replay worker service
-7. add request detail UI
-8. add regression coverage
+6. add replay worker service with one-owner request claim and incremental progress persistence
+7. add queued-request cancel support
+8. add request detail UI with polling-based progress visibility
+9. add regression coverage
 
 ## Relation to later work
 

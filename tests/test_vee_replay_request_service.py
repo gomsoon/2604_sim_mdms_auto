@@ -5,12 +5,20 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select
 
-from app.models import IngestBatch, InitialMeasurement, PipelineRun, VeeException, VeeExecutionLog
+from app.models import (
+    IngestBatch,
+    InitialMeasurement,
+    OperationalEvent,
+    PipelineRun,
+    VeeException,
+    VeeExecutionLog,
+)
 from app.services.hes_systems import ensure_hes_system
 from app.services.ingestion import ingest_reads
 from app.services.seeds import seed_master_data
 from app.services.vee_replay_requests import (
     VeeReplayRequestError,
+    cancel_vee_replay_request,
     create_vee_replay_request,
 )
 
@@ -155,6 +163,16 @@ def test_create_vee_replay_request_for_hes_system_scope(session):
     assert item.representative_vee_exception_id == vee_exception.id
     assert item.details["exception_code"] == vee_exception.exception_code
     assert item.details["service_point_id"] == initial.service_point_id
+    requested_event = session.scalar(
+        select(OperationalEvent)
+        .where(OperationalEvent.event_code == "vee_replay_requested")
+        .where(OperationalEvent.entity_id == request.id)
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert requested_event is not None
+    assert requested_event.details["request_scope"] == "hes_system"
+    assert requested_event.details["target_initial_count"] == 1
 
 
 def test_create_vee_replay_request_filters_by_ingest_batch_scope(session):
@@ -304,3 +322,72 @@ def test_create_vee_replay_request_rejects_duplicate_active_scope(session):
         )
 
     assert exc_info.value.error_code == "request_already_active"
+
+
+def test_cancel_vee_replay_request_allows_only_queued_requests(session):
+    hes_system_id = _prepare_replay_environment(session)
+    initial, _batch_id = _ingest_initial_measurement(
+        session,
+        hes_system_id=hes_system_id,
+        batch_id="replay-cancel-batch",
+        measured_at="2026-05-08T00:00:00+09:00",
+    )
+    _attach_vee_exception(session, initial)
+
+    result = create_vee_replay_request(
+        session,
+        request_scope="hes_system",
+        requested_by="operator_ui",
+        hes_system_id=hes_system_id,
+    )
+    session.commit()
+
+    cancelled = cancel_vee_replay_request(
+        session,
+        result.request.id,
+        cancelled_by="operator_ui",
+        operator_memo="stop before worker claim",
+    )
+    session.commit()
+
+    assert cancelled.status == "cancelled"
+    assert cancelled.details["cancelled_by"] == "operator_ui"
+    assert "cancelled_at" in cancelled.details
+
+    with pytest.raises(VeeReplayRequestError) as exc_info:
+        cancel_vee_replay_request(
+            session,
+            cancelled.id,
+            cancelled_by="operator_ui",
+        )
+
+    assert exc_info.value.error_code == "already_cancelled"
+
+
+def test_cancel_vee_replay_request_rejects_processing_requests(session):
+    hes_system_id = _prepare_replay_environment(session)
+    initial, _batch_id = _ingest_initial_measurement(
+        session,
+        hes_system_id=hes_system_id,
+        batch_id="replay-processing-batch",
+        measured_at="2026-05-09T00:00:00+09:00",
+    )
+    _attach_vee_exception(session, initial)
+
+    result = create_vee_replay_request(
+        session,
+        request_scope="hes_system",
+        requested_by="operator_ui",
+        hes_system_id=hes_system_id,
+    )
+    result.request.status = "processing"
+    session.commit()
+
+    with pytest.raises(VeeReplayRequestError) as exc_info:
+        cancel_vee_replay_request(
+            session,
+            result.request.id,
+            cancelled_by="operator_ui",
+        )
+
+    assert exc_info.value.error_code == "request_not_cancellable"

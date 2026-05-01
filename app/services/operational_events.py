@@ -234,6 +234,72 @@ EVENT_SPECS: dict[str, OperationalEventSpec] = {
         message_en="Initial measurement {initial_measurement_id} was re-evaluated through the current VEE baseline.",
         message_ko="초기 계측 {initial_measurement_id}가 현재 VEE baseline으로 다시 평가되었습니다.",
     ),
+    "vee_replay_requested": OperationalEventSpec(
+        source_layer="operator_action",
+        event_category="vee_replay",
+        severity="info",
+        is_alert=False,
+        title_en="VEE replay requested",
+        title_ko="VEE 재평가 일괄 요청 등록",
+        message_en=(
+            "VEE replay request {request_id} was queued for {request_scope}. "
+            "Targets: {target_initial_count}."
+        ),
+        message_ko=(
+            "VEE 재평가 요청 {request_id}이(가) {request_scope} 범위로 대기열에 등록되었습니다. "
+            "대상 수: {target_initial_count}."
+        ),
+    ),
+    "vee_replay_started": OperationalEventSpec(
+        source_layer="processing",
+        event_category="vee_replay",
+        severity="info",
+        is_alert=False,
+        title_en="VEE replay started",
+        title_ko="VEE 재평가 일괄 처리 시작",
+        message_en=(
+            "VEE replay request {request_id} started processing. "
+            "Targets: {target_initial_count}."
+        ),
+        message_ko=(
+            "VEE 재평가 요청 {request_id} 처리가 시작되었습니다. "
+            "대상 수: {target_initial_count}."
+        ),
+    ),
+    "vee_replay_completed": OperationalEventSpec(
+        source_layer="processing",
+        event_category="vee_replay",
+        severity="info",
+        is_alert=False,
+        title_en="VEE replay completed",
+        title_ko="VEE 재평가 일괄 처리 완료",
+        message_en=(
+            "VEE replay request {request_id} completed. "
+            "Processed: {processed_count}, failed: {failed_count}, "
+            "final superseded: {final_superseded_count}, usage recalculated: {usage_recalculated_count}."
+        ),
+        message_ko=(
+            "VEE 재평가 요청 {request_id} 처리가 완료되었습니다. "
+            "처리 수: {processed_count}, 실패 수: {failed_count}, "
+            "최종 계측 revision 수: {final_superseded_count}, 사용량 재계산 수: {usage_recalculated_count}."
+        ),
+    ),
+    "vee_replay_failed": OperationalEventSpec(
+        source_layer="processing",
+        event_category="vee_replay",
+        severity="error",
+        is_alert=True,
+        title_en="VEE replay requires attention",
+        title_ko="VEE 재평가 일괄 처리 주의 필요",
+        message_en=(
+            "VEE replay request {request_id} finished with failures. "
+            "Processed: {processed_count}, failed: {failed_count}. Last error: {last_error}."
+        ),
+        message_ko=(
+            "VEE 재평가 요청 {request_id} 처리 중 실패가 발생했습니다. "
+            "처리 수: {processed_count}, 실패 수: {failed_count}. 마지막 오류: {last_error}."
+        ),
+    ),
     "final_measurement_superseded": OperationalEventSpec(
         source_layer="processing",
         event_category="finalization",

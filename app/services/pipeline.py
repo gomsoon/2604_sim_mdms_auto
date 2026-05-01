@@ -6,7 +6,13 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session
 
-from app.models import IngestBatch, PipelineRun, ProcessingWatermark, ReprocessRequest
+from app.models import (
+    IngestBatch,
+    PipelineRun,
+    ProcessingWatermark,
+    ReprocessRequest,
+    VeeReplayRequest,
+)
 from app.services.operational_events import close_operational_alerts, record_operational_event
 
 
@@ -40,6 +46,7 @@ def start_pipeline_run(
     trigger_type: str,
     ingest_batch: IngestBatch | None = None,
     reprocess_request: ReprocessRequest | None = None,
+    vee_replay_request: VeeReplayRequest | None = None,
     details: dict[str, Any] | None = None,
 ) -> PipelineRun:
     run = PipelineRun(
@@ -48,6 +55,7 @@ def start_pipeline_run(
         status="processing",
         ingest_batch=ingest_batch,
         reprocess_request=reprocess_request,
+        vee_replay_request=vee_replay_request,
         started_at=datetime.now(timezone.utc),
         details=details or {},
     )
