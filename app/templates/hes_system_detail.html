@@ -9,6 +9,7 @@
   <div class="d-flex gap-2 flex-wrap">
     <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_systems', lang=current_locale) }}">{{ t("dashboard.view_all") }}</a>
     <a class="btn btn-outline-secondary" href="{{ url_for('web.hes_meter_references', hes_system_id=detail.hes_system.id, lang=current_locale) }}">{{ t("page.hes_system_detail.meter_references") }}</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.new_vee_replay_request', request_scope='hes_system', hes_system_id=detail.hes_system.id, window_timezone_name=detail.hes_system.timezone_name or 'Asia/Seoul', lang=current_locale) }}">{{ t("button.queue_vee_replay") }}</a>
     <a class="btn btn-primary" href="{{ url_for('web.new_adapter', hes_system_id=detail.hes_system.id, lang=current_locale) }}">{{ t("button.register_adapter") }}</a>
     <a class="btn btn-outline-primary" href="{{ url_for('web.adapters', lang=current_locale) }}">{{ t("nav.adapters") }}</a>
   </div>

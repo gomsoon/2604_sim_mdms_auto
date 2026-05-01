@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session as browser_session, url_for
 from sqlalchemy import select
@@ -86,7 +88,11 @@ from app.services.vee import (
     acknowledge_vee_exception,
     resolve_vee_exception,
 )
-from app.services.vee_replay_requests import VeeReplayRequestError, cancel_vee_replay_request
+from app.services.vee_replay_requests import (
+    VeeReplayRequestError,
+    cancel_vee_replay_request,
+    create_vee_replay_request,
+)
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
@@ -269,6 +275,103 @@ def vee_exceptions():
         filters=filters,
         hes_system_options=hes_system_options,
     )
+
+
+def _build_vee_replay_request_form_data(
+    values: dict[str, str | None] | None = None,
+) -> dict[str, str]:
+    source = values or {}
+    return {
+        "request_scope": (source.get("request_scope") or "hes_system").strip(),
+        "requested_by": (source.get("requested_by") or "operator_ui").strip(),
+        "operator_memo": (source.get("operator_memo") or "").strip(),
+        "hes_system_id": (source.get("hes_system_id") or "").strip(),
+        "ingest_batch_id": (source.get("ingest_batch_id") or "").strip(),
+        "measured_at_from": (source.get("measured_at_from") or "").strip(),
+        "measured_at_to": (source.get("measured_at_to") or "").strip(),
+        "window_timezone_name": (source.get("window_timezone_name") or "Asia/Seoul").strip(),
+    }
+
+
+def _parse_optional_int(raw_value: str | None) -> int | None:
+    normalized = (raw_value or "").strip()
+    if not normalized:
+        return None
+    return int(normalized)
+
+
+def _parse_local_datetime(raw_value: str | None, timezone_name: str | None) -> datetime | None:
+    normalized = (raw_value or "").strip()
+    if not normalized:
+        return None
+    zone_name = (timezone_name or "UTC").strip() or "UTC"
+    naive_value = datetime.fromisoformat(normalized)
+    localized = naive_value.replace(tzinfo=ZoneInfo(zone_name))
+    return localized.astimezone(ZoneInfo("UTC"))
+
+
+@bp.get("/vee-replay-requests/new")
+def new_vee_replay_request():
+    session = get_session()
+    form_data = _build_vee_replay_request_form_data(request.args)
+    hes_system_options = session.scalars(
+        select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
+    ).all()
+    return render_template(
+        "vee_replay_request_new.html",
+        form_data=form_data,
+        hes_system_options=hes_system_options,
+    )
+
+
+@bp.post("/vee-replay-requests")
+def create_vee_replay_request_view():
+    session = get_session()
+    form_data = _build_vee_replay_request_form_data(request.form)
+    hes_system_options = session.scalars(
+        select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
+    ).all()
+
+    try:
+        result = create_vee_replay_request(
+            session,
+            request_scope=form_data["request_scope"],
+            requested_by=form_data["requested_by"] or "operator_ui",
+            operator_memo=form_data["operator_memo"] or None,
+            hes_system_id=_parse_optional_int(form_data["hes_system_id"]),
+            ingest_batch_id=_parse_optional_int(form_data["ingest_batch_id"]),
+            measured_at_from=_parse_local_datetime(
+                form_data["measured_at_from"], form_data["window_timezone_name"]
+            ),
+            measured_at_to=_parse_local_datetime(
+                form_data["measured_at_to"], form_data["window_timezone_name"]
+            ),
+            window_timezone_name=form_data["window_timezone_name"] or None,
+        )
+        session.commit()
+        flash(translate("vee_replay.flash.request_created"), "success")
+        return redirect(
+            url_for(
+                "web.vee_replay_request_detail",
+                request_id=result.request.id,
+                lang=get_locale(),
+            )
+        )
+    except (VeeReplayRequestError, ValueError, ZoneInfoNotFoundError) as exc:
+        session.rollback()
+        if isinstance(exc, VeeReplayRequestError):
+            message = translate_vee_replay_request_error(exc.error_code, exc.fallback_message)
+        else:
+            message = translate_vee_replay_request_error(
+                "invalid_form_input",
+                "Replay request form input is invalid.",
+            )
+        flash(message, "danger")
+        return render_template(
+            "vee_replay_request_new.html",
+            form_data=form_data,
+            hes_system_options=hes_system_options,
+        )
 
 
 @bp.get("/vee-replay-requests")

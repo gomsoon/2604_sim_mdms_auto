@@ -248,3 +248,55 @@ def test_cancel_queued_vee_replay_request_via_web(client, session):
     assert "VEE 재평가 요청이 처리 시작 전에 취소되었습니다." in text
     assert refreshed is not None
     assert refreshed.status == "cancelled"
+
+
+def test_new_vee_replay_request_page_prefills_hes_system_scope(client, session):
+    hes_system_id = _prepare_replay_environment(session)
+
+    response = client.get(
+        f"/vee-replay-requests/new?lang=ko&request_scope=hes_system&hes_system_id={hes_system_id}&window_timezone_name=Asia/Seoul"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "VEE 재평가 요청 등록" in text
+    assert 'value="hes_system" selected' in text
+    assert f'value="{hes_system_id}" selected' in text
+    assert 'value="Asia/Seoul"' in text
+
+
+def test_create_vee_replay_request_via_web_redirects_to_detail(client, session):
+    hes_system_id = _prepare_replay_environment(session)
+    initial = _ingest_initial_measurement(
+        session,
+        hes_system_id=hes_system_id,
+        batch_id="replay-web-create",
+        measured_at="2026-05-18T00:00:00+09:00",
+    )
+    _attach_vee_exception(session, initial)
+
+    response = client.post(
+        "/vee-replay-requests?lang=ko",
+        data={
+            "request_scope": "hes_system",
+            "requested_by": "operator_ui",
+            "hes_system_id": str(hes_system_id),
+            "window_timezone_name": "Asia/Seoul",
+            "operator_memo": "queue from web",
+        },
+        follow_redirects=True,
+    )
+    text = response.get_data(as_text=True)
+    created = session.scalar(
+        select(VeeReplayRequest)
+        .where(VeeReplayRequest.requested_by == "operator_ui")
+        .order_by(VeeReplayRequest.id.desc())
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "VEE 재평가 요청이 대기열에 등록되었습니다." in text
+    assert "VEE 재평가 요청 상세" in text
+    assert created is not None
+    assert created.request_scope == "hes_system"
+    assert created.hes_system_id == hes_system_id

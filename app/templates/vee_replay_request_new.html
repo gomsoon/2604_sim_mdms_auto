@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.vee_replay_request_new.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.vee_replay_request_new.description") }}</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">{{ t("button.back_to_vee_replay_requests") }}</a>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form method="post" action="{{ url_for('web.create_vee_replay_request_view', lang=current_locale) }}" class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="request_scope">{{ t("table.request_scope") }}</label>
+        <select class="form-select" id="request_scope" name="request_scope">
+          {% for value in ("hes_system", "ingest_batch", "date_range") %}
+          <option value="{{ value }}" {% if form_data.request_scope == value %}selected{% endif %}>
+            {{ t_or("vee_replay.request_scope." ~ value, value) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="requested_by">{{ t("table.requested_by") }}</label>
+        <input class="form-control" id="requested_by" name="requested_by" value="{{ form_data.requested_by }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="window_timezone_name">{{ t("field.timezone_name") }}</label>
+        <input class="form-control" id="window_timezone_name" name="window_timezone_name" value="{{ form_data.window_timezone_name }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="hes_system_id">{{ t("field.hes_system") }}</label>
+        <select class="form-select" id="hes_system_id" name="hes_system_id">
+          <option value="">{{ t("common.none") }}</option>
+          {% for hes_system in hes_system_options %}
+          <option value="{{ hes_system.id }}" {% if form_data.hes_system_id == hes_system.id|string %}selected{% endif %}>
+            {{ hes_system.display_name }}
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-text">{{ t("page.vee_replay_request_new.hes_system_help") }}</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="ingest_batch_id">{{ t("field.ingest_batch_id") }}</label>
+        <input class="form-control" id="ingest_batch_id" name="ingest_batch_id" value="{{ form_data.ingest_batch_id }}">
+        <div class="form-text">{{ t("page.vee_replay_request_new.ingest_batch_help") }}</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="measured_at_from">{{ t("field.measured_at_from") }}</label>
+        <input class="form-control" id="measured_at_from" name="measured_at_from" type="datetime-local" value="{{ form_data.measured_at_from }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="measured_at_to">{{ t("field.measured_at_to") }}</label>
+        <input class="form-control" id="measured_at_to" name="measured_at_to" type="datetime-local" value="{{ form_data.measured_at_to }}">
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="operator_memo">{{ t("field.operator_memo") }}</label>
+        <textarea class="form-control" id="operator_memo" name="operator_memo" rows="3">{{ form_data.operator_memo }}</textarea>
+      </div>
+      <div class="col-12">
+        <div class="alert alert-light border mb-0">
+          <div class="fw-semibold mb-1">{{ t("page.vee_replay_request_new.scope_help_title") }}</div>
+          <ul class="mb-0">
+            <li>{{ t("page.vee_replay_request_new.scope_help_hes_system") }}</li>
+            <li>{{ t("page.vee_replay_request_new.scope_help_ingest_batch") }}</li>
+            <li>{{ t("page.vee_replay_request_new.scope_help_date_range") }}</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.queue_vee_replay") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">{{ t("button.cancel") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

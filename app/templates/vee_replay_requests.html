@@ -6,7 +6,10 @@
     <h1 class="h3 mb-1">{{ t("page.vee_replay_requests.title") }}</h1>
     <p class="text-secondary mb-0">{{ t("page.vee_replay_requests.description") }}</p>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">{{ t("button.refresh") }}</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="{{ url_for('web.new_vee_replay_request', lang=current_locale) }}">{{ t("button.new_vee_replay_request") }}</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">{{ t("button.refresh") }}</a>
+  </div>
 </div>
 
 <div class="card shadow-sm mb-4">
