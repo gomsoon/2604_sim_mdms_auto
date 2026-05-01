@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.vee_replay_requests.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.vee_replay_requests.description") }}</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">{{ t("button.refresh") }}</a>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-3">
+        <label class="form-label">{{ t("table.request_scope") }}</label>
+        <select class="form-select" name="request_scope">
+          <option value="">{{ t("common.all") }}</option>
+          <option value="hes_system" {% if filters.request_scope == "hes_system" %}selected{% endif %}>{{ t("vee_replay.request_scope.hes_system") }}</option>
+          <option value="ingest_batch" {% if filters.request_scope == "ingest_batch" %}selected{% endif %}>{{ t("vee_replay.request_scope.ingest_batch") }}</option>
+          <option value="date_range" {% if filters.request_scope == "date_range" %}selected{% endif %}>{{ t("vee_replay.request_scope.date_range") }}</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.status") }}</label>
+        <select class="form-select" name="status">
+          <option value="">{{ t("common.all") }}</option>
+          {% for status in ["queued", "processing", "completed", "failed", "cancelled"] %}
+          <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>
+            {{ t_or("common.status." ~ status, status) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("field.hes_system") }}</label>
+        <select class="form-select" name="hes_system_id">
+          <option value="">{{ t("common.all") }}</option>
+          {% for hes_system in hes_system_options %}
+          <option value="{{ hes_system.id }}" {% if filters.hes_system_id == hes_system.id %}selected{% endif %}>
+            {{ hes_system.display_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("table.requested_by") }}</label>
+        <input class="form-control" name="requested_by" value="{{ filters.requested_by or '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.request_scope") }}</th>
+            <th>{{ t("field.hes_system") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.target_count") }}</th>
+            <th>{{ t("table.progress") }}</th>
+            <th>{{ t("table.requested_by") }}</th>
+            <th>{{ t("table.created_at") }}</th>
+            <th>{{ t("table.updated_at") }}</th>
+            <th>{{ t("table.actions") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          {% set details = row.details or {} %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ t_or("vee_replay.request_scope." ~ row.request_scope, row.request_scope) }}</td>
+            <td>
+              {% if row.hes_system %}
+              <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=row.hes_system.id, lang=current_locale) }}">{{ row.hes_system.display_name }}</a>
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
+            </td>
+            <td>{{ row.target_initial_count }}</td>
+            <td style="min-width: 12rem;">
+              <div class="small fw-semibold">{{ details.get("progress_percent", 0) }}%</div>
+              <div class="progress" role="progressbar" aria-valuenow="{{ details.get('progress_percent', 0) }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" style="width: {{ details.get('progress_percent', 0) }}%"></div>
+              </div>
+              <div class="small text-secondary mt-1">
+                {{ row.processed_count }}/{{ row.target_initial_count }}
+                · {{ t("table.failed_count") }} {{ row.failed_count }}
+              </div>
+            </td>
+            <td>{{ row.requested_by }}</td>
+            <td>{{ row.created_at|dt }}</td>
+            <td>{{ row.updated_at|dt }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.vee_replay_request_detail', request_id=row.id, lang=current_locale) }}">{{ t("button.view") }}</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="10" class="text-secondary">{{ t("page.vee_replay_requests.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

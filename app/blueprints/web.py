@@ -14,6 +14,7 @@ from app.i18n import (
     translate,
     translate_operational_alert_error,
     translate_vee_exception_error,
+    translate_vee_replay_request_error,
     translate_finalization_result,
     translate_master_data_error,
     translate_reprocess_error,
@@ -85,6 +86,7 @@ from app.services.vee import (
     acknowledge_vee_exception,
     resolve_vee_exception,
 )
+from app.services.vee_replay_requests import VeeReplayRequestError, cancel_vee_replay_request
 from app.services.visibility import (
     VisibilityFilterError,
     build_canonical_filters,
@@ -93,8 +95,10 @@ from app.services.visibility import (
     build_operational_event_filters,
     build_usage_transaction_filters,
     build_vee_exception_filters,
+    build_vee_replay_request_filters,
     get_usage_transaction_detail_context,
     get_vee_exception_detail_context,
+    get_vee_replay_request_detail_context,
     get_operational_event_detail_context,
     list_canonical_measurements,
     list_final_measurements,
@@ -102,6 +106,7 @@ from app.services.visibility import (
     list_operational_events,
     list_usage_transactions,
     list_vee_exceptions,
+    list_vee_replay_requests,
 )
 
 
@@ -264,6 +269,67 @@ def vee_exceptions():
         filters=filters,
         hes_system_options=hes_system_options,
     )
+
+
+@bp.get("/vee-replay-requests")
+def vee_replay_requests():
+    session = get_session()
+    try:
+        filters = build_vee_replay_request_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_vee_replay_request_filters({})
+
+    rows = list_vee_replay_requests(session, filters)
+    hes_system_options = session.scalars(
+        select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
+    ).all()
+    return render_template(
+        "vee_replay_requests.html",
+        rows=rows,
+        filters=filters,
+        hes_system_options=hes_system_options,
+    )
+
+
+@bp.get("/vee-replay-requests/<int:request_id>")
+def vee_replay_request_detail(request_id: int):
+    session = get_session()
+    detail = get_vee_replay_request_detail_context(session, request_id)
+    if detail is None:
+        abort(404)
+    return render_template("vee_replay_request_detail.html", detail=detail)
+
+
+@bp.post("/vee-replay-requests/<int:request_id>/cancel")
+def cancel_vee_replay_request_view(request_id: int):
+    session = get_session()
+    try:
+        replay_request = cancel_vee_replay_request(
+            session,
+            request_id,
+            cancelled_by="operator_ui",
+            operator_memo=request.form.get("operator_memo") or None,
+        )
+        session.commit()
+        flash(translate("vee_replay.flash.cancelled"), "success")
+        return redirect(
+            _safe_next_url(
+                url_for(
+                    "web.vee_replay_request_detail",
+                    request_id=replay_request.id,
+                    lang=get_locale(),
+                )
+            )
+        )
+    except VeeReplayRequestError as exc:
+        session.rollback()
+        flash(translate_vee_replay_request_error(exc.error_code, exc.fallback_message), "danger")
+        return redirect(
+            _safe_next_url(
+                url_for("web.vee_replay_request_detail", request_id=request_id, lang=get_locale())
+            )
+        )
 
 
 def _vee_exception_redirect(vee_exception_id: int) -> str:

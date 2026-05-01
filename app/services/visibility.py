@@ -25,6 +25,8 @@ from app.models import (
     UsageTransaction,
     VeeException,
     VeeExecutionLog,
+    VeeReplayRequest,
+    VeeReplayRequestItem,
 )
 
 
@@ -98,6 +100,23 @@ class VeeExceptionFilters:
     meter_id: str | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class VeeReplayRequestFilters:
+    request_scope: str | None = None
+    status: str | None = None
+    hes_system_id: int | None = None
+    requested_by: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class VeeReplayRequestDetailContext:
+    request: VeeReplayRequest
+    latest_pipeline_run: PipelineRun | None = None
+    current_item: VeeReplayRequestItem | None = None
+    recent_items: list[VeeReplayRequestItem] = ()
+    failed_items: list[VeeReplayRequestItem] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -352,6 +371,33 @@ def build_vee_exception_filters(args) -> VeeExceptionFilters:
     )
 
 
+def build_vee_replay_request_filters(args) -> VeeReplayRequestFilters:
+    request_scope = _normalize_text(args.get("request_scope"))
+    if request_scope not in {None, "hes_system", "ingest_batch", "date_range"}:
+        raise VisibilityFilterError(
+            "invalid_vee_replay_request_scope",
+            "Replay request scope must be hes_system, ingest_batch, or date_range when provided.",
+        )
+
+    status = _normalize_text(args.get("status"))
+    if status not in {None, "queued", "processing", "completed", "failed", "cancelled"}:
+        raise VisibilityFilterError(
+            "invalid_vee_replay_request_status",
+            "Replay request status must be queued, processing, completed, failed, or cancelled when provided.",
+        )
+
+    return VeeReplayRequestFilters(
+        request_scope=request_scope,
+        status=status,
+        hes_system_id=_parse_optional_int(
+            args.get("hes_system_id"),
+            error_code="invalid_hes_system_filter",
+            fallback_message="HES system filter must be a positive integer.",
+        ),
+        requested_by=_normalize_text(args.get("requested_by")),
+    )
+
+
 def list_ingest_batches(
     session: Session, filters: IngestBatchFilters, *, limit: int = 100
 ) -> list[IngestBatch]:
@@ -524,6 +570,107 @@ def get_usage_transaction_detail_context(
         usage_transaction=usage_transaction,
         pipeline_run=usage_transaction.pipeline_run,
         final_rows=final_rows,
+    )
+
+
+def list_vee_replay_requests(
+    session: Session,
+    filters: VeeReplayRequestFilters,
+    *,
+    limit: int = 200,
+) -> list[VeeReplayRequest]:
+    statement: Select[tuple[VeeReplayRequest]] = select(VeeReplayRequest).options(
+        selectinload(VeeReplayRequest.hes_system),
+        selectinload(VeeReplayRequest.ingest_batch),
+        selectinload(VeeReplayRequest.pipeline_runs),
+        selectinload(VeeReplayRequest.request_items),
+    )
+
+    if filters.request_scope:
+        statement = statement.where(VeeReplayRequest.request_scope == filters.request_scope)
+    if filters.status:
+        statement = statement.where(VeeReplayRequest.status == filters.status)
+    if filters.hes_system_id is not None:
+        statement = statement.where(VeeReplayRequest.hes_system_id == filters.hes_system_id)
+    if filters.requested_by:
+        statement = statement.where(VeeReplayRequest.requested_by == filters.requested_by)
+
+    statement = statement.order_by(
+        VeeReplayRequest.created_at.desc(),
+        VeeReplayRequest.id.desc(),
+    ).limit(limit)
+    return session.execute(statement).scalars().unique().all()
+
+
+def get_vee_replay_request_detail_context(
+    session: Session,
+    request_id: int,
+    *,
+    recent_item_limit: int = 100,
+    failed_item_limit: int = 20,
+) -> VeeReplayRequestDetailContext | None:
+    request = session.scalar(
+        select(VeeReplayRequest)
+        .where(VeeReplayRequest.id == request_id)
+        .options(
+            joinedload(VeeReplayRequest.hes_system),
+            joinedload(VeeReplayRequest.ingest_batch),
+            selectinload(VeeReplayRequest.pipeline_runs),
+            selectinload(VeeReplayRequest.request_items).joinedload(
+                VeeReplayRequestItem.representative_vee_exception
+            ),
+            selectinload(VeeReplayRequest.request_items).joinedload(
+                VeeReplayRequestItem.initial_measurement
+            ),
+            selectinload(VeeReplayRequest.request_items).joinedload(
+                VeeReplayRequestItem.current_final_measurement
+            ),
+            selectinload(VeeReplayRequest.request_items).joinedload(
+                VeeReplayRequestItem.previous_final_measurement
+            ),
+        )
+        .limit(1)
+    )
+    if request is None:
+        return None
+
+    latest_pipeline_run = None
+    if request.pipeline_runs:
+        latest_pipeline_run = max(
+            request.pipeline_runs,
+            key=lambda row: ((row.started_at or datetime.min.replace(tzinfo=timezone.utc)), row.id),
+        )
+
+    current_item_id = (request.details or {}).get("current_item_id")
+    current_item = next(
+        (
+            row
+            for row in request.request_items
+            if current_item_id is not None and row.id == current_item_id
+        ),
+        None,
+    )
+    if current_item is None:
+        current_item = next(
+            (row for row in request.request_items if row.status == "processing"),
+            None,
+        )
+
+    recent_items = sorted(
+        request.request_items,
+        key=lambda row: (row.updated_at, row.id),
+        reverse=True,
+    )[:recent_item_limit]
+    failed_items = [
+        row for row in recent_items if row.status == "failed"
+    ][:failed_item_limit]
+
+    return VeeReplayRequestDetailContext(
+        request=request,
+        latest_pipeline_run=latest_pipeline_run,
+        current_item=current_item,
+        recent_items=recent_items,
+        failed_items=failed_items,
     )
 
 
