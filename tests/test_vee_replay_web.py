@@ -146,6 +146,7 @@ def test_vee_replay_requests_page_renders_request_list_and_progress(client, sess
     assert "Demo HES" in text
     assert "40.0%" in text
     assert "operator_ui" in text
+    assert "같은 범위 재평가" not in text
 
 
 def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, session):
@@ -195,6 +196,18 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
     items[0].details = {
         **dict(items[0].details or {}),
         "error_summary": "forced replay failure",
+        "replay_summary": {
+            "usage_recalculation_results": [
+                {
+                    "usage_type": "daily_consumption",
+                    "current_usage_transaction_id": 77,
+                },
+                {
+                    "usage_type": "monthly_consumption",
+                    "current_usage_transaction_id": 88,
+                },
+            ]
+        },
     }
     items[1].status = "processing"
     pipeline_run = PipelineRun(
@@ -217,6 +230,43 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
     assert "자동으로 새로고침" in text
     assert "forced replay failure" in text
     assert str(items[1].representative_vee_exception_id) in text
+    assert "같은 범위 재평가" in text
+    assert "/usage-transactions/77?lang=ko" in text
+    assert "/usage-transactions/88?lang=ko" in text
+    assert "/vee-replay-requests/new?lang=ko" in text
+    assert "request_scope=hes_system" in text
+    assert "requested_by=operator_ui" in text
+    assert f"hes_system_id={hes_system_id}" in text
+
+
+def test_vee_replay_requests_page_offers_repeat_shortcut_for_completed_scope(client, session):
+    hes_system_id = _prepare_replay_environment(session)
+    initial = _ingest_initial_measurement(
+        session,
+        hes_system_id=hes_system_id,
+        batch_id="replay-web-repeat",
+        measured_at="2026-05-19T00:00:00+09:00",
+    )
+    _attach_vee_exception(session, initial)
+    created = create_vee_replay_request(
+        session,
+        request_scope="hes_system",
+        requested_by="operator_ui",
+        hes_system_id=hes_system_id,
+    )
+    created.request.status = "completed"
+    created.request.details = {
+        **dict(created.request.details or {}),
+        "progress_percent": 100.0,
+    }
+    session.commit()
+
+    response = client.get("/vee-replay-requests?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "같은 범위 재평가" in text
+    assert f"/vee-replay-requests/new?lang=ko&amp;request_scope=hes_system&amp;requested_by=operator_ui&amp;hes_system_id={hes_system_id}" in text
 
 
 def test_cancel_queued_vee_replay_request_via_web(client, session):

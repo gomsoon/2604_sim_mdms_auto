@@ -10,6 +10,9 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">
       {{ t("button.back_to_vee_replay_requests") }}
     </a>
+    <a class="btn btn-outline-primary" href="{{ repeat_scope_url }}">
+      {{ t("button.repeat_vee_replay_scope") }}
+    </a>
     <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_replay_request_detail', request_id=detail.request.id, lang=current_locale) }}">
       {{ t("button.refresh") }}
     </a>
@@ -56,7 +59,15 @@
             {% endif %}
           </dd>
           <dt class="col-sm-4">{{ t("table.batch_id") }}</dt>
-          <dd class="col-sm-8">{{ detail.request.ingest_batch.batch_id if detail.request.ingest_batch else t("common.none") }}</dd>
+          <dd class="col-sm-8">
+            {% if detail.request.ingest_batch %}
+            <a class="link-primary text-decoration-none" href="{{ url_for('web.ingest_batches', batch_id=detail.request.ingest_batch.batch_id, lang=current_locale) }}">
+              {{ detail.request.ingest_batch.batch_id }}
+            </a>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
           <dt class="col-sm-4">{{ t("table.target_count") }}</dt>
           <dd class="col-sm-8">{{ detail.request.target_initial_count }}</dd>
           <dt class="col-sm-4">{{ t("table.created_at") }}</dt>
@@ -186,6 +197,7 @@
             <th>{{ t("table.initial_measurement_id") }}</th>
             <th>{{ t("table.representative_exception") }}</th>
             <th>{{ t("table.result_code") }}</th>
+            <th>{{ t("table.actions") }}</th>
             <th>{{ t("table.last_error") }}</th>
             <th>{{ t("table.updated_at") }}</th>
           </tr>
@@ -201,6 +213,11 @@
               </a>
             </td>
             <td>{{ t_or("vee_replay.result." ~ (item.result_code or ""), item.result_code or t("common.none")) }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.vee_exception_detail', vee_exception_id=item.representative_vee_exception_id, lang=current_locale) }}">
+                {{ t("button.view") }}
+              </a>
+            </td>
             <td>{{ item.details.get("error_summary", t("common.none")) }}</td>
             <td>{{ item.updated_at|dt }}</td>
           </tr>
@@ -227,11 +244,14 @@
             <th>{{ t("table.status") }}</th>
             <th>{{ t("table.result_code") }}</th>
             <th>{{ t("table.current_final") }}</th>
+            <th>{{ t("table.actions") }}</th>
             <th>{{ t("table.updated_at") }}</th>
           </tr>
         </thead>
         <tbody>
           {% for item in detail.recent_items %}
+          {% set replay_summary = item.details.get("replay_summary", {}) %}
+          {% set usage_results = replay_summary.get("usage_recalculation_results", []) %}
           <tr>
             <td>{{ item.id }}</td>
             <td>{{ item.initial_measurement_id }}</td>
@@ -242,7 +262,27 @@
             </td>
             <td><span class="badge text-bg-light">{{ t_or("common.status." ~ item.status, item.status) }}</span></td>
             <td>{{ t_or("vee_replay.result." ~ (item.result_code or ""), item.result_code or t("common.none")) }}</td>
-            <td>{{ item.current_final_measurement_id or t("common.none") }}</td>
+            <td>
+              {% if item.current_final_measurement_id %}
+              {{ item.current_final_measurement_id }}
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.vee_exception_detail', vee_exception_id=item.representative_vee_exception_id, lang=current_locale) }}">
+                  {{ t("button.view") }}
+                </a>
+                {% for result in usage_results %}
+                  {% if result.current_usage_transaction_id %}
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.usage_transaction_detail', usage_transaction_id=result.current_usage_transaction_id, lang=current_locale) }}">
+                    {{ t_or("usage.type." ~ result.usage_type, result.usage_type) }}
+                  </a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </td>
             <td>{{ item.updated_at|dt }}</td>
           </tr>
           {% endfor %}

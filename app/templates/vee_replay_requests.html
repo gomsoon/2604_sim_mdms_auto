@@ -108,7 +108,15 @@
             <td>{{ row.created_at|dt }}</td>
             <td>{{ row.updated_at|dt }}</td>
             <td>
-              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.vee_replay_request_detail', request_id=row.id, lang=current_locale) }}">{{ t("button.view") }}</a>
+              <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.vee_replay_request_detail', request_id=row.id, lang=current_locale) }}">{{ t("button.view") }}</a>
+                {% if row.status in ("failed", "completed", "cancelled") and row.request_scope in ("hes_system", "ingest_batch") %}
+                <a
+                  class="btn btn-sm btn-outline-primary"
+                  href="{{ url_for('web.new_vee_replay_request', lang=current_locale, request_scope=row.request_scope, requested_by=row.requested_by, hes_system_id=row.hes_system_id or '', ingest_batch_id=row.ingest_batch_id or '', window_timezone_name=(row.window_timezone_name or (row.hes_system.timezone_name if row.hes_system else 'Asia/Seoul'))) }}"
+                >{{ t("button.repeat_vee_replay_scope") }}</a>
+                {% endif %}
+              </div>
             </td>
           </tr>
           {% else %}

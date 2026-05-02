@@ -341,6 +341,24 @@ def _format_datetime_local(value: datetime | None, timezone_name: str | None) ->
     return value.astimezone(ZoneInfo(zone_name)).strftime("%Y-%m-%dT%H:%M")
 
 
+def _build_vee_replay_request_prefill_from_request(replay_request) -> dict[str, str]:
+    timezone_name = (
+        replay_request.window_timezone_name
+        or (replay_request.hes_system.timezone_name if replay_request.hes_system is not None else None)
+        or "Asia/Seoul"
+    )
+    return {
+        "request_scope": replay_request.request_scope,
+        "requested_by": replay_request.requested_by or "operator_ui",
+        "operator_memo": replay_request.operator_memo or "",
+        "hes_system_id": str(replay_request.hes_system_id or ""),
+        "ingest_batch_id": str(replay_request.ingest_batch_id or ""),
+        "measured_at_from": _format_datetime_local(replay_request.measured_at_from, timezone_name),
+        "measured_at_to": _format_datetime_local(replay_request.measured_at_to, timezone_name),
+        "window_timezone_name": timezone_name,
+    }
+
+
 @bp.get("/vee-replay-requests/new")
 def new_vee_replay_request():
     session = get_session()
@@ -432,7 +450,16 @@ def vee_replay_request_detail(request_id: int):
     detail = get_vee_replay_request_detail_context(session, request_id)
     if detail is None:
         abort(404)
-    return render_template("vee_replay_request_detail.html", detail=detail)
+    repeat_scope_url = url_for(
+        "web.new_vee_replay_request",
+        lang=get_locale(),
+        **_build_vee_replay_request_prefill_from_request(detail.request),
+    )
+    return render_template(
+        "vee_replay_request_detail.html",
+        detail=detail,
+        repeat_scope_url=repeat_scope_url,
+    )
 
 
 @bp.post("/vee-replay-requests/<int:request_id>/cancel")
