@@ -234,6 +234,15 @@ This document records current architectural and process decisions so that the te
   - [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
   - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
 
+### D-025. `bill_determinant` should derive from `usage_transaction` and preserve current-plus-history lineage
+
+- Status: locked
+- Summary: The first billing-ready determinant layer should consume `usage_transaction` rather than direct finalized measurements and should be designed from the start as a current-plus-history recalculable structure
+- Why: This preserves the processing boundary between usage-ready and billing-ready outputs, keeps determinant logic vendor-neutral, and allows replay, re-VEE, and re-finalization to supersede determinant history rather than overwrite it
+- Related docs:
+  - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+  - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

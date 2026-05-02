@@ -156,7 +156,8 @@ The persisted result of calculating consumption or usage from final measurements
 
 ### bill_determinant
 
-A billing-oriented output value such as on-peak usage, off-peak usage, demand, or power factor.
+A billing-ready output value derived from `usage_transaction`, such as billing-cycle
+consumption total, on-peak usage, off-peak usage, demand, or power factor.
 
 ### billing-ready
 

@@ -331,6 +331,33 @@ Introduce the first true MDM processing boundary between canonical mapping resul
 - [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md)
 - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
 
+### Stage 11. Billing-ready determinant foundation
+
+#### Goal
+
+Define the first billing-ready determinant layer that follows `usage_transaction`
+without collapsing export, pricing, or invoice logic into the same persistence slice.
+
+#### Key tasks
+
+- define `bill_determinant` grain
+- define the source rule from `usage_transaction`
+- define billing-window and billing-cycle prerequisites
+- define determinant revision and supersession semantics
+- keep billing export as a later follow-up layer
+
+#### Test gate
+
+- determinant generation depends on `usage_transaction` rather than directly on final rows
+- determinant current-versus-history semantics are explicit
+- the first determinant candidate is realistic under current upstream usage shapes
+
+#### Related documents
+
+- [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
+- [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+- [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

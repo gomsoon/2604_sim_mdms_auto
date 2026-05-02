@@ -200,6 +200,9 @@ Examples:
 - on-peak/off-peak split by tariff: billing-ready
 - maximum demand aligned to billing cycle: billing-ready
 
+The determinant layer itself is documented separately in
+[bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md).
+
 ## Testing expectations
 
 The first usage design should later be validated with:

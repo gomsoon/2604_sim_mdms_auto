@@ -153,11 +153,13 @@ This document captures the staged backlog derived from the reference PDF backlog
 ### P2. TOU and bill determinant generation
 
 - TOU model
-- `bill_determinant`
+- `bill_determinant` persistence baseline
+- `billing_cycle_consumption_total` as the first determinant candidate
 - On-peak and off-peak usage
 - Maximum demand
 - Average power factor
 - Billing cycle alignment
+- determinant revision and supersession lineage
 
 ### P3. Billing integration
 
