@@ -58,6 +58,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "vee_replay_request" in tables
         assert "vee_replay_request_item" in tables
         assert "usage_transaction" in tables
+        assert "bill_determinant" in tables
         assert "adapter_definition" in tables
         assert "hes_system" in tables
         assert "hes_meter_reference" in tables
@@ -131,6 +132,13 @@ def test_alembic_upgrade_creates_expected_tables():
             column["name"]: column
             for column in inspector.get_columns("usage_transaction", schema=schema_name)
         }
+        bill_determinant_columns = {
+            column["name"] for column in inspector.get_columns("bill_determinant", schema=schema_name)
+        }
+        bill_determinant_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("bill_determinant", schema=schema_name)
+        }
         ingest_error_log_columns = {
             column["name"] for column in inspector.get_columns("ingest_error_log", schema=schema_name)
         }
@@ -202,6 +210,27 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "quality_summary" in usage_transaction_columns
         assert "calculation_status" in usage_transaction_columns
         assert "calculated_at" in usage_transaction_columns
+        assert "pipeline_run_id" in bill_determinant_columns
+        assert "service_point_id" in bill_determinant_columns
+        assert "measuring_component_id" in bill_determinant_columns
+        assert "device_id" in bill_determinant_columns
+        assert "determinant_type" in bill_determinant_columns
+        assert "billing_period_start_at" in bill_determinant_columns
+        assert "billing_period_end_at" in bill_determinant_columns
+        assert "window_timezone_name" in bill_determinant_columns
+        assert "tariff_plan_code" in bill_determinant_columns
+        assert "tou_bucket_code" in bill_determinant_columns
+        assert "demand_window_code" in bill_determinant_columns
+        assert "unit_of_measure" in bill_determinant_columns
+        assert "determinant_value" in bill_determinant_columns
+        assert "source_usage_count" in bill_determinant_columns
+        assert "quality_summary" in bill_determinant_columns
+        assert "calculation_status" in bill_determinant_columns
+        assert "revision_number" in bill_determinant_columns
+        assert "revision_reason_code" in bill_determinant_columns
+        assert "is_current" in bill_determinant_columns
+        assert "supersedes_bill_determinant_id" in bill_determinant_columns
+        assert "calculated_at" in bill_determinant_columns
         assert "initial_measurement_id" in final_column_defs
         assert "revision_number" in final_column_defs
         assert "revision_reason_code" in final_column_defs
@@ -229,6 +258,10 @@ def test_alembic_upgrade_creates_expected_tables():
         assert final_column_defs["is_current"]["nullable"] is False
         assert usage_transaction_column_defs["usage_value"]["type"].precision == 19
         assert usage_transaction_column_defs["usage_value"]["type"].scale == 4
+        assert bill_determinant_column_defs["determinant_value"]["type"].precision == 19
+        assert bill_determinant_column_defs["determinant_value"]["type"].scale == 4
+        assert bill_determinant_column_defs["revision_number"]["nullable"] is False
+        assert bill_determinant_column_defs["is_current"]["nullable"] is False
 
         engine = create_engine(schema_url)
         with engine.connect() as connection:
@@ -249,7 +282,8 @@ def test_alembic_upgrade_creates_expected_tables():
                         'vee_exception',
                         'vee_replay_request',
                         'vee_replay_request_item',
-                        'usage_transaction'
+                        'usage_transaction',
+                        'bill_determinant'
                       )
                     order by tablename, indexname
                     """
@@ -295,6 +329,13 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_usage_transaction_calculation_status" in index_defs
         assert "ix_usage_transaction_service_point_period_start_at" in index_defs
         assert "ix_usage_transaction_measuring_component_period_start_at" in index_defs
+        assert "ix_bill_determinant_determinant_type" in index_defs
+        assert "ix_bill_determinant_billing_period_start_at" in index_defs
+        assert "ix_bill_determinant_calculation_status" in index_defs
+        assert "ix_bill_determinant_service_point_billing_period_start_at" in index_defs
+        assert "ix_bill_determinant_measuring_component_billing_period_start_at" in index_defs
+        assert "ix_bill_determinant_is_current" in index_defs
+        assert "ix_bill_determinant_supersedes_bill_determinant_id" in index_defs
         assert "ix_final_measurement_is_current" in index_defs
         assert "ix_final_measurement_supersedes_final_measurement_id" in index_defs
         assert "ix_final_measurement_initial_measurement_id" in index_defs

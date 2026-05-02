@@ -323,6 +323,9 @@ class ServicePoint(TimestampMixin, Base):
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="service_point"
     )
+    bill_determinants: Mapped[list["BillDeterminant"]] = relationship(
+        back_populates="service_point"
+    )
 
 
 class Device(TimestampMixin, Base):
@@ -344,6 +347,9 @@ class Device(TimestampMixin, Base):
         back_populates="device"
     )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
+        back_populates="device"
+    )
+    bill_determinants: Mapped[list["BillDeterminant"]] = relationship(
         back_populates="device"
     )
 
@@ -369,6 +375,9 @@ class MeasuringComponent(TimestampMixin, Base):
         back_populates="measuring_component"
     )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
+        back_populates="measuring_component"
+    )
+    bill_determinants: Mapped[list["BillDeterminant"]] = relationship(
         back_populates="measuring_component"
     )
 
@@ -840,6 +849,70 @@ class UsageTransaction(TimestampMixin, Base):
     device: Mapped["Device"] = relationship(back_populates="usage_transactions")
 
 
+class BillDeterminant(TimestampMixin, Base):
+    __tablename__ = "bill_determinant"
+    __table_args__ = (
+        Index("ix_bill_determinant_determinant_type", "determinant_type"),
+        Index("ix_bill_determinant_billing_period_start_at", "billing_period_start_at"),
+        Index("ix_bill_determinant_calculation_status", "calculation_status"),
+        Index(
+            "ix_bill_determinant_service_point_billing_period_start_at",
+            "service_point_id",
+            "billing_period_start_at",
+        ),
+        Index(
+            "ix_bill_determinant_measuring_component_billing_period_start_at",
+            "measuring_component_id",
+            "billing_period_start_at",
+        ),
+        Index("ix_bill_determinant_is_current", "is_current"),
+        Index(
+            "ix_bill_determinant_supersedes_bill_determinant_id",
+            "supersedes_bill_determinant_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pipeline_run_id: Mapped[int] = mapped_column(ForeignKey("pipeline_run.id"), nullable=False)
+    service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    measuring_component_id: Mapped[int | None] = mapped_column(
+        ForeignKey("measuring_component.id")
+    )
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("device.id"))
+    determinant_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    billing_period_start_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    billing_period_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_timezone_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    tariff_plan_code: Mapped[str | None] = mapped_column(String(60))
+    tou_bucket_code: Mapped[str | None] = mapped_column(String(60))
+    demand_window_code: Mapped[str | None] = mapped_column(String(60))
+    unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False)
+    determinant_value: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    source_usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quality_summary: Mapped[str] = mapped_column(String(80), nullable=False)
+    calculation_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    revision_reason_code: Mapped[str | None] = mapped_column(String(60))
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    supersedes_bill_determinant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bill_determinant.id")
+    )
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    pipeline_run: Mapped["PipelineRun"] = relationship(back_populates="bill_determinants")
+    service_point: Mapped["ServicePoint"] = relationship(back_populates="bill_determinants")
+    measuring_component: Mapped["MeasuringComponent | None"] = relationship(
+        back_populates="bill_determinants"
+    )
+    device: Mapped["Device | None"] = relationship(back_populates="bill_determinants")
+    supersedes_bill_determinant: Mapped["BillDeterminant | None"] = relationship(
+        remote_side=lambda: [BillDeterminant.id]
+    )
+
+
 class RawIntervalWindowState(TimestampMixin, Base):
     __tablename__ = "raw_interval_window_state"
     __table_args__ = (
@@ -947,6 +1020,9 @@ class PipelineRun(TimestampMixin, Base):
     )
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(back_populates="pipeline_run")
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
+        back_populates="pipeline_run"
+    )
+    bill_determinants: Mapped[list["BillDeterminant"]] = relationship(
         back_populates="pipeline_run"
     )
 
