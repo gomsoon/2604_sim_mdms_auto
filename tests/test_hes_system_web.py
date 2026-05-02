@@ -4,7 +4,16 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.models import AdapterInstance, HesSystem, InitialMeasurement, OperationalEvent, UsageTransaction, VeeException
+from app.models import (
+    AdapterInstance,
+    HesSystem,
+    IngestBatch,
+    InitialMeasurement,
+    OperationalEvent,
+    UsageTransaction,
+    VeeException,
+    VeeReplayRequest,
+)
 from app.services.processing_replay import reevaluate_vee_exception_and_replay
 from app.services.seeds import seed_demo_environment
 from app.services.vee import evaluate_or_get_vee_baseline
@@ -188,6 +197,49 @@ def test_hes_system_detail_page_lists_recent_recalculated_usage(client, session)
     assert "사용량 요약" in text
     assert "최근 사용량 재계산" in text
     assert f"/usage-transactions/{usage_row.id}?lang=ko" in text
+
+
+def test_hes_system_detail_page_lists_recent_vee_replay_requests(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    ingest_batch = session.scalar(
+        select(IngestBatch).where(IngestBatch.batch_id == "demo-read-batch").limit(1)
+    )
+    assert hes_system is not None
+    assert ingest_batch is not None
+
+    queued_request = VeeReplayRequest(
+        request_scope="hes_system",
+        status="queued",
+        requested_by="operator_ui",
+        hes_system_id=hes_system.id,
+        target_initial_count=3,
+        details={"progress_percent": 0},
+    )
+    failed_request = VeeReplayRequest(
+        request_scope="ingest_batch",
+        status="failed",
+        requested_by="operator_ui",
+        ingest_batch_id=ingest_batch.id,
+        target_initial_count=2,
+        processed_count=2,
+        failed_count=1,
+        details={"progress_percent": 100},
+    )
+    session.add_all([queued_request, failed_request])
+    session.commit()
+
+    response = client.get(f"/hes-systems/{hes_system.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "VEE 재평가 요약" in text
+    assert "진행 중 재평가 요청" in text
+    assert "실패한 재평가 요청" in text
+    assert f"/vee-replay-requests/{queued_request.id}?lang=ko" in text
+    assert f"/vee-replay-requests/{failed_request.id}?lang=ko" in text
 
 
 def test_hes_meter_references_page_renders_comparison_rows(client, session):

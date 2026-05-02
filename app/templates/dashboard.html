@@ -141,6 +141,63 @@
   </div>
 </section>
 
+<section class="mb-4">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">{{ t("dashboard.recent_vee_replay_requests") }}</h2>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.vee_replay_requests', lang=current_locale) }}">{{ t("dashboard.view_vee_replay_requests") }}</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>{{ t("table.id") }}</th>
+              <th>{{ t("table.request_scope") }}</th>
+              <th>{{ t("field.hes_system") }}</th>
+              <th>{{ t("table.status") }}</th>
+              <th>{{ t("table.progress") }}</th>
+              <th>{{ t("table.failed_count") }}</th>
+              <th>{{ t("table.updated_at") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in recent_vee_replay_requests %}
+            {% set details = row.details or {} %}
+            {% set request_hes = row.hes_system or (row.ingest_batch.hes_system if row.ingest_batch and row.ingest_batch.hes_system else none) %}
+            <tr>
+              <td>
+                <a class="link-primary text-decoration-none" href="{{ url_for('web.vee_replay_request_detail', request_id=row.id, lang=current_locale) }}">
+                  {{ row.id }}
+                </a>
+              </td>
+              <td>{{ t_or("vee_replay.request_scope." ~ row.request_scope, row.request_scope) }}</td>
+              <td>
+                {% if request_hes %}
+                <a class="link-primary text-decoration-none" href="{{ url_for('web.hes_system_detail', hes_system_id=request_hes.id, lang=current_locale) }}">{{ request_hes.display_name }}</a>
+                {% else %}
+                {{ t("common.none") }}
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
+              </td>
+              <td>{{ details.get("progress_percent", 0) }}% ({{ row.processed_count }}/{{ row.target_initial_count }})</td>
+              <td>{{ row.failed_count }}</td>
+              <td>{{ row.updated_at|dt }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-secondary">{{ t("dashboard.no_recent_vee_replay_requests") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="row g-3 mb-4">
   <div class="col-6 col-lg-3">
     <div class="card shadow-sm h-100">

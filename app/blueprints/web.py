@@ -133,6 +133,7 @@ def dashboard():
         open_alerts=snapshot.open_alerts,
         recent_events=snapshot.recent_events,
         recent_recalculated_usage=snapshot.recent_recalculated_usage,
+        recent_vee_replay_requests=snapshot.recent_vee_replay_requests,
     )
 
 

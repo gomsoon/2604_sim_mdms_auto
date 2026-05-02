@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -21,6 +21,7 @@ from app.models import (
     OperationalEvent,
     ServicePoint,
     UsageTransaction,
+    VeeReplayRequest,
 )
 from app.services.operational_events import close_operational_alerts, record_operational_event
 
@@ -68,6 +69,11 @@ class HesSystemDetail:
     blocked_usage_transaction_count: int
     latest_usage_recalculated_at: object | None
     recent_recalculated_usage_rows: list[UsageTransaction]
+    active_vee_replay_request_count: int
+    failed_vee_replay_request_count: int
+    latest_vee_replay_requested_at: object | None
+    latest_vee_replay_completed_at: object | None
+    recent_vee_replay_requests: list[VeeReplayRequest]
     meter_reference_rows: list["HesMeterReferenceComparisonRow"]
     meter_reference_count: int
     matched_meter_reference_count: int
@@ -417,6 +423,15 @@ def _usage_transaction_matches_hes_clause(hes_system_id: int):
 
 def _usage_recalculated_after_vee_filter():
     return UsageTransaction.details["provenance"]["trigger_source"].as_string() == "re_vee"
+
+
+def _vee_replay_request_matches_hes_clause(hes_system_id: int):
+    return or_(
+        VeeReplayRequest.hes_system_id == hes_system_id,
+        VeeReplayRequest.ingest_batch_id.in_(
+            select(IngestBatch.id).where(IngestBatch.hes_system_id == hes_system_id)
+        ),
+    )
 
 
 HES_METER_REFERENCE_ALERT_RULES: tuple[HesMeterReferenceAlertRule, ...] = (
@@ -843,6 +858,45 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         .order_by(UsageTransaction.calculated_at.desc(), UsageTransaction.id.desc())
         .limit(5)
     ).all()
+    vee_replay_scope_clause = _vee_replay_request_matches_hes_clause(hes_system.id)
+    active_vee_replay_request_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(VeeReplayRequest)
+            .where(
+                vee_replay_scope_clause,
+                VeeReplayRequest.status.in_(("queued", "processing")),
+            )
+        )
+        or 0
+    )
+    failed_vee_replay_request_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(VeeReplayRequest)
+            .where(
+                vee_replay_scope_clause,
+                VeeReplayRequest.status == "failed",
+            )
+        )
+        or 0
+    )
+    latest_vee_replay_requested_at = session.scalar(
+        select(func.max(VeeReplayRequest.created_at)).where(vee_replay_scope_clause)
+    )
+    latest_vee_replay_completed_at = session.scalar(
+        select(func.max(VeeReplayRequest.completed_at)).where(vee_replay_scope_clause)
+    )
+    recent_vee_replay_requests = session.scalars(
+        select(VeeReplayRequest)
+        .options(
+            selectinload(VeeReplayRequest.hes_system),
+            selectinload(VeeReplayRequest.ingest_batch).selectinload(IngestBatch.hes_system),
+        )
+        .where(vee_replay_scope_clause)
+        .order_by(VeeReplayRequest.updated_at.desc(), VeeReplayRequest.id.desc())
+        .limit(5)
+    ).all()
     all_meter_reference_rows = _build_hes_meter_reference_comparison_rows(session, hes_system)
     meter_reference_summary = _summarize_hes_meter_reference_comparison_rows(
         all_meter_reference_rows
@@ -868,6 +922,11 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         blocked_usage_transaction_count=blocked_usage_transaction_count,
         latest_usage_recalculated_at=latest_usage_recalculated_at,
         recent_recalculated_usage_rows=recent_recalculated_usage_rows,
+        active_vee_replay_request_count=active_vee_replay_request_count,
+        failed_vee_replay_request_count=failed_vee_replay_request_count,
+        latest_vee_replay_requested_at=latest_vee_replay_requested_at,
+        latest_vee_replay_completed_at=latest_vee_replay_completed_at,
+        recent_vee_replay_requests=recent_vee_replay_requests,
         meter_reference_rows=all_meter_reference_rows[:10],
         meter_reference_count=meter_reference_summary["meter_reference_count"],
         matched_meter_reference_count=meter_reference_summary["matched_meter_reference_count"],

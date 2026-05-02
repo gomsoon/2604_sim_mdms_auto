@@ -236,6 +236,64 @@
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
+            <h2 class="h5 mb-1">{{ t("page.hes_system_detail.vee_replay_summary") }}</h2>
+            <div class="small text-secondary">{{ t("page.hes_system_detail.recent_vee_replay_requests") }}</div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.vee_replay_requests', hes_system_id=detail.hes_system.id, lang=current_locale) }}">
+            {{ t("button.view") }}
+          </a>
+        </div>
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <span class="badge rounded-pill text-bg-light border">{{ t("table.active_vee_replay_requests") }}: {{ detail.active_vee_replay_request_count }}</span>
+          <span class="badge rounded-pill text-bg-danger-subtle text-danger-emphasis border">{{ t("table.failed_vee_replay_requests") }}: {{ detail.failed_vee_replay_request_count }}</span>
+          <span class="badge rounded-pill text-bg-secondary-subtle text-secondary-emphasis border">{{ t("table.latest_vee_replay_requested") }}: {{ detail.latest_vee_replay_requested_at|dt if detail.latest_vee_replay_requested_at else t("common.none") }}</span>
+          <span class="badge rounded-pill text-bg-secondary-subtle text-secondary-emphasis border">{{ t("table.latest_vee_replay_completed") }}: {{ detail.latest_vee_replay_completed_at|dt if detail.latest_vee_replay_completed_at else t("common.none") }}</span>
+        </div>
+        {% if detail.recent_vee_replay_requests %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.id") }}</th>
+                <th>{{ t("table.request_scope") }}</th>
+                <th>{{ t("table.status") }}</th>
+                <th>{{ t("table.progress") }}</th>
+                <th>{{ t("table.failed_count") }}</th>
+                <th>{{ t("table.updated_at") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.recent_vee_replay_requests %}
+              {% set details = row.details or {} %}
+              <tr>
+                <td>
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.vee_replay_request_detail', request_id=row.id, lang=current_locale) }}">
+                    {{ row.id }}
+                  </a>
+                </td>
+                <td>{{ t_or("vee_replay.request_scope." ~ row.request_scope, row.request_scope) }}</td>
+                <td>
+                  <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
+                </td>
+                <td>{{ details.get("progress_percent", 0) }}% ({{ row.processed_count }}/{{ row.target_initial_count }})</td>
+                <td>{{ row.failed_count }}</td>
+                <td>{{ row.updated_at|dt }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_vee_replay_requests") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
             <h2 class="h5 mb-1">{{ t("page.hes_system_detail.meter_references") }}</h2>
             <div class="small text-secondary">{{ t("page.hes_system_detail.meter_references_description") }}</div>
           </div>

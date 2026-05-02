@@ -13,12 +13,14 @@ from app.models import (
     FinalMeasurement,
     HesEventRaw,
     HesReadRaw,
+    IngestBatch,
     IngestErrorLog,
     MeasuringComponent,
     OperationalEvent,
     PipelineRun,
     ServicePoint,
     UsageTransaction,
+    VeeReplayRequest,
 )
 from app.services.adapters import derive_effective_status
 from app.services.adapters import derive_is_overdue, derive_is_stale
@@ -62,6 +64,7 @@ class DashboardSnapshot:
     open_alerts: list[OperationalEvent]
     recent_events: list[OperationalEvent]
     recent_recalculated_usage: list[UsageTransaction]
+    recent_vee_replay_requests: list[VeeReplayRequest]
 
 
 def _count(session: Session, statement) -> int:
@@ -271,6 +274,38 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
     latest_usage_recalculated_at = session.scalar(
         select(func.max(UsageTransaction.calculated_at)).where(_usage_recalculated_after_vee_filter())
     )
+    vee_replay_queued = _count(
+        session,
+        select(func.count())
+        .select_from(VeeReplayRequest)
+        .where(VeeReplayRequest.status == "queued"),
+    )
+    vee_replay_processing = _count(
+        session,
+        select(func.count())
+        .select_from(VeeReplayRequest)
+        .where(VeeReplayRequest.status == "processing"),
+    )
+    vee_replay_completed = _count(
+        session,
+        select(func.count())
+        .select_from(VeeReplayRequest)
+        .where(VeeReplayRequest.status == "completed"),
+    )
+    vee_replay_failed = _count(
+        session,
+        select(func.count())
+        .select_from(VeeReplayRequest)
+        .where(VeeReplayRequest.status == "failed"),
+    )
+    vee_replay_cancelled = _count(
+        session,
+        select(func.count())
+        .select_from(VeeReplayRequest)
+        .where(VeeReplayRequest.status == "cancelled"),
+    )
+    latest_vee_replay_requested_at = session.scalar(select(func.max(VeeReplayRequest.created_at)))
+    latest_vee_replay_completed_at = session.scalar(select(func.max(VeeReplayRequest.completed_at)))
 
     stage_cards = [
         StageStatusCard(
@@ -370,6 +405,31 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
                 ),
             ],
         ),
+        StageStatusCard(
+            title_key="dashboard.stage.vee_replay",
+            waiting=vee_replay_queued,
+            processing=vee_replay_processing,
+            completed=vee_replay_completed,
+            failed=vee_replay_failed,
+            detail_endpoint="web.vee_replay_requests",
+            detail_link_key="dashboard.view_vee_replay_requests",
+            summary_rows=[
+                CardSummaryRow(
+                    label_key="dashboard.vee_replay.last_requested",
+                    value=latest_vee_replay_requested_at,
+                    is_datetime=True,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.vee_replay.last_completed",
+                    value=latest_vee_replay_completed_at,
+                    is_datetime=True,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.vee_replay.cancelled",
+                    value=vee_replay_cancelled,
+                ),
+            ],
+        ),
     ]
 
     recent_reads = session.scalars(select(HesReadRaw).order_by(HesReadRaw.id.desc()).limit(10)).all()
@@ -401,6 +461,15 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         .order_by(UsageTransaction.calculated_at.desc(), UsageTransaction.id.desc())
         .limit(5)
     ).all()
+    recent_vee_replay_requests = session.scalars(
+        select(VeeReplayRequest)
+        .options(
+            selectinload(VeeReplayRequest.hes_system),
+            selectinload(VeeReplayRequest.ingest_batch).selectinload(IngestBatch.hes_system),
+        )
+        .order_by(VeeReplayRequest.updated_at.desc(), VeeReplayRequest.id.desc())
+        .limit(5)
+    ).all()
 
     return DashboardSnapshot(
         stats=stats,
@@ -410,4 +479,5 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         open_alerts=open_alerts,
         recent_events=recent_events,
         recent_recalculated_usage=recent_recalculated_usage,
+        recent_vee_replay_requests=recent_vee_replay_requests,
     )

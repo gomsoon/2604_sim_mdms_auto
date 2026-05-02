@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import HesSystem, InitialMeasurement, OperationalEvent, UsageTransaction, VeeException
+from app.models import (
+    HesSystem,
+    IngestBatch,
+    InitialMeasurement,
+    OperationalEvent,
+    UsageTransaction,
+    VeeException,
+    VeeReplayRequest,
+)
 from app.services.operational_events import record_operational_event
 from app.services.processing_replay import reevaluate_vee_exception_and_replay
 from app.services.seeds import seed_demo_environment
@@ -172,3 +180,45 @@ def test_dashboard_page_lists_recent_recalculated_usage(client, session):
     assert "최근 재계산 사용량" in text
     for row in usage_rows:
         assert f"/usage-transactions/{row.id}?lang=ko" in text
+
+
+def test_dashboard_page_lists_recent_vee_replay_requests(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    ingest_batch = session.scalar(
+        select(IngestBatch).where(IngestBatch.batch_id == "demo-read-batch").limit(1)
+    )
+    assert hes_system is not None
+    assert ingest_batch is not None
+
+    queued_request = VeeReplayRequest(
+        request_scope="hes_system",
+        status="queued",
+        requested_by="operator_dashboard",
+        hes_system_id=hes_system.id,
+        target_initial_count=3,
+        details={"progress_percent": 0},
+    )
+    processing_request = VeeReplayRequest(
+        request_scope="ingest_batch",
+        status="processing",
+        requested_by="operator_dashboard",
+        ingest_batch_id=ingest_batch.id,
+        target_initial_count=4,
+        processed_count=2,
+        details={"progress_percent": 50},
+    )
+    session.add_all([queued_request, processing_request])
+    session.commit()
+
+    response = client.get("/?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "최근 VEE 재평가 요청" in text
+    assert f"/vee-replay-requests/{queued_request.id}" in text
+    assert f"/vee-replay-requests/{processing_request.id}" in text
+    assert "0% (0/3)" in text
+    assert "50% (2/4)" in text

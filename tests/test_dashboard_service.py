@@ -4,7 +4,17 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.models import AdapterInstance, AdapterRun, IngestErrorLog, InitialMeasurement, OperationalEvent, VeeException
+from app.models import (
+    AdapterInstance,
+    AdapterRun,
+    HesSystem,
+    IngestBatch,
+    IngestErrorLog,
+    InitialMeasurement,
+    OperationalEvent,
+    VeeException,
+    VeeReplayRequest,
+)
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.exception_queue import reprocess_exception
 from app.services.finalization import finalize_canonical_measurements
@@ -24,7 +34,9 @@ def test_dashboard_snapshot_returns_zero_stage_counts_without_data(session):
     assert snapshot.open_alerts == []
     assert snapshot.recent_events == []
     assert snapshot.recent_recalculated_usage == []
+    assert snapshot.recent_vee_replay_requests == []
     assert [(card.waiting, card.processing, card.completed, card.failed) for card in snapshot.stage_cards] == [
+        (0, 0, 0, 0),
         (0, 0, 0, 0),
         (0, 0, 0, 0),
         (0, 0, 0, 0),
@@ -72,6 +84,10 @@ def test_dashboard_snapshot_derives_stage_counts_from_seeded_data(session):
     assert cards["dashboard.stage.usage"].processing == 0
     assert cards["dashboard.stage.usage"].completed == 0
     assert cards["dashboard.stage.usage"].failed == 0
+    assert cards["dashboard.stage.vee_replay"].waiting == 0
+    assert cards["dashboard.stage.vee_replay"].processing == 0
+    assert cards["dashboard.stage.vee_replay"].completed == 0
+    assert cards["dashboard.stage.vee_replay"].failed == 0
     assert snapshot.stats["open_alerts"] == 1
     assert snapshot.open_alerts[0].event_code == "canonical_failed"
     assert len(snapshot.recent_events) >= 5
@@ -304,3 +320,68 @@ def test_dashboard_snapshot_includes_usage_spotlight_after_revee(session):
         row.details["provenance"]["trigger_source"] == "re_vee"
         for row in snapshot.recent_recalculated_usage
     )
+
+
+def test_dashboard_snapshot_includes_vee_replay_request_spotlight(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    ingest_batch = session.scalar(
+        select(IngestBatch).where(IngestBatch.batch_id == "demo-read-batch").limit(1)
+    )
+    assert hes_system is not None
+    assert ingest_batch is not None
+
+    session.add_all(
+        [
+            VeeReplayRequest(
+                request_scope="hes_system",
+                status="queued",
+                requested_by="operator_a",
+                hes_system_id=hes_system.id,
+                target_initial_count=3,
+                details={"progress_percent": 0},
+            ),
+            VeeReplayRequest(
+                request_scope="ingest_batch",
+                status="processing",
+                requested_by="operator_b",
+                ingest_batch_id=ingest_batch.id,
+                target_initial_count=4,
+                processed_count=2,
+                details={"progress_percent": 50},
+            ),
+            VeeReplayRequest(
+                request_scope="date_range",
+                status="failed",
+                requested_by="operator_c",
+                hes_system_id=hes_system.id,
+                target_initial_count=2,
+                processed_count=2,
+                failed_count=1,
+                details={"progress_percent": 100},
+            ),
+            VeeReplayRequest(
+                request_scope="hes_system",
+                status="cancelled",
+                requested_by="operator_d",
+                hes_system_id=hes_system.id,
+                target_initial_count=1,
+                details={"progress_percent": 0},
+            ),
+        ]
+    )
+    session.commit()
+
+    snapshot = build_dashboard_snapshot(session)
+    replay_card = {row.title_key: row for row in snapshot.stage_cards}["dashboard.stage.vee_replay"]
+    summary = {row.label_key: row.value for row in replay_card.summary_rows}
+
+    assert replay_card.waiting == 1
+    assert replay_card.processing == 1
+    assert replay_card.completed == 0
+    assert replay_card.failed == 1
+    assert replay_card.detail_endpoint == "web.vee_replay_requests"
+    assert summary["dashboard.vee_replay.cancelled"] == 1
+    assert len(snapshot.recent_vee_replay_requests) == 4
