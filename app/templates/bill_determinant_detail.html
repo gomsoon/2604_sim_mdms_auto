@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set determinant_details = detail.bill_determinant.details or {} %}
+{% set provenance = determinant_details.get("provenance") %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.bill_determinant_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.bill_determinant_detail.description") }}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a
+      class="btn btn-outline-secondary"
+      href="{{ url_for('web.bill_determinants', lang=current_locale, bill_determinant_id=detail.bill_determinant.id, include_history=1) }}"
+    >
+      {{ t("button.back_to_bill_determinants") }}
+    </a>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.bill_determinant_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.determinant_type") }}</dt>
+          <dd class="col-sm-8">{{ t_or("bill_determinant.type." ~ detail.bill_determinant.determinant_type, detail.bill_determinant.determinant_type) }}</dd>
+          <dt class="col-sm-4">{{ t("table.billing_period") }}</dt>
+          <dd class="col-sm-8">
+            <div>{{ detail.bill_determinant.billing_period_start_at|dt }}</div>
+            <div class="small text-secondary">{{ detail.bill_determinant.billing_period_end_at|dt }}</div>
+          </dd>
+          <dt class="col-sm-4">{{ t("table.determinant_value") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.determinant_value }}</dd>
+          <dt class="col-sm-4">{{ t("table.uom") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.unit_of_measure }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("usage.calculation_status." ~ detail.bill_determinant.calculation_status, detail.bill_determinant.calculation_status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.revision") }}</dt>
+          <dd class="col-sm-8">
+            <span class="me-1">r{{ detail.bill_determinant.revision_number }}</span>
+            {% if detail.bill_determinant.is_current %}
+            <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.current") }}</span>
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.revision_reason_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.revision_reason_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.calculated_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.calculated_at|dt }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.bill_determinant_detail.lineage") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.pipeline_run_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.pipeline_run.id if detail.pipeline_run else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.service_point.external_id }}</dd>
+          <dt class="col-sm-4">{{ t("field.device") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.device.external_meter_id if detail.bill_determinant.device else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.external_channel_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.measuring_component.external_channel_id if detail.bill_determinant.measuring_component else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.source_usage_count") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.source_usage_count }}</dd>
+          <dt class="col-sm-4">{{ t("table.quality_summary") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.quality_summary }}</dd>
+          <dt class="col-sm-4">{{ t("field.timezone_name") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_determinant.window_timezone_name }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if provenance %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_determinant_detail.provenance") }}</h2>
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.trigger_type") }}</dt>
+      <dd class="col-sm-8">{{ t_or("usage.trigger." ~ provenance.trigger_type, provenance.trigger_type) }}</dd>
+      <dt class="col-sm-4">{{ t("field.trigger_source") }}</dt>
+      <dd class="col-sm-8">{{ t_or("usage.trigger_source." ~ provenance.trigger_source, provenance.trigger_source) }}</dd>
+      <dt class="col-sm-4">{{ t("field.source_usage_transaction_ids") }}</dt>
+      <dd class="col-sm-8">
+        {% if provenance.source_usage_transaction_ids %}
+          {{ provenance.source_usage_transaction_ids|join(", ") }}
+        {% else %}
+          {{ t("common.none") }}
+        {% endif %}
+      </dd>
+      {% if provenance.replay_context %}
+      <dt class="col-sm-4">{{ t("table.details") }}</dt>
+      <dd class="col-sm-8">
+        <pre class="bg-light border rounded p-2 mb-0 small"><code>{{ provenance.replay_context | tojson(indent=2) }}</code></pre>
+      </dd>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_determinant_detail.source_usage") }}</h2>
+    {% if detail.source_usage_rows %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.usage_type") }}</th>
+            <th>{{ t("table.period") }}</th>
+            <th>{{ t("table.usage_value") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.calculated_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.source_usage_rows %}
+          <tr>
+            <td>
+              <a
+                class="link-primary text-decoration-none"
+                href="{{ url_for('web.usage_transaction_detail', usage_transaction_id=row.id, lang=current_locale) }}"
+              >
+                {{ row.id }}
+              </a>
+            </td>
+            <td>{{ t_or("usage.type." ~ row.usage_type, row.usage_type) }}</td>
+            <td>
+              <div>{{ row.period_start_at|dt }}</div>
+              <div class="small text-secondary">{{ row.period_end_at|dt }}</div>
+            </td>
+            <td>{{ row.usage_value }}</td>
+            <td>{{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}</td>
+            <td>{{ row.calculated_at|dt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ t("page.bill_determinant_detail.no_source_usage") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_determinant_detail.revision_history") }}</h2>
+    {% if detail.revision_rows %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.revision") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("field.revision_reason_code") }}</th>
+            <th>{{ t("table.calculated_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.revision_rows %}
+          <tr>
+            <td>
+              {% if row.id == detail.bill_determinant.id %}
+                {{ row.id }}
+              {% else %}
+                <a
+                  class="link-primary text-decoration-none"
+                  href="{{ url_for('web.bill_determinant_detail', bill_determinant_id=row.id, lang=current_locale) }}"
+                >
+                  {{ row.id }}
+                </a>
+              {% endif %}
+            </td>
+            <td>
+              <span class="me-1">r{{ row.revision_number }}</span>
+              {% if row.is_current %}
+              <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.current") }}</span>
+              {% endif %}
+            </td>
+            <td>{{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}</td>
+            <td>{{ row.revision_reason_code or t("common.none") }}</td>
+            <td>{{ row.calculated_at|dt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ t("page.bill_determinant_detail.no_revision_history") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("table.details") }}</h2>
+    {% if determinant_details %}
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ determinant_details | tojson(indent=2) }}</code></pre>
+    {% else %}
+    <div class="text-secondary">{{ t("page.operational_event_detail.no_details") }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.models import FinalMeasurement, IngestBatch, OperationalEvent
+from app.services.bill_determinants import calculate_bill_determinants
+from app.models import FinalMeasurement, IngestBatch, OperationalEvent, UsageTransaction
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.operational_events import close_operational_alert
@@ -166,6 +167,85 @@ def test_usage_transaction_detail_page_shows_lineage_and_final_context(client, s
     assert "SP-1001" in text
     assert "MTR-1001" in text
     assert "CH-01" in text
+
+
+def test_bill_determinants_page_filters_by_service_point_and_channel(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    response = client.get(
+        "/bill-determinants?lang=ko&service_point=SP-1001&external_channel_id=CH-01&determinant_type=billing_cycle_consumption_total"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 결정값" in text
+    assert "SP-1001" in text
+    assert "MTR-1001" in text
+    assert "CH-01" in text
+    assert "청구 주기 총 사용량" in text
+
+
+def test_bill_determinant_detail_page_shows_usage_lineage_and_revision_context(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    response = client.get("/bill-determinants/1?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 결정값 상세" in text
+    assert "원본 사용량 거래" in text
+    assert "리비전 이력" in text
+    assert "SP-1001" in text
+    assert "MTR-1001" in text
+    assert "CH-01" in text
+    assert "/usage-transactions/1?lang=ko" in text
+
+
+def test_usage_transaction_detail_page_links_to_related_bill_determinants(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+    usage_row = session.scalar(
+        select(UsageTransaction)
+        .where(UsageTransaction.usage_type == "monthly_consumption")
+        .limit(1)
+    )
+    assert usage_row is not None
+
+    response = client.get(f"/usage-transactions/{usage_row.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "관련 청구 결정값" in text
+    assert "/bill-determinants/1?lang=ko" in text
 
 
 def test_canonical_measurements_promote_final_via_web_uses_current_filters(client, session):

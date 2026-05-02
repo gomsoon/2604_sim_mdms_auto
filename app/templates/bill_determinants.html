@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.bill_determinants.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.bill_determinants.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.service_point") }}</label>
+        <input class="form-control" name="service_point" value="{{ filters.service_point or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.external_channel_id") }}</label>
+        <input class="form-control" name="external_channel_id" value="{{ filters.external_channel_id or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.determinant_type") }}</label>
+        <select class="form-select" name="determinant_type">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="billing_cycle_consumption_total" {% if filters.determinant_type == "billing_cycle_consumption_total" %}selected{% endif %}>
+            {{ t("bill_determinant.type.billing_cycle_consumption_total") }}
+          </option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.calculation_status") }}</label>
+        <select class="form-select" name="calculation_status">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="complete" {% if filters.calculation_status == "complete" %}selected{% endif %}>
+            {{ t("usage.calculation_status.complete") }}
+          </option>
+          <option value="partial" {% if filters.calculation_status == "partial" %}selected{% endif %}>
+            {{ t("usage.calculation_status.partial") }}
+          </option>
+          <option value="blocked" {% if filters.calculation_status == "blocked" %}selected{% endif %}>
+            {{ t("usage.calculation_status.blocked") }}
+          </option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-md-3">
+        <div class="form-check mt-4 pt-2">
+          <input class="form-check-input" id="include_history" name="include_history" type="checkbox" value="1" {% if filters.include_history %}checked{% endif %}>
+          <label class="form-check-label" for="include_history">{{ t("filter.include_history") }}</label>
+        </div>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.bill_determinants', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.service_point") }}</th>
+            <th>{{ t("field.external_meter_id") }}</th>
+            <th>{{ t("field.external_channel_id") }}</th>
+            <th>{{ t("table.determinant_type") }}</th>
+            <th>{{ t("table.billing_period") }}</th>
+            <th>{{ t("table.determinant_value") }}</th>
+            <th>{{ t("table.uom") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.revision") }}</th>
+            <th>{{ t("table.calculated_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              <a
+                class="link-primary text-decoration-none"
+                href="{{ url_for('web.bill_determinant_detail', bill_determinant_id=row.id, lang=current_locale) }}"
+              >
+                {{ row.id }}
+              </a>
+            </td>
+            <td>{{ row.service_point.external_id }}</td>
+            <td>{{ row.device.external_meter_id if row.device else t("common.none") }}</td>
+            <td>{{ row.measuring_component.external_channel_id if row.measuring_component else t("common.none") }}</td>
+            <td>{{ t_or("bill_determinant.type." ~ row.determinant_type, row.determinant_type) }}</td>
+            <td>
+              <div>{{ row.billing_period_start_at|dt }}</div>
+              <div class="small text-secondary">{{ row.billing_period_end_at|dt }}</div>
+            </td>
+            <td>{{ row.determinant_value }}</td>
+            <td>{{ row.unit_of_measure or t("common.none") }}</td>
+            <td>{{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}</td>
+            <td>
+              <span class="me-1">r{{ row.revision_number }}</span>
+              {% if row.is_current %}
+              <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.current") }}</span>
+              {% endif %}
+            </td>
+            <td>{{ row.calculated_at|dt }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-secondary">{{ t("page.bill_determinants.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

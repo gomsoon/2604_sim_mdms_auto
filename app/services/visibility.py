@@ -11,6 +11,7 @@ from app.config import get_app_timezone_name
 from app.models import (
     AdapterInstance,
     AdapterRun,
+    BillDeterminant,
     CanonicalMeasurement,
     FinalMeasurement,
     HesReadRaw,
@@ -92,6 +93,20 @@ class UsageTransactionFilters:
 
 
 @dataclass(frozen=True, slots=True)
+class BillDeterminantFilters:
+    bill_determinant_id: int | None = None
+    service_point_id: int | None = None
+    measuring_component_id: int | None = None
+    service_point: str | None = None
+    external_channel_id: str | None = None
+    determinant_type: str | None = None
+    calculation_status: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+    include_history: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class VeeExceptionFilters:
     hes_system_id: int | None = None
     exception_status: str | None = None
@@ -152,6 +167,15 @@ class UsageTransactionDetailContext:
     usage_transaction: UsageTransaction
     pipeline_run: PipelineRun | None = None
     final_rows: list[FinalMeasurement] = ()
+    bill_determinant_rows: list[BillDeterminant] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class BillDeterminantDetailContext:
+    bill_determinant: BillDeterminant
+    pipeline_run: PipelineRun | None = None
+    source_usage_rows: list[UsageTransaction] = ()
+    revision_rows: list[BillDeterminant] = ()
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -173,6 +197,19 @@ def _parse_optional_int(value: str | None, *, error_code: str, fallback_message:
     if parsed <= 0:
         raise VisibilityFilterError(error_code, fallback_message)
     return parsed
+
+
+def _parse_optional_bool(value: str | None, *, default: bool = False) -> bool:
+    normalized = _normalize_text(value)
+    if normalized is None:
+        return default
+
+    lowered = normalized.lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 def _parse_filter_datetime(value: str | None, *, end_of_day: bool = False) -> datetime | None:
@@ -299,6 +336,54 @@ def build_usage_transaction_filters(args) -> UsageTransactionFilters:
         calculation_status=calculation_status,
         date_from=date_from,
         date_to=date_to,
+    )
+
+
+def build_bill_determinant_filters(args) -> BillDeterminantFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    determinant_type = _normalize_text(args.get("determinant_type"))
+    if determinant_type not in {None, "billing_cycle_consumption_total"}:
+        raise VisibilityFilterError(
+            "invalid_bill_determinant_type_filter",
+            "Bill determinant type must be billing_cycle_consumption_total when provided.",
+        )
+
+    calculation_status = _normalize_text(args.get("calculation_status"))
+    if calculation_status not in {None, "complete", "partial", "blocked"}:
+        raise VisibilityFilterError(
+            "invalid_bill_determinant_status_filter",
+            "Bill determinant status must be complete, partial, or blocked when provided.",
+        )
+
+    return BillDeterminantFilters(
+        bill_determinant_id=_parse_optional_int(
+            args.get("bill_determinant_id"),
+            error_code="invalid_bill_determinant_filter",
+            fallback_message="Bill determinant filter must be a positive integer.",
+        ),
+        service_point_id=_parse_optional_int(
+            args.get("service_point_id"),
+            error_code="invalid_service_point_filter",
+            fallback_message="Service point filter must be a positive integer.",
+        ),
+        measuring_component_id=_parse_optional_int(
+            args.get("measuring_component_id"),
+            error_code="invalid_measuring_component_filter",
+            fallback_message="Measuring component filter must be a positive integer.",
+        ),
+        service_point=_normalize_text(args.get("service_point")),
+        external_channel_id=_normalize_text(args.get("external_channel_id")),
+        determinant_type=determinant_type,
+        calculation_status=calculation_status,
+        date_from=date_from,
+        date_to=date_to,
+        include_history=_parse_optional_bool(args.get("include_history"), default=False),
     )
 
 
@@ -526,6 +611,58 @@ def list_usage_transactions(
     return session.execute(statement).scalars().unique().all()
 
 
+def list_bill_determinants(
+    session: Session, filters: BillDeterminantFilters, *, limit: int = 200
+) -> list[BillDeterminant]:
+    statement: Select[tuple[BillDeterminant]] = (
+        select(BillDeterminant)
+        .join(BillDeterminant.service_point)
+        .outerjoin(BillDeterminant.measuring_component)
+        .outerjoin(BillDeterminant.device)
+        .options(
+            selectinload(BillDeterminant.service_point),
+            selectinload(BillDeterminant.measuring_component),
+            selectinload(BillDeterminant.device),
+            selectinload(BillDeterminant.pipeline_run),
+            selectinload(BillDeterminant.supersedes_bill_determinant),
+        )
+    )
+
+    if filters.bill_determinant_id is not None:
+        statement = statement.where(BillDeterminant.id == filters.bill_determinant_id)
+    if filters.service_point_id is not None:
+        statement = statement.where(BillDeterminant.service_point_id == filters.service_point_id)
+    if filters.measuring_component_id is not None:
+        statement = statement.where(
+            BillDeterminant.measuring_component_id == filters.measuring_component_id
+        )
+    if filters.service_point:
+        statement = statement.where(ServicePoint.external_id == filters.service_point)
+    if filters.external_channel_id:
+        statement = statement.where(
+            MeasuringComponent.external_channel_id == filters.external_channel_id
+        )
+    if filters.determinant_type:
+        statement = statement.where(BillDeterminant.determinant_type == filters.determinant_type)
+    if filters.calculation_status:
+        statement = statement.where(
+            BillDeterminant.calculation_status == filters.calculation_status
+        )
+    if filters.date_from:
+        statement = statement.where(BillDeterminant.billing_period_start_at >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(BillDeterminant.billing_period_start_at <= filters.date_to)
+    if filters.bill_determinant_id is None and not filters.include_history:
+        statement = statement.where(BillDeterminant.is_current.is_(True))
+
+    statement = statement.order_by(
+        BillDeterminant.billing_period_start_at.desc(),
+        BillDeterminant.revision_number.desc(),
+        BillDeterminant.id.desc(),
+    ).limit(limit)
+    return session.execute(statement).scalars().unique().all()
+
+
 def get_usage_transaction_detail_context(
     session: Session,
     usage_transaction_id: int,
@@ -566,10 +703,95 @@ def get_usage_transaction_detail_context(
         .limit(final_limit)
     ).all()
 
+    bill_determinant_rows = session.scalars(
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == usage_transaction.service_point_id)
+        .where(
+            BillDeterminant.measuring_component_id == usage_transaction.measuring_component_id
+        )
+        .where(BillDeterminant.billing_period_start_at == usage_transaction.period_start_at)
+        .where(BillDeterminant.billing_period_end_at == usage_transaction.period_end_at)
+        .options(
+            joinedload(BillDeterminant.pipeline_run),
+            joinedload(BillDeterminant.supersedes_bill_determinant),
+        )
+        .order_by(BillDeterminant.revision_number.desc(), BillDeterminant.id.desc())
+    ).all()
+
     return UsageTransactionDetailContext(
         usage_transaction=usage_transaction,
         pipeline_run=usage_transaction.pipeline_run,
         final_rows=final_rows,
+        bill_determinant_rows=bill_determinant_rows,
+    )
+
+
+def get_bill_determinant_detail_context(
+    session: Session,
+    bill_determinant_id: int,
+    *,
+    source_usage_limit: int = 50,
+) -> BillDeterminantDetailContext | None:
+    bill_determinant = session.scalar(
+        select(BillDeterminant)
+        .where(BillDeterminant.id == bill_determinant_id)
+        .options(
+            joinedload(BillDeterminant.pipeline_run),
+            joinedload(BillDeterminant.service_point),
+            joinedload(BillDeterminant.device),
+            joinedload(BillDeterminant.measuring_component),
+            joinedload(BillDeterminant.supersedes_bill_determinant),
+        )
+        .limit(1)
+    )
+    if bill_determinant is None:
+        return None
+
+    provenance = (bill_determinant.details or {}).get("provenance") or {}
+    source_usage_ids = [
+        usage_id
+        for usage_id in provenance.get("source_usage_transaction_ids", [])
+        if isinstance(usage_id, int)
+    ]
+    source_usage_rows: list[UsageTransaction] = []
+    if source_usage_ids:
+        source_usage_rows = session.scalars(
+            select(UsageTransaction)
+            .where(UsageTransaction.id.in_(source_usage_ids))
+            .options(
+                joinedload(UsageTransaction.pipeline_run),
+                joinedload(UsageTransaction.service_point),
+                joinedload(UsageTransaction.device),
+                joinedload(UsageTransaction.measuring_component),
+            )
+            .order_by(UsageTransaction.period_start_at.asc(), UsageTransaction.id.asc())
+            .limit(source_usage_limit)
+        ).all()
+
+    revision_statement = (
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == bill_determinant.service_point_id)
+        .where(BillDeterminant.determinant_type == bill_determinant.determinant_type)
+        .where(BillDeterminant.billing_period_start_at == bill_determinant.billing_period_start_at)
+        .where(BillDeterminant.billing_period_end_at == bill_determinant.billing_period_end_at)
+        .order_by(BillDeterminant.revision_number.desc(), BillDeterminant.id.desc())
+    )
+    if bill_determinant.measuring_component_id is None:
+        revision_statement = revision_statement.where(
+            BillDeterminant.measuring_component_id.is_(None)
+        )
+    else:
+        revision_statement = revision_statement.where(
+            BillDeterminant.measuring_component_id == bill_determinant.measuring_component_id
+        )
+
+    revision_rows = session.scalars(revision_statement.limit(50)).all()
+
+    return BillDeterminantDetailContext(
+        bill_determinant=bill_determinant,
+        pipeline_run=bill_determinant.pipeline_run,
+        source_usage_rows=source_usage_rows,
+        revision_rows=revision_rows,
     )
 
 
