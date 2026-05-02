@@ -95,6 +95,7 @@ class UsageTransactionFilters:
 @dataclass(frozen=True, slots=True)
 class BillDeterminantFilters:
     bill_determinant_id: int | None = None
+    hes_system_id: int | None = None
     service_point_id: int | None = None
     measuring_component_id: int | None = None
     service_point: str | None = None
@@ -367,6 +368,11 @@ def build_bill_determinant_filters(args) -> BillDeterminantFilters:
             error_code="invalid_bill_determinant_filter",
             fallback_message="Bill determinant filter must be a positive integer.",
         ),
+        hes_system_id=_parse_optional_int(
+            args.get("hes_system_id"),
+            error_code="invalid_hes_system_filter",
+            fallback_message="HES system filter must be a positive integer.",
+        ),
         service_point_id=_parse_optional_int(
             args.get("service_point_id"),
             error_code="invalid_service_point_filter",
@@ -628,6 +634,8 @@ def list_bill_determinants(
         )
     )
 
+    if filters.hes_system_id is not None:
+        statement = statement.where(_bill_determinant_matches_hes_clause(filters.hes_system_id))
     if filters.bill_determinant_id is not None:
         statement = statement.where(BillDeterminant.id == filters.bill_determinant_id)
     if filters.service_point_id is not None:
@@ -661,6 +669,38 @@ def list_bill_determinants(
         BillDeterminant.id.desc(),
     ).limit(limit)
     return session.execute(statement).scalars().unique().all()
+
+
+def _bill_determinant_matches_hes_clause(hes_system_id: int):
+    return (
+        select(UsageTransaction.id)
+        .where(
+            UsageTransaction.service_point_id == BillDeterminant.service_point_id,
+            UsageTransaction.measuring_component_id == BillDeterminant.measuring_component_id,
+            UsageTransaction.period_start_at == BillDeterminant.billing_period_start_at,
+            UsageTransaction.period_end_at == BillDeterminant.billing_period_end_at,
+            UsageTransaction.usage_type == "monthly_consumption",
+        )
+        .where(
+            select(FinalMeasurement.id)
+            .join(
+                CanonicalMeasurement,
+                FinalMeasurement.canonical_measurement_id == CanonicalMeasurement.id,
+            )
+            .join(HesReadRaw, CanonicalMeasurement.hes_read_raw_id == HesReadRaw.id)
+            .where(
+                FinalMeasurement.final_status == "finalized",
+                FinalMeasurement.is_current.is_(True),
+                FinalMeasurement.service_point_id == UsageTransaction.service_point_id,
+                FinalMeasurement.measuring_component_id == UsageTransaction.measuring_component_id,
+                FinalMeasurement.measured_at >= UsageTransaction.period_start_at,
+                FinalMeasurement.measured_at < UsageTransaction.period_end_at,
+                HesReadRaw.hes_system_id == hes_system_id,
+            )
+            .exists()
+        )
+        .exists()
+    )
 
 
 def get_usage_transaction_detail_context(

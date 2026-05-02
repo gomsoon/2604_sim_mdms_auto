@@ -414,6 +414,66 @@
       </div>
     </div>
   </div>
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="h5 mb-1">{{ t("page.hes_system_detail.bill_determinant_summary") }}</h2>
+            <div class="small text-secondary">{{ t("page.hes_system_detail.recent_bill_determinants") }}</div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.bill_determinants', lang=current_locale, hes_system_id=detail.hes_system.id) }}">
+            {{ t("button.view") }}
+          </a>
+        </div>
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <span class="badge rounded-pill text-bg-light border">{{ t("table.bill_determinant_count") }}: {{ detail.bill_determinant_count }}</span>
+          <span class="badge rounded-pill text-bg-warning-subtle text-warning-emphasis border">{{ t("table.partial_bill_determinants") }}: {{ detail.partial_bill_determinant_count }}</span>
+          <span class="badge rounded-pill text-bg-danger-subtle text-danger-emphasis border">{{ t("table.blocked_bill_determinants") }}: {{ detail.blocked_bill_determinant_count }}</span>
+        </div>
+        {% if detail.recent_bill_determinant_rows %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ t("table.id") }}</th>
+                <th>{{ t("table.determinant_type") }}</th>
+                <th>{{ t("table.service_point") }}</th>
+                <th>{{ t("table.channel") }}</th>
+                <th>{{ t("table.status") }}</th>
+                <th>{{ t("table.determinant_value") }}</th>
+                <th>{{ t("table.calculated_at") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in detail.recent_bill_determinant_rows %}
+              <tr>
+                <td>
+                  <a class="link-primary text-decoration-none" href="{{ url_for('web.bill_determinant_detail', bill_determinant_id=row.id, lang=current_locale) }}">
+                    {{ row.id }}
+                  </a>
+                </td>
+                <td>{{ t_or("bill_determinant.type." ~ row.determinant_type, row.determinant_type) }}</td>
+                <td>{{ row.service_point.external_id }}</td>
+                <td>{{ row.measuring_component.external_channel_id if row.measuring_component else t("common.none") }}</td>
+                <td>
+                  <span class="badge text-bg-{% if row.calculation_status == 'complete' %}success{% elif row.calculation_status == 'partial' %}warning{% else %}danger{% endif %}">
+                    {{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}
+                  </span>
+                </td>
+                <td>{{ row.determinant_value }}</td>
+                <td>{{ row.calculated_at|dt }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_bill_determinants") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
   <div class="col-xl-6">
     <div class="card shadow-sm h-100">
       <div class="card-body">

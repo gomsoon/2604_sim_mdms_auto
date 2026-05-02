@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.models import (
     AdapterInstance,
+    BillDeterminant,
     HesSystem,
     IngestBatch,
     InitialMeasurement,
@@ -15,6 +16,7 @@ from app.models import (
     VeeReplayRequest,
 )
 from app.services.processing_replay import reevaluate_vee_exception_and_replay
+from app.services.bill_determinants import calculate_bill_determinants
 from app.services.seeds import seed_demo_environment
 from app.services.vee import evaluate_or_get_vee_baseline
 
@@ -197,6 +199,39 @@ def test_hes_system_detail_page_lists_recent_recalculated_usage(client, session)
     assert "사용량 요약" in text
     assert "최근 사용량 재계산" in text
     assert f"/usage-transactions/{usage_row.id}?lang=ko" in text
+
+
+def test_hes_system_detail_page_lists_recent_bill_determinants(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    from app.services.finalization import finalize_canonical_measurements
+    from app.services.usage import calculate_usage_transactions
+
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    determinant = session.scalar(select(BillDeterminant).limit(1))
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert determinant is not None
+    assert hes_system is not None
+
+    response = client.get(f"/hes-systems/{hes_system.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 결정값 요약" in text
+    assert "최근 current 청구 결정값" in text
+    assert f"/bill-determinants/{determinant.id}?lang=ko" in text
+    assert "/bill-determinants?" in text
+    assert f"hes_system_id={hes_system.id}" in text
 
 
 def test_hes_system_detail_page_lists_recent_vee_replay_requests(client, session):

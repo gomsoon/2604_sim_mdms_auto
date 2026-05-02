@@ -223,6 +223,35 @@ def test_list_bill_determinants_filters_by_service_point_channel_and_status(sess
     assert unmatched_rows == []
 
 
+def test_list_bill_determinants_filters_by_hes_system(session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    demo_hes = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert demo_hes is not None
+
+    rows = list_bill_determinants(
+        session,
+        build_bill_determinant_filters(
+            {
+                "hes_system_id": str(demo_hes.id),
+            }
+        ),
+    )
+
+    assert len(rows) == 1
+    assert rows[0].service_point.external_id == "SP-1001"
+
+
 def test_get_bill_determinant_detail_context_loads_source_usage_and_revision_rows(session):
     seed_demo_environment(session)
     session.commit()

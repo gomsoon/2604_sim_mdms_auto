@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.models import (
     AdapterInstance,
+    BillDeterminant,
     AdapterRun,
     HesSystem,
     IngestBatch,
@@ -16,6 +17,7 @@ from app.models import (
     VeeReplayRequest,
 )
 from app.services.dashboard import build_dashboard_snapshot
+from app.services.bill_determinants import calculate_bill_determinants
 from app.services.exception_queue import reprocess_exception
 from app.services.finalization import finalize_canonical_measurements
 from app.services.processing_replay import reevaluate_vee_exception_and_replay
@@ -36,6 +38,7 @@ def test_dashboard_snapshot_returns_zero_stage_counts_without_data(session):
     assert snapshot.recent_recalculated_usage == []
     assert snapshot.recent_vee_replay_requests == []
     assert [(card.waiting, card.processing, card.completed, card.failed) for card in snapshot.stage_cards] == [
+        (0, 0, 0, 0),
         (0, 0, 0, 0),
         (0, 0, 0, 0),
         (0, 0, 0, 0),
@@ -84,6 +87,10 @@ def test_dashboard_snapshot_derives_stage_counts_from_seeded_data(session):
     assert cards["dashboard.stage.usage"].processing == 0
     assert cards["dashboard.stage.usage"].completed == 0
     assert cards["dashboard.stage.usage"].failed == 0
+    assert cards["dashboard.stage.bill_determinant"].waiting == 0
+    assert cards["dashboard.stage.bill_determinant"].processing == 0
+    assert cards["dashboard.stage.bill_determinant"].completed == 0
+    assert cards["dashboard.stage.bill_determinant"].failed == 0
     assert cards["dashboard.stage.vee_replay"].waiting == 0
     assert cards["dashboard.stage.vee_replay"].processing == 0
     assert cards["dashboard.stage.vee_replay"].completed == 0
@@ -320,6 +327,38 @@ def test_dashboard_snapshot_includes_usage_spotlight_after_revee(session):
         row.details["provenance"]["trigger_source"] == "re_vee"
         for row in snapshot.recent_recalculated_usage
     )
+
+
+def test_dashboard_snapshot_includes_bill_determinant_spotlight(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    determinant = session.scalar(select(BillDeterminant).limit(1))
+    assert determinant is not None
+
+    snapshot = build_dashboard_snapshot(session)
+    card = {row.title_key: row for row in snapshot.stage_cards}["dashboard.stage.bill_determinant"]
+    summary = {row.label_key: row.value for row in card.summary_rows}
+
+    assert card.total_count == 1
+    assert card.waiting == 0
+    assert card.processing >= 1
+    assert card.completed == 0
+    assert card.failed == 0
+    assert summary["dashboard.bill_determinant.last_calculated"] is not None
+    assert summary["dashboard.bill_determinant.partial_or_blocked"] >= 1
+    assert len(snapshot.recent_bill_determinants) == 1
+    assert snapshot.recent_bill_determinants[0].id == determinant.id
 
 
 def test_dashboard_snapshot_includes_vee_replay_request_spotlight(session):

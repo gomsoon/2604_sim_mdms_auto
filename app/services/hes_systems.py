@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import (
     AdapterInstance,
     AdapterRun,
+    BillDeterminant,
     CanonicalMeasurement,
     Device,
     FinalMeasurement,
@@ -69,6 +70,11 @@ class HesSystemDetail:
     blocked_usage_transaction_count: int
     latest_usage_recalculated_at: object | None
     recent_recalculated_usage_rows: list[UsageTransaction]
+    bill_determinant_count: int
+    partial_bill_determinant_count: int
+    blocked_bill_determinant_count: int
+    latest_bill_determinant_calculated_at: object | None
+    recent_bill_determinant_rows: list[BillDeterminant]
     active_vee_replay_request_count: int
     failed_vee_replay_request_count: int
     latest_vee_replay_requested_at: object | None
@@ -423,6 +429,21 @@ def _usage_transaction_matches_hes_clause(hes_system_id: int):
 
 def _usage_recalculated_after_vee_filter():
     return UsageTransaction.details["provenance"]["trigger_source"].as_string() == "re_vee"
+
+
+def _bill_determinant_matches_hes_clause(hes_system_id: int):
+    return (
+        select(UsageTransaction.id)
+        .where(
+            UsageTransaction.service_point_id == BillDeterminant.service_point_id,
+            UsageTransaction.measuring_component_id == BillDeterminant.measuring_component_id,
+            UsageTransaction.period_start_at == BillDeterminant.billing_period_start_at,
+            UsageTransaction.period_end_at == BillDeterminant.billing_period_end_at,
+            UsageTransaction.usage_type == "monthly_consumption",
+        )
+        .where(_usage_transaction_matches_hes_clause(hes_system_id))
+        .exists()
+    )
 
 
 def _vee_replay_request_matches_hes_clause(hes_system_id: int):
@@ -858,6 +879,62 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         .order_by(UsageTransaction.calculated_at.desc(), UsageTransaction.id.desc())
         .limit(5)
     ).all()
+    bill_determinant_scope_clause = _bill_determinant_matches_hes_clause(hes_system.id)
+    bill_determinant_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(BillDeterminant)
+            .where(
+                bill_determinant_scope_clause,
+                BillDeterminant.is_current.is_(True),
+            )
+        )
+        or 0
+    )
+    partial_bill_determinant_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(BillDeterminant)
+            .where(
+                bill_determinant_scope_clause,
+                BillDeterminant.is_current.is_(True),
+                BillDeterminant.calculation_status == "partial",
+            )
+        )
+        or 0
+    )
+    blocked_bill_determinant_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(BillDeterminant)
+            .where(
+                bill_determinant_scope_clause,
+                BillDeterminant.is_current.is_(True),
+                BillDeterminant.calculation_status == "blocked",
+            )
+        )
+        or 0
+    )
+    latest_bill_determinant_calculated_at = session.scalar(
+        select(func.max(BillDeterminant.calculated_at)).where(
+            bill_determinant_scope_clause,
+            BillDeterminant.is_current.is_(True),
+        )
+    )
+    recent_bill_determinant_rows = session.scalars(
+        select(BillDeterminant)
+        .options(
+            selectinload(BillDeterminant.service_point),
+            selectinload(BillDeterminant.measuring_component),
+            selectinload(BillDeterminant.device),
+        )
+        .where(
+            bill_determinant_scope_clause,
+            BillDeterminant.is_current.is_(True),
+        )
+        .order_by(BillDeterminant.calculated_at.desc(), BillDeterminant.id.desc())
+        .limit(5)
+    ).all()
     vee_replay_scope_clause = _vee_replay_request_matches_hes_clause(hes_system.id)
     active_vee_replay_request_count = int(
         session.scalar(
@@ -922,6 +999,11 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
         blocked_usage_transaction_count=blocked_usage_transaction_count,
         latest_usage_recalculated_at=latest_usage_recalculated_at,
         recent_recalculated_usage_rows=recent_recalculated_usage_rows,
+        bill_determinant_count=bill_determinant_count,
+        partial_bill_determinant_count=partial_bill_determinant_count,
+        blocked_bill_determinant_count=blocked_bill_determinant_count,
+        latest_bill_determinant_calculated_at=latest_bill_determinant_calculated_at,
+        recent_bill_determinant_rows=recent_bill_determinant_rows,
         active_vee_replay_request_count=active_vee_replay_request_count,
         failed_vee_replay_request_count=failed_vee_replay_request_count,
         latest_vee_replay_requested_at=latest_vee_replay_requested_at,

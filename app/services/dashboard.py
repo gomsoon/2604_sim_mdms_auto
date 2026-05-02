@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import (
     AdapterInstance,
     AdapterRun,
+    BillDeterminant,
     CanonicalMeasurement,
     Device,
     FinalMeasurement,
@@ -64,6 +65,7 @@ class DashboardSnapshot:
     open_alerts: list[OperationalEvent]
     recent_events: list[OperationalEvent]
     recent_recalculated_usage: list[UsageTransaction]
+    recent_bill_determinants: list[BillDeterminant]
     recent_vee_replay_requests: list[VeeReplayRequest]
 
 
@@ -91,6 +93,10 @@ def _usage_recalculated_after_vee_filter():
     return (
         UsageTransaction.details["provenance"]["trigger_source"].as_string() == "re_vee"
     )
+
+
+def _bill_determinant_revised_filter():
+    return BillDeterminant.is_current.is_(True) & (BillDeterminant.revision_number > 1)
 
 
 def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
@@ -274,6 +280,45 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
     latest_usage_recalculated_at = session.scalar(
         select(func.max(UsageTransaction.calculated_at)).where(_usage_recalculated_after_vee_filter())
     )
+    bill_determinant_complete = _count(
+        session,
+        select(func.count())
+        .select_from(BillDeterminant)
+        .where(
+            BillDeterminant.is_current.is_(True),
+            BillDeterminant.calculation_status == "complete",
+        ),
+    )
+    bill_determinant_partial = _count(
+        session,
+        select(func.count())
+        .select_from(BillDeterminant)
+        .where(
+            BillDeterminant.is_current.is_(True),
+            BillDeterminant.calculation_status == "partial",
+        ),
+    )
+    bill_determinant_blocked = _count(
+        session,
+        select(func.count())
+        .select_from(BillDeterminant)
+        .where(
+            BillDeterminant.is_current.is_(True),
+            BillDeterminant.calculation_status == "blocked",
+        ),
+    )
+    bill_determinant_revised = _count(
+        session,
+        select(func.count())
+        .select_from(BillDeterminant)
+        .where(_bill_determinant_revised_filter()),
+    )
+    latest_bill_determinant_calculated_at = session.scalar(
+        select(func.max(BillDeterminant.calculated_at)).where(BillDeterminant.is_current.is_(True))
+    )
+    latest_bill_determinant_revised_at = session.scalar(
+        select(func.max(BillDeterminant.calculated_at)).where(_bill_determinant_revised_filter())
+    )
     vee_replay_queued = _count(
         session,
         select(func.count())
@@ -406,6 +451,40 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
             ],
         ),
         StageStatusCard(
+            title_key="dashboard.stage.bill_determinant",
+            waiting=bill_determinant_complete,
+            processing=bill_determinant_partial,
+            completed=bill_determinant_blocked,
+            failed=bill_determinant_revised,
+            total_count=bill_determinant_complete + bill_determinant_partial + bill_determinant_blocked,
+            waiting_label_key="usage.calculation_status.complete",
+            processing_label_key="usage.calculation_status.partial",
+            completed_label_key="usage.calculation_status.blocked",
+            failed_label_key="dashboard.bill_determinant.revised",
+            waiting_value_class="text-success",
+            processing_value_class="text-warning",
+            completed_value_class="text-danger",
+            failed_value_class="text-primary",
+            detail_endpoint="web.bill_determinants",
+            detail_link_key="dashboard.view_bill_determinants",
+            summary_rows=[
+                CardSummaryRow(
+                    label_key="dashboard.bill_determinant.last_calculated",
+                    value=latest_bill_determinant_calculated_at,
+                    is_datetime=True,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.bill_determinant.last_revised",
+                    value=latest_bill_determinant_revised_at,
+                    is_datetime=True,
+                ),
+                CardSummaryRow(
+                    label_key="dashboard.bill_determinant.partial_or_blocked",
+                    value=bill_determinant_partial + bill_determinant_blocked,
+                ),
+            ],
+        ),
+        StageStatusCard(
             title_key="dashboard.stage.vee_replay",
             waiting=vee_replay_queued,
             processing=vee_replay_processing,
@@ -461,6 +540,17 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         .order_by(UsageTransaction.calculated_at.desc(), UsageTransaction.id.desc())
         .limit(5)
     ).all()
+    recent_bill_determinants = session.scalars(
+        select(BillDeterminant)
+        .options(
+            selectinload(BillDeterminant.service_point),
+            selectinload(BillDeterminant.measuring_component),
+            selectinload(BillDeterminant.device),
+        )
+        .where(BillDeterminant.is_current.is_(True))
+        .order_by(BillDeterminant.calculated_at.desc(), BillDeterminant.id.desc())
+        .limit(5)
+    ).all()
     recent_vee_replay_requests = session.scalars(
         select(VeeReplayRequest)
         .options(
@@ -479,5 +569,6 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         open_alerts=open_alerts,
         recent_events=recent_events,
         recent_recalculated_usage=recent_recalculated_usage,
+        recent_bill_determinants=recent_bill_determinants,
         recent_vee_replay_requests=recent_vee_replay_requests,
     )
