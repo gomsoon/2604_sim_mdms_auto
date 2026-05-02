@@ -21,6 +21,7 @@ PIPELINE_SUCCESS_EVENT_CODES = {
     "canonical": "canonical_completed",
     "finalization": "finalization_completed",
     "usage": "usage_completed",
+    "bill_determinant": "bill_determinant_completed",
     "exception_reprocess": "exception_reprocess_completed",
 }
 
@@ -29,6 +30,7 @@ PIPELINE_FAILURE_EVENT_CODES = {
     "canonical": "canonical_failed",
     "finalization": "finalization_failed",
     "usage": "usage_failed",
+    "bill_determinant": "bill_determinant_failed",
     "exception_reprocess": "exception_reprocess_failed",
 }
 
