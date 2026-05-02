@@ -8,6 +8,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
+from app.config import get_app_timezone_name
 from app.db import get_session
 from app.i18n import (
     translate_adapter_error,
@@ -269,11 +270,33 @@ def vee_exceptions():
     hes_system_options = session.scalars(
         select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
     ).all()
+    selected_hes_system = (
+        next((row for row in hes_system_options if row.id == filters.hes_system_id), None)
+        if filters.hes_system_id is not None
+        else None
+    )
+    selected_timezone = (
+        selected_hes_system.timezone_name
+        if selected_hes_system is not None and selected_hes_system.timezone_name
+        else get_app_timezone_name()
+    )
+    replay_prefill = {
+        "request_scope": (
+            "date_range"
+            if filters.date_from is not None and filters.date_to is not None
+            else "hes_system"
+        ),
+        "hes_system_id": filters.hes_system_id,
+        "window_timezone_name": selected_timezone,
+        "measured_at_from": _format_datetime_local(filters.date_from, selected_timezone),
+        "measured_at_to": _format_datetime_local(filters.date_to, selected_timezone),
+    }
     return render_template(
         "vee_exceptions.html",
         rows=rows,
         filters=filters,
         hes_system_options=hes_system_options,
+        replay_prefill=replay_prefill,
     )
 
 
@@ -308,6 +331,13 @@ def _parse_local_datetime(raw_value: str | None, timezone_name: str | None) -> d
     naive_value = datetime.fromisoformat(normalized)
     localized = naive_value.replace(tzinfo=ZoneInfo(zone_name))
     return localized.astimezone(ZoneInfo("UTC"))
+
+
+def _format_datetime_local(value: datetime | None, timezone_name: str | None) -> str:
+    if value is None:
+        return ""
+    zone_name = (timezone_name or get_app_timezone_name()).strip() or get_app_timezone_name()
+    return value.astimezone(ZoneInfo(zone_name)).strftime("%Y-%m-%dT%H:%M")
 
 
 @bp.get("/vee-replay-requests/new")

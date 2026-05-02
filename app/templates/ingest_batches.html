@@ -6,6 +6,7 @@
     <h1 class="h3 mb-1">{{ t("page.ingest_batches.title") }}</h1>
     <p class="text-secondary mb-0">{{ t("page.ingest_batches.description") }}</p>
   </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('web.new_vee_replay_request', request_scope='ingest_batch', lang=current_locale) }}">{{ t("button.queue_vee_replay") }}</a>
 </div>
 
 <div class="card shadow-sm mb-4">
@@ -58,6 +59,7 @@
             <th>{{ t("table.received_at") }}</th>
             <th>{{ t("table.raw_reads_count") }}</th>
             <th>{{ t("table.raw_events_count") }}</th>
+            <th>{{ t("table.actions") }}</th>
           </tr>
         </thead>
         <tbody>
@@ -70,10 +72,15 @@
             <td>{{ row.received_at|dt }}</td>
             <td>{{ row.hes_read_rows|length }}</td>
             <td>{{ row.hes_event_rows|length }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.new_vee_replay_request', request_scope='ingest_batch', ingest_batch_id=row.id, hes_system_id=row.hes_system_id, lang=current_locale) }}">
+                {{ t("button.queue_vee_replay") }}
+              </a>
+            </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="text-secondary">{{ t("page.ingest_batches.empty") }}</td>
+            <td colspan="8" class="text-secondary">{{ t("page.ingest_batches.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

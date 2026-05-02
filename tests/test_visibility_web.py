@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.models import FinalMeasurement, OperationalEvent
+from app.models import FinalMeasurement, IngestBatch, OperationalEvent
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.operational_events import close_operational_alert
@@ -21,6 +21,20 @@ def test_ingest_batches_page_renders_filtered_results_in_korean(client, session)
     assert "적재 배치" in text
     assert "demo-event-batch" in text
     assert "원시 이벤트" in text
+
+
+def test_ingest_batches_page_exposes_replay_request_link(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    batch = session.scalar(select(IngestBatch).where(IngestBatch.batch_id == "demo-read-batch").limit(1))
+    assert batch is not None
+
+    response = client.get("/ingest-batches?lang=ko&batch_id=demo-read-batch")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "/vee-replay-requests/new?request_scope=ingest_batch" in text
+    assert f"ingest_batch_id={batch.id}" in text
 
 
 def test_canonical_measurements_page_filters_by_batch_and_meter(client, session):

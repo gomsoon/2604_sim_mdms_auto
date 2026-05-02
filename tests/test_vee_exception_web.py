@@ -47,6 +47,24 @@ def test_vee_exceptions_page_renders_exception_in_korean(client, session):
     assert f"/vee-exceptions/{vee_exception.id}?lang=ko" in text
 
 
+def test_vee_exceptions_page_exposes_filtered_replay_request_link(client, session):
+    vee_exception = _create_open_vee_exception(session)
+    initial = session.get(InitialMeasurement, vee_exception.initial_measurement_id)
+    assert initial is not None
+
+    response = client.get(
+        "/vee-exceptions?lang=ko&hes_system_id=1&exception_status=open&date_from=2026-04-18&date_to=2026-04-18"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "/vee-replay-requests/new?" in text
+    assert "request_scope=date_range" in text
+    assert "hes_system_id=1" in text
+    assert "measured_at_from=2026-04-18T00:00" in text
+    assert "measured_at_to=2026-04-18T23:59" in text
+
+
 def test_vee_exception_detail_page_shows_lineage(client, session):
     vee_exception = _create_open_vee_exception(session)
 

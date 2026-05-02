@@ -6,6 +6,18 @@
     <h1 class="h3 mb-1">{{ t("page.vee_exceptions.title") }}</h1>
     <p class="text-secondary mb-0">{{ t("page.vee_exceptions.description") }}</p>
   </div>
+  <a
+    class="btn btn-outline-secondary"
+    href="{{ url_for('web.new_vee_replay_request',
+      request_scope=replay_prefill['request_scope'],
+      hes_system_id=replay_prefill['hes_system_id'],
+      measured_at_from=replay_prefill['measured_at_from'],
+      measured_at_to=replay_prefill['measured_at_to'],
+      window_timezone_name=replay_prefill['window_timezone_name'],
+      lang=current_locale) }}"
+  >
+    {{ t("button.queue_vee_replay") }}
+  </a>
 </div>
 
 <div class="card shadow-sm mb-4">
