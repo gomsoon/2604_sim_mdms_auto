@@ -387,6 +387,34 @@ responsibilities.
 - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
 - [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
 
+### Stage 13. Billing context baseline
+
+#### Goal
+
+Define the smallest persistent business-context slice needed so that
+`bill_determinant` and later `billing-lite` outputs no longer guess billing
+windows.
+
+#### Key tasks
+
+- define `service_point_billing_context`
+- define billing timezone semantics
+- define `calendar_month` and `anchored_month` baseline cycle modes
+- define effective-period and current-row rules
+- define how missing billing context blocks downstream outputs
+
+#### Test gate
+
+- determinant calculation can distinguish known versus unknown billing context
+- missing context produces `blocked`, not guessed, determinant outcomes
+- the repository has a stable place to anchor later tariff and charge models
+
+#### Related documents
+
+- [billing-context-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-context-baseline-design.md)
+- [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+- [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

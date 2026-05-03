@@ -148,6 +148,7 @@ Recommended minimum:
 - `timezone_name`
 - `billing_cycle_mode`
 - `billing_cycle_anchor_day`
+- `currency_code`
 - `effective_from`
 - `effective_to`
 - `is_current`

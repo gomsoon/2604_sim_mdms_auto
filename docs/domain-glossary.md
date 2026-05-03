@@ -172,6 +172,12 @@ The minimal business context needed to align billing-ready or charge-ready
 outputs, such as billing timezone, billing-cycle mode, anchor day, and
 effective period.
 
+### service_point_billing_context
+
+The proposed current-plus-history business context record attached to a
+`service_point`, used to define billing timezone and billing-cycle alignment
+before later charge calculation.
+
 ### bill_charge
 
 A charge-ready output value derived from `bill_determinant`, typically after

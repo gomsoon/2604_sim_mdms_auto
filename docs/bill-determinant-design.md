@@ -248,6 +248,13 @@ Recommended first implementation rule:
 - if billing-cycle alignment is unknown, determinant calculation should be
   `blocked`, not guessed
 
+Recommended next supporting baseline:
+
+- `service_point_billing_context`
+
+The determinant layer should eventually use this context as the primary business
+window source rather than relying only on operational timezone fallback.
+
 ## Quality and status semantics
 
 Recommended baseline `calculation_status`:

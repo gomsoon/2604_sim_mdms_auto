@@ -253,6 +253,16 @@ This document records current architectural and process decisions so that the te
   - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
   - [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
 
+### O-011. What is the minimum billing context needed before determinant results can be treated as truly billing-ready
+
+- Status: open
+- Why it matters: The repository now has determinant persistence and calculation, but without explicit billing timezone and cycle context it can still only approximate some business windows
+- Current direction: Introduce a small `service_point_billing_context` model with timezone, billing-cycle mode, anchor day, effective period, and current-row semantics before broader charge calculation is implemented
+- Related docs:
+  - [billing-context-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-context-baseline-design.md)
+  - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+  - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

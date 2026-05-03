@@ -165,6 +165,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 
 - billing-lite boundary definition for small-scale deployment and end-to-end testing
 - minimal billing context baseline
+- `service_point_billing_context` persistence
+- billing timezone and billing-cycle anchor governance
 - tariff assignment baseline
 - simple bill charge persistence and calculation
 - optional invoice summary baseline
