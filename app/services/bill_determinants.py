@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import BillDeterminant, UsageTransaction
+from app.models import BillDeterminant, ServicePointBillingContext, UsageTransaction
 from app.services.pipeline import (
     complete_pipeline_run,
     fail_pipeline_run,
@@ -27,6 +27,9 @@ _DETERMINANT_SOURCE_USAGE_TYPE = {
 _DETERMINANT_WATERMARK_RECORD_TYPE = {
     BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL: "billing_cycle_total",
 }
+
+_BILLING_CYCLE_MODE_CALENDAR_MONTH = "calendar_month"
+_BILLING_CYCLE_MODE_ANCHORED_MONTH = "anchored_month"
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +75,7 @@ def _load_source_usage_transactions(
 def _build_bill_determinant_payload(
     usage_row: UsageTransaction,
     *,
+    billing_context: ServicePointBillingContext | None,
     trigger_type: str,
     details_context: dict[str, object] | None,
 ) -> dict[str, object]:
@@ -91,21 +95,80 @@ def _build_bill_determinant_payload(
         if replay_context:
             provenance["replay_context"] = replay_context
 
+    calculation_status = usage_row.calculation_status
+    quality_summary = usage_row.quality_summary
+    window_timezone_name = usage_row.window_timezone_name
+    billing_period_source = "usage_period"
+    billing_context_snapshot: dict[str, object] | None = None
+
+    if billing_context is None:
+        calculation_status = "blocked"
+        quality_summary = "blocked_missing_billing_context"
+        billing_period_source = "blocked_missing_billing_context"
+    else:
+        billing_context_snapshot = {
+            "billing_context_id": billing_context.id,
+            "timezone_name": billing_context.timezone_name,
+            "billing_cycle_mode": billing_context.billing_cycle_mode,
+            "billing_cycle_anchor_day": billing_context.billing_cycle_anchor_day,
+            "currency_code": billing_context.currency_code,
+            "effective_from": billing_context.effective_from.isoformat(),
+            "effective_to": (
+                billing_context.effective_to.isoformat()
+                if billing_context.effective_to is not None
+                else None
+            ),
+        }
+        if billing_context.billing_cycle_mode == _BILLING_CYCLE_MODE_CALENDAR_MONTH:
+            window_timezone_name = billing_context.timezone_name
+            billing_period_source = "billing_context_calendar_month"
+        elif billing_context.billing_cycle_mode == _BILLING_CYCLE_MODE_ANCHORED_MONTH:
+            calculation_status = "blocked"
+            quality_summary = "blocked_unsupported_billing_cycle_mode"
+            billing_period_source = "blocked_unsupported_billing_cycle_mode"
+        else:
+            calculation_status = "blocked"
+            quality_summary = "blocked_unknown_billing_cycle_mode"
+            billing_period_source = "blocked_unknown_billing_cycle_mode"
+
     return {
-        "window_timezone_name": usage_row.window_timezone_name,
+        "window_timezone_name": window_timezone_name,
         "unit_of_measure": usage_row.unit_of_measure or "UNKNOWN",
         "determinant_value": usage_row.usage_value,
         "source_usage_count": 1,
-        "quality_summary": usage_row.quality_summary,
-        "calculation_status": usage_row.calculation_status,
+        "quality_summary": quality_summary,
+        "calculation_status": calculation_status,
         "details": {
-            "billing_period_source": "usage_period",
+            "billing_period_source": billing_period_source,
             "source_usage_type": usage_row.usage_type,
             "source_usage_calculation_status": usage_row.calculation_status,
             "source_usage_quality_summary": usage_row.quality_summary,
+            "billing_context_snapshot": billing_context_snapshot,
             "provenance": provenance,
         },
     }
+
+
+def _find_billing_context(
+    session: Session,
+    *,
+    usage_row: UsageTransaction,
+) -> ServicePointBillingContext | None:
+    return session.scalar(
+        select(ServicePointBillingContext)
+        .where(ServicePointBillingContext.service_point_id == usage_row.service_point_id)
+        .where(ServicePointBillingContext.effective_from <= usage_row.period_start_at)
+        .where(
+            (ServicePointBillingContext.effective_to.is_(None))
+            | (ServicePointBillingContext.effective_to > usage_row.period_start_at)
+        )
+        .order_by(
+            ServicePointBillingContext.is_current.desc(),
+            ServicePointBillingContext.effective_from.desc(),
+            ServicePointBillingContext.id.desc(),
+        )
+        .limit(1)
+    )
 
 
 def _find_current_bill_determinant(
@@ -194,8 +257,10 @@ def calculate_bill_determinants(
         latest_billing_period_end_at: datetime | None = None
 
         for usage_row in usage_rows:
+            billing_context = _find_billing_context(session, usage_row=usage_row)
             payload = _build_bill_determinant_payload(
                 usage_row,
+                billing_context=billing_context,
                 trigger_type=trigger_type,
                 details_context=details_context,
             )

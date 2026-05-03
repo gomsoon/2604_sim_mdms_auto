@@ -14,6 +14,7 @@ from app.models import (
     InstallationHistory,
     MeasuringComponent,
     ServicePoint,
+    ServicePointBillingContext,
 )
 from app.services.hes_meter_references import upsert_hes_meter_reference
 from app.services.hes_systems import ensure_hes_system
@@ -139,6 +140,22 @@ def seed_master_data(session: Session) -> bool:
         status="installed",
     )
     session.add(installation)
+
+    session.add(
+        ServicePointBillingContext(
+            service_point_id=service_point.id,
+            timezone_name="Asia/Seoul",
+            billing_cycle_mode="calendar_month",
+            billing_cycle_anchor_day=None,
+            currency_code="KRW",
+            effective_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            effective_to=None,
+            is_current=True,
+            source_system="seed",
+            source_reference="seed:service_point_billing_context:SP-1001",
+            details={"seeded": True},
+        )
+    )
 
     device_without_component = Device(
         source_system="HES",

@@ -12,6 +12,7 @@ from app.models import (
     PipelineRun,
     ProcessingWatermark,
     ServicePoint,
+    ServicePointBillingContext,
     UsageTransaction,
 )
 from app.services.bill_determinants import (
@@ -133,6 +134,8 @@ def test_calculate_bill_determinants_creates_complete_row(session):
     assert row.is_current is True
     assert row.details["provenance"]["trigger_source"] == "bill_determinant_calculation"
     assert row.details["source_usage_type"] == "monthly_consumption"
+    assert row.details["billing_context_snapshot"]["billing_cycle_mode"] == "calendar_month"
+    assert row.window_timezone_name == "Asia/Seoul"
     assert pipeline_run is not None
     assert pipeline_run.status == "completed"
     assert pipeline_run.result_code == "bill_determinant_completed"
@@ -258,3 +261,86 @@ def test_calculate_bill_determinants_supersedes_changed_current_row(session):
     assert rows[1].revision_reason_code == "usage_recalculated"
     assert rows[1].supersedes_bill_determinant_id == rows[0].id
     assert rows[1].determinant_value == Decimal("150.0000")
+
+
+def test_calculate_bill_determinants_blocks_when_billing_context_is_missing(session):
+    service_point_id, device_id, measuring_component_id = _prepare_bill_determinant_environment(
+        session
+    )
+    session.query(ServicePointBillingContext).delete()
+    session.commit()
+    _create_usage_transaction(
+        session,
+        service_point_id=service_point_id,
+        device_id=device_id,
+        measuring_component_id=measuring_component_id,
+        usage_value=Decimal("100.0000"),
+        calculation_status="complete",
+        quality_summary="all_finalized",
+    )
+
+    summary = calculate_bill_determinants(
+        session,
+        determinant_type=BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL,
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    row = session.scalar(select(BillDeterminant).limit(1))
+
+    assert summary.blocked == 1
+    assert row is not None
+    assert row.calculation_status == "blocked"
+    assert row.quality_summary == "blocked_missing_billing_context"
+    assert row.details["billing_context_snapshot"] is None
+    assert row.details["billing_period_source"] == "blocked_missing_billing_context"
+
+
+def test_calculate_bill_determinants_blocks_unsupported_anchored_month_context(session):
+    service_point_id, device_id, measuring_component_id = _prepare_bill_determinant_environment(
+        session
+    )
+    context = session.scalar(select(ServicePointBillingContext).limit(1))
+    assert context is not None
+    context.is_current = False
+    session.add(
+        ServicePointBillingContext(
+            service_point_id=service_point_id,
+            timezone_name="Asia/Seoul",
+            billing_cycle_mode="anchored_month",
+            billing_cycle_anchor_day=15,
+            currency_code="KRW",
+            effective_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            effective_to=None,
+            is_current=True,
+            source_system="test",
+            source_reference="test:anchored_month",
+            details={"seeded": False},
+        )
+    )
+    session.commit()
+    _create_usage_transaction(
+        session,
+        service_point_id=service_point_id,
+        device_id=device_id,
+        measuring_component_id=measuring_component_id,
+        usage_value=Decimal("100.0000"),
+        calculation_status="complete",
+        quality_summary="all_finalized",
+    )
+
+    summary = calculate_bill_determinants(
+        session,
+        determinant_type=BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL,
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    row = session.scalar(select(BillDeterminant).limit(1))
+
+    assert summary.blocked == 1
+    assert row is not None
+    assert row.calculation_status == "blocked"
+    assert row.quality_summary == "blocked_unsupported_billing_cycle_mode"
+    assert row.details["billing_context_snapshot"]["billing_cycle_mode"] == "anchored_month"
+    assert row.details["billing_period_source"] == "blocked_unsupported_billing_cycle_mode"
