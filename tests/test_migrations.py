@@ -59,6 +59,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "vee_replay_request_item" in tables
         assert "usage_transaction" in tables
         assert "bill_determinant" in tables
+        assert "service_point_billing_context" in tables
         assert "adapter_definition" in tables
         assert "hes_system" in tables
         assert "hes_meter_reference" in tables
@@ -138,6 +139,14 @@ def test_alembic_upgrade_creates_expected_tables():
         bill_determinant_column_defs = {
             column["name"]: column
             for column in inspector.get_columns("bill_determinant", schema=schema_name)
+        }
+        billing_context_columns = {
+            column["name"]
+            for column in inspector.get_columns("service_point_billing_context", schema=schema_name)
+        }
+        billing_context_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("service_point_billing_context", schema=schema_name)
         }
         ingest_error_log_columns = {
             column["name"] for column in inspector.get_columns("ingest_error_log", schema=schema_name)
@@ -231,6 +240,21 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "is_current" in bill_determinant_columns
         assert "supersedes_bill_determinant_id" in bill_determinant_columns
         assert "calculated_at" in bill_determinant_columns
+        assert "service_point_id" in billing_context_columns
+        assert "timezone_name" in billing_context_columns
+        assert "billing_cycle_mode" in billing_context_columns
+        assert "billing_cycle_anchor_day" in billing_context_columns
+        assert "currency_code" in billing_context_columns
+        assert "effective_from" in billing_context_columns
+        assert "effective_to" in billing_context_columns
+        assert "is_current" in billing_context_columns
+        assert "source_system" in billing_context_columns
+        assert "source_reference" in billing_context_columns
+        assert "details" in billing_context_columns
+        assert billing_context_column_defs["timezone_name"]["nullable"] is False
+        assert billing_context_column_defs["billing_cycle_mode"]["nullable"] is False
+        assert billing_context_column_defs["effective_from"]["nullable"] is False
+        assert billing_context_column_defs["is_current"]["nullable"] is False
         assert "initial_measurement_id" in final_column_defs
         assert "revision_number" in final_column_defs
         assert "revision_reason_code" in final_column_defs
@@ -283,7 +307,8 @@ def test_alembic_upgrade_creates_expected_tables():
                         'vee_replay_request',
                         'vee_replay_request_item',
                         'usage_transaction',
-                        'bill_determinant'
+                        'bill_determinant',
+                        'service_point_billing_context'
                       )
                     order by tablename, indexname
                     """
@@ -336,6 +361,15 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_bill_determinant_measuring_component_billing_period_start_at" in index_defs
         assert "ix_bill_determinant_is_current" in index_defs
         assert "ix_bill_determinant_supersedes_bill_determinant_id" in index_defs
+        assert "ix_service_point_billing_context_billing_cycle_mode" in index_defs
+        assert "ix_service_point_billing_context_effective_from" in index_defs
+        assert "ix_service_point_billing_context_effective_to" in index_defs
+        assert "ix_service_point_billing_context_is_current" in index_defs
+        assert "ix_service_point_billing_context_service_point_effective_from" in index_defs
+        assert "uq_service_point_billing_context_current_service_point" in index_defs
+        assert "UNIQUE INDEX" in index_defs[
+            "uq_service_point_billing_context_current_service_point"
+        ]
         assert "ix_final_measurement_is_current" in index_defs
         assert "ix_final_measurement_supersedes_final_measurement_id" in index_defs
         assert "ix_final_measurement_initial_measurement_id" in index_defs
@@ -355,6 +389,12 @@ def test_alembic_upgrade_creates_expected_tables():
         hes_system_index_names = {row["name"] for row in hes_system_indexes}
         assert "ix_hes_system_source_family" in hes_system_index_names
         assert "ix_hes_system_status" in hes_system_index_names
+        billing_context_checks = inspector.get_check_constraints(
+            "service_point_billing_context", schema=schema_name
+        )
+        billing_context_check_names = {row["name"] for row in billing_context_checks}
+        assert "ck_service_point_billing_context_effective_window" in billing_context_check_names
+        assert "ck_service_point_billing_context_cycle_mode" in billing_context_check_names
         hes_meter_reference_indexes = inspector.get_indexes("hes_meter_reference", schema=schema_name)
         hes_meter_reference_index_names = {row["name"] for row in hes_meter_reference_indexes}
         assert "ix_hes_meter_reference_hes_system_id" in hes_meter_reference_index_names

@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import (
     and_,
+    CheckConstraint,
     ForeignKeyConstraint,
     Index,
     JSON,
@@ -314,6 +315,9 @@ class ServicePoint(TimestampMixin, Base):
     installation_history: Mapped[list["InstallationHistory"]] = relationship(
         back_populates="service_point"
     )
+    billing_context_rows: Mapped[list["ServicePointBillingContext"]] = relationship(
+        back_populates="service_point"
+    )
     measuring_components: Mapped[list["MeasuringComponent"]] = relationship(
         back_populates="service_point"
     )
@@ -326,6 +330,67 @@ class ServicePoint(TimestampMixin, Base):
     bill_determinants: Mapped[list["BillDeterminant"]] = relationship(
         back_populates="service_point"
     )
+
+
+class ServicePointBillingContext(TimestampMixin, Base):
+    __tablename__ = "service_point_billing_context"
+    __table_args__ = (
+        CheckConstraint(
+            "effective_to is null or effective_from < effective_to",
+            name="ck_service_point_billing_context_effective_window",
+        ),
+        CheckConstraint(
+            "(billing_cycle_mode = 'calendar_month' and billing_cycle_anchor_day is null) "
+            "or "
+            "(billing_cycle_mode = 'anchored_month' and billing_cycle_anchor_day between 1 and 28)",
+            name="ck_service_point_billing_context_cycle_mode",
+        ),
+        Index(
+            "ix_service_point_billing_context_billing_cycle_mode",
+            "billing_cycle_mode",
+        ),
+        Index(
+            "ix_service_point_billing_context_effective_from",
+            "effective_from",
+        ),
+        Index(
+            "ix_service_point_billing_context_effective_to",
+            "effective_to",
+        ),
+        Index(
+            "ix_service_point_billing_context_is_current",
+            "is_current",
+        ),
+        Index(
+            "ix_service_point_billing_context_service_point_effective_from",
+            "service_point_id",
+            "effective_from",
+        ),
+        Index(
+            "uq_service_point_billing_context_current_service_point",
+            "service_point_id",
+            unique=True,
+            postgresql_where=text("is_current"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    service_point_id: Mapped[int] = mapped_column(
+        ForeignKey("service_point.id"),
+        nullable=False,
+    )
+    timezone_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    billing_cycle_mode: Mapped[str] = mapped_column(String(30), nullable=False)
+    billing_cycle_anchor_day: Mapped[int | None] = mapped_column(Integer)
+    currency_code: Mapped[str | None] = mapped_column(String(3))
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    source_system: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
+    source_reference: Mapped[str | None] = mapped_column(String(200))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    service_point: Mapped["ServicePoint"] = relationship(back_populates="billing_context_rows")
 
 
 class Device(TimestampMixin, Base):
