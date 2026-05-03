@@ -30,9 +30,10 @@ from app.models import (
     HesEventRaw,
     HesReadRaw,
     HesSystem,
+    InstallationHistory,
     MeasuringComponent,
     ServicePoint,
-    InstallationHistory,
+    ServicePointBillingContext,
 )
 from app.services.adapters import (
     AdapterValidationError,
@@ -43,6 +44,7 @@ from app.services.adapters import (
     queue_adapter_run_once,
     update_adapter_admin_state,
 )
+from app.services.billing_contexts import create_billing_context, update_billing_context
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.exception_queue import (
     ExceptionReprocessError,
@@ -1087,6 +1089,16 @@ def master_data():
         .order_by(InstallationHistory.id.desc())
         .limit(100)
     ).all()
+    billing_context_rows = session.scalars(
+        select(ServicePointBillingContext)
+        .options(joinedload(ServicePointBillingContext.service_point))
+        .order_by(
+            ServicePointBillingContext.is_current.desc(),
+            ServicePointBillingContext.effective_from.desc(),
+            ServicePointBillingContext.id.desc(),
+        )
+        .limit(200)
+    ).all()
     prefill_data = {
         "source_system": (request.args.get("prefill_source_system") or "HES").strip() or "HES",
         "external_meter_id": (request.args.get("prefill_external_meter_id") or "").strip(),
@@ -1105,8 +1117,10 @@ def master_data():
         devices=devices,
         rows=components,
         installations=installations,
+        billing_context_rows=billing_context_rows,
         prefill_data=prefill_data,
         prefill_hes_meter_references=prefill_hes_meter_references,
+        format_local_datetime=_format_datetime_local,
     )
 
 
@@ -1362,3 +1376,64 @@ def update_installation_view(installation_id: int):
         _flash_installation_error(exc)
 
     return redirect(_master_data_redirect("installations"))
+
+
+@bp.post("/master-data/billing-contexts")
+def create_billing_context_view():
+    session = get_session()
+    try:
+        create_billing_context(
+            session,
+            service_point_id=request.form.get("service_point_id"),
+            timezone_name=request.form.get("timezone_name"),
+            billing_cycle_mode=request.form.get("billing_cycle_mode"),
+            billing_cycle_anchor_day=request.form.get("billing_cycle_anchor_day"),
+            currency_code=request.form.get("currency_code"),
+            effective_from=request.form.get("effective_from"),
+            effective_to=request.form.get("effective_to"),
+            source_system=request.form.get("source_system"),
+            source_reference=request.form.get("source_reference"),
+        )
+        session.commit()
+        _flash_master_data_success("master_data.flash.billing_context_created")
+    except MasterDataValidationError as exc:
+        session.rollback()
+        _flash_master_data_error(exc)
+
+    return redirect(_master_data_redirect("billing-contexts"))
+
+
+@bp.post("/master-data/billing-contexts/<int:billing_context_id>")
+def update_billing_context_view(billing_context_id: int):
+    session = get_session()
+    billing_context = session.get(ServicePointBillingContext, billing_context_id)
+    if billing_context is None:
+        flash(
+            translate_master_data_error(
+                "billing_context_not_found",
+                "The selected billing context does not exist.",
+            ),
+            "danger",
+        )
+        return redirect(_master_data_redirect("billing-contexts"))
+
+    try:
+        update_billing_context(
+            session,
+            billing_context,
+            timezone_name=request.form.get("timezone_name"),
+            billing_cycle_mode=request.form.get("billing_cycle_mode"),
+            billing_cycle_anchor_day=request.form.get("billing_cycle_anchor_day"),
+            currency_code=request.form.get("currency_code"),
+            effective_from=request.form.get("effective_from"),
+            effective_to=request.form.get("effective_to"),
+            source_system=request.form.get("source_system"),
+            source_reference=request.form.get("source_reference"),
+        )
+        session.commit()
+        _flash_master_data_success("master_data.flash.billing_context_updated")
+    except MasterDataValidationError as exc:
+        session.rollback()
+        _flash_master_data_error(exc)
+
+    return redirect(_master_data_redirect("billing-contexts"))

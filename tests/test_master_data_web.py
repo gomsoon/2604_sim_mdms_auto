@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import Device, HesMeterReference, HesSystem, InstallationHistory, OperationalEvent, ServicePoint
+from app.models import (
+    Device,
+    HesMeterReference,
+    HesSystem,
+    InstallationHistory,
+    OperationalEvent,
+    ServicePoint,
+    ServicePointBillingContext,
+)
+from app.services.billing_contexts import create_billing_context
 from app.services.hes_systems import sync_hes_meter_reference_alerts
 from app.services.master_data import create_device, create_service_point
 from app.services.seeds import seed_demo_environment
@@ -75,6 +84,78 @@ def test_master_data_page_shows_matching_hes_meter_references_from_prefill(clien
     assert "MTR-9999" in text
     assert "AIMIR-9999" in text
     assert "15" in text
+
+
+def test_create_billing_context_via_web_creates_record(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-BCTX-WEB-1001",
+        service_type="electric",
+        name="Billing Context Site",
+        status="active",
+    )
+    session.commit()
+
+    response = client.post(
+        "/master-data/billing-contexts",
+        data={
+            "service_point_id": str(service_point.id),
+            "timezone_name": "Asia/Seoul",
+            "billing_cycle_mode": "calendar_month",
+            "billing_cycle_anchor_day": "",
+            "currency_code": "KRW",
+            "effective_from": "2026-05-01T00:00",
+            "effective_to": "",
+            "source_system": "manual",
+            "source_reference": "web:billing-context",
+        },
+        follow_redirects=True,
+    )
+
+    row = session.scalar(
+        select(ServicePointBillingContext)
+        .where(ServicePointBillingContext.service_point_id == service_point.id)
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "Billing context created successfully." in response.get_data(as_text=True)
+    assert row is not None
+    assert row.timezone_name == "Asia/Seoul"
+    assert row.is_current is True
+
+
+def test_master_data_page_shows_billing_context_rows(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-BCTX-WEB-2001",
+        service_type="electric",
+        name="Billing Context View Site",
+        status="active",
+    )
+    create_billing_context(
+        session,
+        service_point_id=service_point.id,
+        timezone_name="Asia/Seoul",
+        billing_cycle_mode="calendar_month",
+        billing_cycle_anchor_day=None,
+        currency_code="KRW",
+        effective_from="2026-05-01T00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="seed:view",
+    )
+    session.commit()
+
+    response = client.get("/master-data")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Billing Contexts" in text
+    assert "SP-BCTX-WEB-2001" in text
+    assert "Asia/Seoul" in text
 
 
 def test_create_device_via_web_closes_missing_device_alert_and_opens_missing_component_alert(

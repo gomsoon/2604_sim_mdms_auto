@@ -18,6 +18,12 @@
   {% endfor %}
 {%- endmacro %}
 
+{% macro billing_cycle_mode_options(selected) -%}
+  {% for value in ["calendar_month", "anchored_month"] %}
+  <option value="{{ value }}" {% if selected == value %}selected{% endif %}>{{ t_or("common.billing_cycle_mode." ~ value, value) }}</option>
+  {% endfor %}
+{%- endmacro %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
@@ -135,12 +141,143 @@
                         {{ status_options(row.status) }}
                       </select>
                     </td>
-                    <td><button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button></td>
+                    <td>
+                      <div class="d-flex flex-column gap-2">
+                        <button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button>
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.master_data', prefill_service_point_id=row.id) }}#billing-contexts">{{ t("button.open_billing_context") }}</a>
+                      </div>
+                    </td>
                   </form>
                 </tr>
                 {% else %}
                 <tr>
                   <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="billing-contexts" class="mb-5">
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 mb-3">{{ t("page.master_data.create_billing_context") }}</h2>
+          <p class="text-secondary small">{{ t("page.master_data.billing_context_description") }}</p>
+          <form method="post" action="{{ url_for('web.create_billing_context_view') }}">
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.service_point") }}</label>
+              <select class="form-select" name="service_point_id" required>
+                <option value="">{{ t("common.none") }}</option>
+                {% for service_point in service_points %}
+                <option value="{{ service_point.id }}" {% if prefill_data.service_point_id == (service_point.id|string) %}selected{% endif %}>{{ service_point.external_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.timezone_name") }}</label>
+              <input class="form-control" name="timezone_name" value="Asia/Seoul" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.billing_cycle_mode") }}</label>
+              <select class="form-select" name="billing_cycle_mode">
+                {{ billing_cycle_mode_options("calendar_month") }}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.billing_cycle_anchor_day") }}</label>
+              <input class="form-control" name="billing_cycle_anchor_day" type="number" min="1" max="28">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.currency_code") }}</label>
+              <input class="form-control" name="currency_code" value="KRW">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.effective_from") }}</label>
+              <input class="form-control" name="effective_from" type="datetime-local" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.effective_to") }}</label>
+              <input class="form-control" name="effective_to" type="datetime-local">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.source_system") }}</label>
+              <input class="form-control" name="source_system" value="manual" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.source_reference") }}</label>
+              <input class="form-control" name="source_reference">
+            </div>
+            <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">{{ t("page.master_data.billing_contexts") }}</h2>
+            <span class="text-secondary small">{{ billing_context_rows|length }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>{{ t("table.id") }}</th>
+                  <th>{{ t("field.service_point") }}</th>
+                  <th>{{ t("field.timezone_name") }}</th>
+                  <th>{{ t("field.billing_cycle_mode") }}</th>
+                  <th>{{ t("field.billing_cycle_anchor_day") }}</th>
+                  <th>{{ t("field.currency_code") }}</th>
+                  <th>{{ t("field.effective_from") }}</th>
+                  <th>{{ t("field.effective_to") }}</th>
+                  <th>{{ t("field.source_reference") }}</th>
+                  <th>{{ t("table.status") }}</th>
+                  <th>{{ t("table.actions") }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in billing_context_rows %}
+                <tr>
+                  <form method="post" action="{{ url_for('web.update_billing_context_view', billing_context_id=row.id) }}">
+                    <td>{{ row.id }}</td>
+                    <td>{{ row.service_point.external_id }}</td>
+                    <td><input class="form-control form-control-sm" name="timezone_name" value="{{ row.timezone_name }}" required></td>
+                    <td>
+                      <select class="form-select form-select-sm" name="billing_cycle_mode">
+                        {{ billing_cycle_mode_options(row.billing_cycle_mode) }}
+                      </select>
+                    </td>
+                    <td><input class="form-control form-control-sm" name="billing_cycle_anchor_day" type="number" min="1" max="28" value="{{ row.billing_cycle_anchor_day or '' }}"></td>
+                    <td><input class="form-control form-control-sm" name="currency_code" value="{{ row.currency_code or '' }}"></td>
+                    <td><input class="form-control form-control-sm" name="effective_from" type="datetime-local" value="{{ format_local_datetime(row.effective_from, row.timezone_name) }}" required></td>
+                    <td><input class="form-control form-control-sm" name="effective_to" type="datetime-local" value="{{ format_local_datetime(row.effective_to, row.timezone_name) }}"></td>
+                    <td>
+                      <div class="d-flex flex-column gap-2">
+                        <input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required>
+                        <input class="form-control form-control-sm" name="source_reference" value="{{ row.source_reference or '' }}">
+                      </div>
+                    </td>
+                    <td>
+                      {% if row.is_current %}
+                      <span class="badge text-bg-success">{{ t("common.current") }}</span>
+                      {% else %}
+                      <span class="badge text-bg-secondary">{{ t("common.history") }}</span>
+                      {% endif %}
+                    </td>
+                    <td><button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button></td>
+                  </form>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="11" class="text-secondary">{{ t("page.master_data.empty") }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
