@@ -358,6 +358,35 @@ without collapsing export, pricing, or invoice logic into the same persistence s
 - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
 - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
 
+### Stage 12. Optional billing-lite boundary
+
+#### Goal
+
+Define a minimal downstream billing slice that can operate inside the MDM for
+small-scale deployments and end-to-end testing without absorbing full CIS
+responsibilities.
+
+#### Key tasks
+
+- define the `billing-lite` boundary relative to `bill_determinant`
+- define minimal billing context requirements
+- define minimal tariff assignment requirements
+- define the first `bill_charge` candidate and revision expectations
+- preserve a clean handoff path to later CIS integration
+
+#### Test gate
+
+- `bill_determinant` remains the only billing-ready input to the first billing slice
+- missing billing context produces `blocked`, not guessed, downstream outputs
+- the repository can exercise a small tariff-based end-to-end path without
+  pretending to be a full CIS
+
+#### Related documents
+
+- [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+- [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
+- [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

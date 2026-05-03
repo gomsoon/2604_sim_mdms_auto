@@ -31,6 +31,10 @@ Recommended downstream flow:
 - downstream of post-VEE usage calculation
 - upstream of billing export, invoice generation, and customer-facing billing APIs
 
+It should also be treated as the natural handoff point into any optional
+`billing-lite` module that may be hosted inside the MDM for small deployments
+or end-to-end testing.
+
 ## Why `bill_determinant` is needed
 
 `usage_transaction` is intentionally simpler than billing-ready output.
@@ -79,6 +83,18 @@ Key rule:
 `bill_determinant` should not collapse `usage_transaction`.
 
 The determinant layer should consume stable usage outputs, not replace them.
+
+It also should not collapse a later optional billing layer.
+
+Recommended interpretation:
+
+- `usage_transaction` is usage-ready
+- `bill_determinant` is billing-ready
+- optional `billing-lite` is charge-ready
+- later CIS or enterprise billing is customer-and-finance ready
+
+This extra boundary lets the repository support limited tariff-based billing
+without turning determinant persistence into invoice logic.
 
 ## Source rule
 

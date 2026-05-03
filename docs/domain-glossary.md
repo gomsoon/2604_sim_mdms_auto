@@ -159,6 +159,30 @@ The persisted result of calculating consumption or usage from final measurements
 A billing-ready output value derived from `usage_transaction`, such as billing-cycle
 consumption total, on-peak usage, off-peak usage, demand, or power factor.
 
+### billing-lite
+
+An optional narrow billing slice hosted inside MDM for small-scale deployment or
+end-to-end testing. It may calculate charges or invoice summaries from
+`bill_determinant`, but it is not intended to replace a full CIS or enterprise
+billing platform.
+
+### billing context
+
+The minimal business context needed to align billing-ready or charge-ready
+outputs, such as billing timezone, billing-cycle mode, anchor day, and
+effective period.
+
+### bill_charge
+
+A charge-ready output value derived from `bill_determinant`, typically after
+applying a minimal tariff or rate rule.
+
+### invoice_summary
+
+A lightweight aggregated billing output that groups one or more bill charges for
+operator review or simple export, without implying a full receivables or
+customer-accounting workflow.
+
 ### billing-ready
 
 The state in which downstream outputs are suitable for billing-oriented use, typically after usage calculation and determinant generation rather than immediately after finalization.

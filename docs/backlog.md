@@ -163,6 +163,11 @@ This document captures the staged backlog derived from the reference PDF backlog
 
 ### P3. Billing integration
 
+- billing-lite boundary definition for small-scale deployment and end-to-end testing
+- minimal billing context baseline
+- tariff assignment baseline
+- simple bill charge persistence and calculation
+- optional invoice summary baseline
 - Billing export queue
 - Export payload contract
 - Batch or API export
@@ -175,6 +180,7 @@ This document captures the staged backlog derived from the reference PDF backlog
 - CIS sync interface
 - Usage and event query APIs
 - Customer-facing summary APIs
+- preserve a clean replacement path between optional `billing-lite` and later CIS-owned flows
 
 ### P5. Aggregation and reporting
 

@@ -243,6 +243,16 @@ This document records current architectural and process decisions so that the te
   - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
   - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
 
+### D-026. MDM may host optional billing-lite, but it should not absorb full CIS scope
+
+- Status: locked
+- Summary: The repository may add a narrow `billing-lite` slice inside the MDM for small-scale deployment and end-to-end testing, but it should remain downstream of `bill_determinant` and should not grow into the full owner of customer, contract, receivable, and billing-operations workflows
+- Why: This allows realistic downstream validation and small operational deployments without sacrificing the architectural boundary between metering truth, billing-ready outputs, and later CIS or enterprise billing capabilities
+- Related docs:
+  - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+  - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
+  - [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
+
 ## Open questions
 
 ### O-001. What is the first production-like HES payload shape

@@ -169,6 +169,32 @@ Examples:
 
 This distinction keeps the next phase realistic and avoids overloading the first usage step.
 
+## Optional billing-lite boundary
+
+The project may later host a small optional `billing-lite` slice inside the MDM
+without changing the core responsibility split.
+
+Recommended interpretation:
+
+- `MDM core` remains responsible for metering truth
+- `bill_determinant` remains the billing-ready handoff output
+- optional `billing-lite` may calculate a narrow set of charges for small-scale
+  deployment or end-to-end testing
+- full customer, contract, and financial workflow depth still belongs in a
+  later CIS or enterprise billing platform
+
+Why this is useful:
+
+- it lets the team test the downstream usefulness of `usage_transaction` and
+  `bill_determinant`
+- it supports smaller deployments that do not yet have a separate CIS
+- it still preserves a clear architectural boundary for future separation
+
+Key rule:
+
+the first `billing-lite` scope should stay downstream of `bill_determinant`.
+It should not reach back into raw, canonical, or pre-VEE layers.
+
 ## Time and timezone rule
 
 The repository should keep:
@@ -205,6 +231,9 @@ The following items should remain out of the first processing/core slice:
 - full billing-cycle logic
 - CIS export
 - approval workflow depth beyond minimal exception resolution
+
+They may reappear later in a `billing-lite` or CIS-focused slice, but they do
+not belong in the first processing/core boundary.
 
 ## Summary
 
