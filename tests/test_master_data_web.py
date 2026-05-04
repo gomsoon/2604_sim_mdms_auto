@@ -10,10 +10,12 @@ from app.models import (
     OperationalEvent,
     ServicePoint,
     ServicePointBillingContext,
+    ServicePointTariffAssignment,
 )
 from app.services.billing_contexts import create_billing_context
 from app.services.hes_systems import sync_hes_meter_reference_alerts
 from app.services.master_data import create_device, create_service_point
+from app.services.tariff_assignments import create_tariff_assignment
 from app.services.seeds import seed_demo_environment
 
 
@@ -156,6 +158,92 @@ def test_master_data_page_shows_billing_context_rows(client, session):
     assert "Billing Contexts" in text
     assert "SP-BCTX-WEB-2001" in text
     assert "Asia/Seoul" in text
+
+
+def test_create_tariff_assignment_via_web_creates_record(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-TARIFF-WEB-1001",
+        service_type="electric",
+        name="Tariff Assignment Site",
+        status="active",
+    )
+    session.commit()
+
+    response = client.post(
+        "/master-data/tariff-assignments",
+        data={
+            "service_point_id": str(service_point.id),
+            "tariff_plan_code": "RES-A",
+            "tariff_version_code": "v1",
+            "effective_from": "2026-05-01T00:00",
+            "effective_to": "",
+            "source_system": "manual",
+            "source_reference": "web:tariff-assignment",
+        },
+        follow_redirects=True,
+    )
+
+    row = session.scalar(
+        select(ServicePointTariffAssignment)
+        .where(ServicePointTariffAssignment.service_point_id == service_point.id)
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "Tariff assignment created successfully." in response.get_data(as_text=True)
+    assert row is not None
+    assert row.tariff_plan_code == "RES-A"
+    assert row.is_current is True
+
+
+def test_master_data_page_shows_tariff_assignment_rows(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-TARIFF-WEB-2001",
+        service_type="electric",
+        name="Tariff Assignment View Site",
+        status="active",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=service_point.id,
+        tariff_plan_code="RES-B",
+        tariff_version_code="v2",
+        effective_from="2026-05-01T00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="seed:tariff-view",
+    )
+    session.commit()
+
+    response = client.get("/master-data")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Tariff Assignments" in text
+    assert "SP-TARIFF-WEB-2001" in text
+    assert "RES-B" in text
+
+
+def test_master_data_page_service_point_row_links_to_tariff_assignment_section(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-TARIFF-WEB-3001",
+        service_type="electric",
+        name="Tariff Jump Site",
+        status="active",
+    )
+    session.commit()
+
+    response = client.get("/master-data")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert f'/master-data?prefill_service_point_id={service_point.id}#tariff-assignments' in text
 
 
 def test_create_device_via_web_closes_missing_device_alert_and_opens_missing_component_alert(

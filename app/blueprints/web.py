@@ -34,6 +34,7 @@ from app.models import (
     MeasuringComponent,
     ServicePoint,
     ServicePointBillingContext,
+    ServicePointTariffAssignment,
 )
 from app.services.adapters import (
     AdapterValidationError,
@@ -79,6 +80,10 @@ from app.services.master_data import (
     update_device,
     update_measuring_component,
     update_service_point,
+)
+from app.services.tariff_assignments import (
+    create_tariff_assignment,
+    update_tariff_assignment,
 )
 from app.services.operational_events import (
     OperationalAlertError,
@@ -1099,6 +1104,16 @@ def master_data():
         )
         .limit(200)
     ).all()
+    tariff_assignment_rows = session.scalars(
+        select(ServicePointTariffAssignment)
+        .options(joinedload(ServicePointTariffAssignment.service_point))
+        .order_by(
+            ServicePointTariffAssignment.is_current.desc(),
+            ServicePointTariffAssignment.effective_from.desc(),
+            ServicePointTariffAssignment.id.desc(),
+        )
+        .limit(200)
+    ).all()
     prefill_data = {
         "source_system": (request.args.get("prefill_source_system") or "HES").strip() or "HES",
         "external_meter_id": (request.args.get("prefill_external_meter_id") or "").strip(),
@@ -1118,6 +1133,7 @@ def master_data():
         rows=components,
         installations=installations,
         billing_context_rows=billing_context_rows,
+        tariff_assignment_rows=tariff_assignment_rows,
         prefill_data=prefill_data,
         prefill_hes_meter_references=prefill_hes_meter_references,
         format_local_datetime=_format_datetime_local,
@@ -1437,3 +1453,60 @@ def update_billing_context_view(billing_context_id: int):
         _flash_master_data_error(exc)
 
     return redirect(_master_data_redirect("billing-contexts"))
+
+
+@bp.post("/master-data/tariff-assignments")
+def create_tariff_assignment_view():
+    session = get_session()
+    try:
+        create_tariff_assignment(
+            session,
+            service_point_id=request.form.get("service_point_id"),
+            tariff_plan_code=request.form.get("tariff_plan_code"),
+            tariff_version_code=request.form.get("tariff_version_code"),
+            effective_from=request.form.get("effective_from"),
+            effective_to=request.form.get("effective_to"),
+            source_system=request.form.get("source_system"),
+            source_reference=request.form.get("source_reference"),
+        )
+        session.commit()
+        _flash_master_data_success("master_data.flash.tariff_assignment_created")
+    except MasterDataValidationError as exc:
+        session.rollback()
+        _flash_master_data_error(exc)
+
+    return redirect(_master_data_redirect("tariff-assignments"))
+
+
+@bp.post("/master-data/tariff-assignments/<int:tariff_assignment_id>")
+def update_tariff_assignment_view(tariff_assignment_id: int):
+    session = get_session()
+    tariff_assignment = session.get(ServicePointTariffAssignment, tariff_assignment_id)
+    if tariff_assignment is None:
+        flash(
+            translate_master_data_error(
+                "tariff_assignment_not_found",
+                "The selected tariff assignment does not exist.",
+            ),
+            "danger",
+        )
+        return redirect(_master_data_redirect("tariff-assignments"))
+
+    try:
+        update_tariff_assignment(
+            session,
+            tariff_assignment,
+            tariff_plan_code=request.form.get("tariff_plan_code"),
+            tariff_version_code=request.form.get("tariff_version_code"),
+            effective_from=request.form.get("effective_from"),
+            effective_to=request.form.get("effective_to"),
+            source_system=request.form.get("source_system"),
+            source_reference=request.form.get("source_reference"),
+        )
+        session.commit()
+        _flash_master_data_success("master_data.flash.tariff_assignment_updated")
+    except MasterDataValidationError as exc:
+        session.rollback()
+        _flash_master_data_error(exc)
+
+    return redirect(_master_data_redirect("tariff-assignments"))

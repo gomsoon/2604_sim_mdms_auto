@@ -145,6 +145,7 @@
                       <div class="d-flex flex-column gap-2">
                         <button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button>
                         <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.master_data', prefill_service_point_id=row.id) }}#billing-contexts">{{ t("button.open_billing_context") }}</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.master_data', prefill_service_point_id=row.id) }}#tariff-assignments">{{ t("button.open_tariff_assignment") }}</a>
                       </div>
                     </td>
                   </form>
@@ -294,6 +295,116 @@
                 {% else %}
                 <tr>
                   <td colspan="11" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tariff-assignments" class="mb-5">
+  <div class="row g-4">
+    <div class="col-xl-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 mb-3">{{ t("page.master_data.create_tariff_assignment") }}</h2>
+          <p class="text-secondary small">{{ t("page.master_data.tariff_assignment_description") }}</p>
+          <form method="post" action="{{ url_for('web.create_tariff_assignment_view') }}">
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.service_point") }}</label>
+              <select class="form-select" name="service_point_id" required>
+                <option value="">{{ t("common.none") }}</option>
+                {% for service_point in service_points %}
+                <option value="{{ service_point.id }}" {% if prefill_data.service_point_id == (service_point.id|string) %}selected{% endif %}>{{ service_point.external_id }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.tariff_plan_code") }}</label>
+              <input class="form-control" name="tariff_plan_code" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.tariff_version_code") }}</label>
+              <input class="form-control" name="tariff_version_code">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.effective_from") }}</label>
+              <input class="form-control" name="effective_from" type="datetime-local" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.effective_to") }}</label>
+              <input class="form-control" name="effective_to" type="datetime-local">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.source_system") }}</label>
+              <input class="form-control" name="source_system" value="manual" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">{{ t("field.source_reference") }}</label>
+              <input class="form-control" name="source_reference">
+            </div>
+            <button class="btn btn-primary" type="submit">{{ t("button.create") }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">{{ t("page.master_data.tariff_assignments") }}</h2>
+            <span class="text-secondary small">{{ tariff_assignment_rows|length }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>{{ t("table.id") }}</th>
+                  <th>{{ t("field.service_point") }}</th>
+                  <th>{{ t("field.tariff_plan_code") }}</th>
+                  <th>{{ t("field.tariff_version_code") }}</th>
+                  <th>{{ t("field.effective_from") }}</th>
+                  <th>{{ t("field.effective_to") }}</th>
+                  <th>{{ t("field.source_reference") }}</th>
+                  <th>{{ t("table.status") }}</th>
+                  <th>{{ t("table.actions") }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in tariff_assignment_rows %}
+                <tr>
+                  <form method="post" action="{{ url_for('web.update_tariff_assignment_view', tariff_assignment_id=row.id) }}">
+                    <td>{{ row.id }}</td>
+                    <td>{{ row.service_point.external_id }}</td>
+                    <td><input class="form-control form-control-sm" name="tariff_plan_code" value="{{ row.tariff_plan_code }}" required></td>
+                    <td><input class="form-control form-control-sm" name="tariff_version_code" value="{{ row.tariff_version_code or '' }}"></td>
+                    <td><input class="form-control form-control-sm" name="effective_from" type="datetime-local" value="{{ format_local_datetime(row.effective_from, 'UTC') }}" required></td>
+                    <td><input class="form-control form-control-sm" name="effective_to" type="datetime-local" value="{{ format_local_datetime(row.effective_to, 'UTC') }}"></td>
+                    <td>
+                      <div class="d-flex flex-column gap-2">
+                        <input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required>
+                        <input class="form-control form-control-sm" name="source_reference" value="{{ row.source_reference or '' }}">
+                      </div>
+                    </td>
+                    <td>
+                      {% if row.is_current %}
+                      <span class="badge text-bg-success">{{ t("common.current") }}</span>
+                      {% else %}
+                      <span class="badge text-bg-secondary">{{ t("common.history") }}</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button>
+                    </td>
+                  </form>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="9" class="text-secondary">{{ t("page.master_data.empty") }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
