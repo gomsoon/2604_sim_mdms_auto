@@ -60,6 +60,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "usage_transaction" in tables
         assert "bill_determinant" in tables
         assert "service_point_billing_context" in tables
+        assert "service_point_tariff_assignment" in tables
         assert "adapter_definition" in tables
         assert "hes_system" in tables
         assert "hes_meter_reference" in tables
@@ -147,6 +148,16 @@ def test_alembic_upgrade_creates_expected_tables():
         billing_context_column_defs = {
             column["name"]: column
             for column in inspector.get_columns("service_point_billing_context", schema=schema_name)
+        }
+        tariff_assignment_columns = {
+            column["name"]
+            for column in inspector.get_columns("service_point_tariff_assignment", schema=schema_name)
+        }
+        tariff_assignment_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns(
+                "service_point_tariff_assignment", schema=schema_name
+            )
         }
         ingest_error_log_columns = {
             column["name"] for column in inspector.get_columns("ingest_error_log", schema=schema_name)
@@ -255,6 +266,18 @@ def test_alembic_upgrade_creates_expected_tables():
         assert billing_context_column_defs["billing_cycle_mode"]["nullable"] is False
         assert billing_context_column_defs["effective_from"]["nullable"] is False
         assert billing_context_column_defs["is_current"]["nullable"] is False
+        assert "service_point_id" in tariff_assignment_columns
+        assert "tariff_plan_code" in tariff_assignment_columns
+        assert "tariff_version_code" in tariff_assignment_columns
+        assert "effective_from" in tariff_assignment_columns
+        assert "effective_to" in tariff_assignment_columns
+        assert "is_current" in tariff_assignment_columns
+        assert "source_system" in tariff_assignment_columns
+        assert "source_reference" in tariff_assignment_columns
+        assert "details" in tariff_assignment_columns
+        assert tariff_assignment_column_defs["tariff_plan_code"]["nullable"] is False
+        assert tariff_assignment_column_defs["effective_from"]["nullable"] is False
+        assert tariff_assignment_column_defs["is_current"]["nullable"] is False
         assert "initial_measurement_id" in final_column_defs
         assert "revision_number" in final_column_defs
         assert "revision_reason_code" in final_column_defs
@@ -308,7 +331,8 @@ def test_alembic_upgrade_creates_expected_tables():
                         'vee_replay_request_item',
                         'usage_transaction',
                         'bill_determinant',
-                        'service_point_billing_context'
+                        'service_point_billing_context',
+                        'service_point_tariff_assignment'
                       )
                     order by tablename, indexname
                     """
@@ -370,6 +394,15 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "UNIQUE INDEX" in index_defs[
             "uq_service_point_billing_context_current_service_point"
         ]
+        assert "ix_service_point_tariff_assignment_effective_from" in index_defs
+        assert "ix_service_point_tariff_assignment_effective_to" in index_defs
+        assert "ix_service_point_tariff_assignment_is_current" in index_defs
+        assert "ix_service_point_tariff_assignment_service_point_effective_from" in index_defs
+        assert "ix_spta_service_point_tariff_plan_code" in index_defs
+        assert "uq_service_point_tariff_assignment_current_service_point" in index_defs
+        assert "UNIQUE INDEX" in index_defs[
+            "uq_service_point_tariff_assignment_current_service_point"
+        ]
         assert "ix_final_measurement_is_current" in index_defs
         assert "ix_final_measurement_supersedes_final_measurement_id" in index_defs
         assert "ix_final_measurement_initial_measurement_id" in index_defs
@@ -395,6 +428,14 @@ def test_alembic_upgrade_creates_expected_tables():
         billing_context_check_names = {row["name"] for row in billing_context_checks}
         assert "ck_service_point_billing_context_effective_window" in billing_context_check_names
         assert "ck_service_point_billing_context_cycle_mode" in billing_context_check_names
+        tariff_assignment_checks = inspector.get_check_constraints(
+            "service_point_tariff_assignment", schema=schema_name
+        )
+        tariff_assignment_check_names = {row["name"] for row in tariff_assignment_checks}
+        assert (
+            "ck_service_point_tariff_assignment_effective_window"
+            in tariff_assignment_check_names
+        )
         hes_meter_reference_indexes = inspector.get_indexes("hes_meter_reference", schema=schema_name)
         hes_meter_reference_index_names = {row["name"] for row in hes_meter_reference_indexes}
         assert "ix_hes_meter_reference_hes_system_id" in hes_meter_reference_index_names
