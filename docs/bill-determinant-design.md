@@ -267,9 +267,17 @@ Recommended interpretation:
 
 - `complete`: all required source usage rows and billing context were present
 - `partial`: determinant was calculated, but source usage was partial or warning-bearing
-- `blocked`: determinant could not be safely derived because usage, tariff, or billing context was incomplete
+- `blocked`: determinant could not be safely derived because usage or billing context was incomplete, or because the requested determinant type requires additional business context that is not yet supported
 
 Key rule:
+
+For the first `billing_cycle_consumption_total` baseline:
+
+- missing billing context should block determinant
+- missing tariff assignment should not block determinant
+- tariff assignment becomes mandatory later at the `bill_charge` layer
+- future tariff-aware determinant types may introduce stricter rules if their
+  business meaning genuinely depends on tariff semantics
 
 supersession should not be represented by `calculation_status`.
 
@@ -368,7 +376,7 @@ The following should remain out of the first determinant slice:
 ## Recommended implementation sequence
 
 1. document determinant grain and source rule
-2. document prerequisite billing-cycle and tariff context
+2. document prerequisite billing-cycle context and later tariff context
 3. implement minimal determinant persistence
 4. activate `billing_cycle_consumption_total`
 5. later expand usage shapes needed for TOU and demand determinants

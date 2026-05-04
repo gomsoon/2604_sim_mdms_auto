@@ -160,6 +160,13 @@ Recommended next supporting model after that:
 
 These should be designed before charge calculation is implemented.
 
+Recommended first rule:
+
+- missing billing context blocks determinant
+- missing tariff assignment blocks later `bill_charge`
+- the first `billing_cycle_consumption_total` determinant should not depend on
+  tariff assignment just to exist
+
 ## Recommended first implementation sequence
 
 1. lock the `billing-lite` boundary

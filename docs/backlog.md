@@ -172,6 +172,10 @@ This document captures the staged backlog derived from the reference PDF backlog
 - billing context to determinant impact spotlight and audit summary
 - billing timezone and billing-cycle anchor governance
 - tariff assignment baseline
+- `service_point_tariff_assignment` persistence
+- `service_point_tariff_assignment` management UI and history
+- tariff assignment source sync or bulk import
+- tariff assignment to bill charge impact visibility
 - simple bill charge persistence and calculation
 - optional invoice summary baseline
 - Billing export queue

@@ -415,6 +415,37 @@ windows.
 - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
 - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
 
+### Stage 14. Tariff assignment baseline
+
+#### Goal
+
+Define the smallest tariff-assignment slice needed so that later
+`bill_charge` calculation stops guessing which tariff should apply, while
+keeping the first determinant baseline independent from tariff assignment.
+
+#### Key tasks
+
+- define `service_point_tariff_assignment`
+- define current-row and effective-period rules
+- define the first operator-managed tariff assignment workflow
+- define how missing tariff assignment blocks later charge calculation
+- preserve a clean separation between determinant generation and charge
+  calculation
+
+#### Test gate
+
+- the first `billing_cycle_consumption_total` determinant can still exist
+  without tariff assignment when billing context is valid
+- missing tariff assignment is surfaced explicitly for later `bill_charge`
+  calculation
+- the repository has a stable place to anchor later charge and invoice models
+
+#### Related documents
+
+- [tariff-assignment-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/tariff-assignment-baseline-design.md)
+- [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
+- [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+
 ## Recommended immediate next step
 
 The next implementation work should start at `Stage 1` and `Stage 2` together:

@@ -253,6 +253,16 @@ This document records current architectural and process decisions so that the te
   - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
   - [usage-and-billing-ready-architecture.md](/home/tprover/2604_sim_mdms_auto/docs/usage-and-billing-ready-architecture.md)
 
+### D-027. The first tariff assignment baseline should support `bill_charge`, not block the first determinant baseline
+
+- Status: locked
+- Summary: The repository should introduce `service_point_tariff_assignment` as a small current-plus-history business context for later charge calculation, while keeping the first `billing_cycle_consumption_total` determinant independent from tariff lookup
+- Why: This preserves a cleaner boundary between billing-ready determinants and charge-ready outputs, avoids forcing tariff semantics into the first determinant rollout, and still leaves a stable path toward later billing-lite and CIS integration
+- Related docs:
+  - [tariff-assignment-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/tariff-assignment-baseline-design.md)
+  - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
+  - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+
 ### O-011. What is the minimum billing context needed before determinant results can be treated as truly billing-ready
 
 - Status: open

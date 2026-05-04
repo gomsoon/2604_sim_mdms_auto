@@ -178,10 +178,21 @@ The proposed current-plus-history business context record attached to a
 `service_point`, used to define billing timezone and billing-cycle alignment
 before later charge calculation.
 
+### tariff assignment
+
+The minimal business context that states which tariff plan should apply to a
+`service_point` during a given effective period.
+
+### service_point_tariff_assignment
+
+The proposed current-plus-history tariff assignment record attached to a
+`service_point`, intended to support later `bill_charge` calculation without
+forcing the first determinant baseline to depend on tariff lookup.
+
 ### bill_charge
 
 A charge-ready output value derived from `bill_determinant`, typically after
-applying a minimal tariff or rate rule.
+applying a minimal tariff or rate rule plus tariff-assignment context.
 
 ### invoice_summary
 
