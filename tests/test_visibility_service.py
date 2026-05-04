@@ -252,6 +252,34 @@ def test_list_bill_determinants_filters_by_hes_system(session):
     assert rows[0].service_point.external_id == "SP-1001"
 
 
+def test_list_bill_determinants_filters_by_billing_cycle_mode_and_quality_summary(session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    rows = list_bill_determinants(
+        session,
+        build_bill_determinant_filters(
+            {
+                "billing_cycle_mode": "calendar_month",
+                "quality_summary": "missing_intervals",
+            }
+        ),
+    )
+
+    assert len(rows) == 1
+    assert rows[0].details["billing_context_snapshot"]["billing_cycle_mode"] == "calendar_month"
+    assert rows[0].quality_summary == "missing_intervals"
+
+
 def test_get_bill_determinant_detail_context_loads_source_usage_and_revision_rows(session):
     seed_demo_environment(session)
     session.commit()

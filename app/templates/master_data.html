@@ -272,7 +272,23 @@
                       <span class="badge text-bg-secondary">{{ t("common.history") }}</span>
                       {% endif %}
                     </td>
-                    <td><button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button></td>
+                    <td>
+                      <div class="d-flex flex-column gap-2">
+                        <button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button>
+                        <a
+                          class="btn btn-sm btn-outline-secondary"
+                          href="{{ url_for('web.bill_determinants', lang=current_locale, service_point_id=row.service_point_id) }}"
+                        >
+                          {{ t("button.view_bill_determinants") }}
+                        </a>
+                        <a
+                          class="btn btn-sm btn-outline-secondary"
+                          href="{{ url_for('web.bill_determinants', lang=current_locale, service_point_id=row.service_point_id, calculation_status='blocked') }}"
+                        >
+                          {{ t("button.view_blocked_bill_determinants") }}
+                        </a>
+                      </div>
+                    </td>
                   </form>
                 </tr>
                 {% else %}

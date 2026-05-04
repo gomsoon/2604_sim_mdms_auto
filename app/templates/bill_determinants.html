@@ -45,12 +45,28 @@
         </select>
       </div>
       <div class="col-md-2">
+        <label class="form-label">{{ t("filter.billing_cycle_mode") }}</label>
+        <select class="form-select" name="billing_cycle_mode">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="calendar_month" {% if filters.billing_cycle_mode == "calendar_month" %}selected{% endif %}>
+            {{ t_or("common.billing_cycle_mode.calendar_month", "calendar_month") }}
+          </option>
+          <option value="anchored_month" {% if filters.billing_cycle_mode == "anchored_month" %}selected{% endif %}>
+            {{ t_or("common.billing_cycle_mode.anchored_month", "anchored_month") }}
+          </option>
+        </select>
+      </div>
+      <div class="col-md-2">
         <label class="form-label">{{ t("filter.date_from") }}</label>
         <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
       </div>
       <div class="col-md-2">
         <label class="form-label">{{ t("filter.date_to") }}</label>
         <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.quality_summary") }}</label>
+        <input class="form-control" name="quality_summary" value="{{ filters.quality_summary or '' }}">
       </div>
       <div class="col-md-3">
         <div class="form-check mt-4 pt-2">
@@ -81,6 +97,7 @@
             <th>{{ t("table.determinant_value") }}</th>
             <th>{{ t("table.uom") }}</th>
             <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.quality_summary") }}</th>
             <th>{{ t("table.revision") }}</th>
             <th>{{ t("table.calculated_at") }}</th>
           </tr>
@@ -107,6 +124,7 @@
             <td>{{ row.determinant_value }}</td>
             <td>{{ row.unit_of_measure or t("common.none") }}</td>
             <td>{{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}</td>
+            <td>{{ t_or("bill_determinant.quality_summary." ~ row.quality_summary, row.quality_summary) }}</td>
             <td>
               <span class="me-1">r{{ row.revision_number }}</span>
               {% if row.is_current %}
@@ -117,7 +135,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="11" class="text-secondary">{{ t("page.bill_determinants.empty") }}</td>
+            <td colspan="12" class="text-secondary">{{ t("page.bill_determinants.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

@@ -219,6 +219,9 @@ def test_bill_determinant_detail_page_shows_usage_lineage_and_revision_context(c
     assert "MTR-1001" in text
     assert "CH-01" in text
     assert "/usage-transactions/1?lang=ko" in text
+    assert "청구 컨텍스트" in text
+    assert "청구 컨텍스트 달력 월" in text
+    assert "Asia/Seoul" in text
 
 
 def test_usage_transaction_detail_page_links_to_related_bill_determinants(client, session):
@@ -246,6 +249,50 @@ def test_usage_transaction_detail_page_links_to_related_bill_determinants(client
     assert response.status_code == 200
     assert "관련 청구 결정값" in text
     assert "/bill-determinants/1?lang=ko" in text
+
+
+def test_bill_determinants_page_filters_by_billing_cycle_mode_and_quality_summary(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    response = client.get(
+        "/bill-determinants?lang=ko&billing_cycle_mode=calendar_month&quality_summary=missing_intervals"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 주기 총 사용량" in text
+    assert "누락 구간" in text
+
+
+def test_master_data_page_billing_context_rows_link_to_bill_determinants(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    response = client.get("/master-data?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "/bill-determinants?lang=ko&amp;service_point_id=1" in text
+    assert "/bill-determinants?lang=ko&amp;service_point_id=1&amp;calculation_status=blocked" in text
 
 
 def test_canonical_measurements_promote_final_via_web_uses_current_filters(client, session):

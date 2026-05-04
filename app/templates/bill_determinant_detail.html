@@ -3,6 +3,8 @@
 {% block content %}
 {% set determinant_details = detail.bill_determinant.details or {} %}
 {% set provenance = determinant_details.get("provenance") %}
+{% set billing_context_snapshot = determinant_details.get("billing_context_snapshot") %}
+{% set billing_period_source = determinant_details.get("billing_period_source") %}
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
   <div>
     <h1 class="h3 mb-1">{{ t("page.bill_determinant_detail.title") }}</h1>
@@ -70,12 +72,51 @@
           <dt class="col-sm-4">{{ t("table.source_usage_count") }}</dt>
           <dd class="col-sm-8">{{ detail.bill_determinant.source_usage_count }}</dd>
           <dt class="col-sm-4">{{ t("table.quality_summary") }}</dt>
-          <dd class="col-sm-8">{{ detail.bill_determinant.quality_summary }}</dd>
+          <dd class="col-sm-8">{{ t_or("bill_determinant.quality_summary." ~ detail.bill_determinant.quality_summary, detail.bill_determinant.quality_summary) }}</dd>
           <dt class="col-sm-4">{{ t("field.timezone_name") }}</dt>
           <dd class="col-sm-8">{{ detail.bill_determinant.window_timezone_name }}</dd>
         </dl>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+      <h2 class="h5 mb-0">{{ t("page.bill_determinant_detail.billing_context") }}</h2>
+      <a
+        class="btn btn-sm btn-outline-secondary"
+        href="{{ url_for('web.master_data', lang=current_locale, prefill_service_point_id=detail.bill_determinant.service_point_id) }}#billing-contexts"
+      >
+        {{ t("button.open_billing_context") }}
+      </a>
+    </div>
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.billing_period_source") }}</dt>
+      <dd class="col-sm-8">{{ t_or("bill_determinant.billing_period_source." ~ billing_period_source, billing_period_source or t("common.none")) }}</dd>
+      {% if billing_context_snapshot %}
+      <dt class="col-sm-4">{{ t("field.timezone_name") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.timezone_name }}</dd>
+      <dt class="col-sm-4">{{ t("field.billing_cycle_mode") }}</dt>
+      <dd class="col-sm-8">{{ t_or("common.billing_cycle_mode." ~ billing_context_snapshot.billing_cycle_mode, billing_context_snapshot.billing_cycle_mode) }}</dd>
+      <dt class="col-sm-4">{{ t("field.billing_cycle_anchor_day") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.billing_cycle_anchor_day if billing_context_snapshot.billing_cycle_anchor_day is not none else t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.currency_code") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.currency_code or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.effective_from") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.effective_from or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.effective_to") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.effective_to or t("common.none") }}</dd>
+      {% else %}
+      <dt class="col-sm-4">{{ t("table.status") }}</dt>
+      <dd class="col-sm-8">
+        <span class="badge text-bg-warning-subtle text-warning-emphasis border">
+          {{ t_or("bill_determinant.quality_summary." ~ detail.bill_determinant.quality_summary, detail.bill_determinant.quality_summary) }}
+        </span>
+      </dd>
+      {% endif %}
+    </dl>
   </div>
 </div>
 
@@ -102,6 +143,8 @@
         <pre class="bg-light border rounded p-2 mb-0 small"><code>{{ provenance.replay_context | tojson(indent=2) }}</code></pre>
       </dd>
       {% endif %}
+      <dt class="col-sm-4">{{ t("table.quality_summary") }}</dt>
+      <dd class="col-sm-8">{{ t_or("bill_determinant.quality_summary." ~ determinant_details.get("source_usage_quality_summary"), determinant_details.get("source_usage_quality_summary") or t("common.none")) }}</dd>
     </dl>
   </div>
 </div>

@@ -102,6 +102,8 @@ class BillDeterminantFilters:
     external_channel_id: str | None = None
     determinant_type: str | None = None
     calculation_status: str | None = None
+    quality_summary: str | None = None
+    billing_cycle_mode: str | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
     include_history: bool = False
@@ -362,6 +364,13 @@ def build_bill_determinant_filters(args) -> BillDeterminantFilters:
             "Bill determinant status must be complete, partial, or blocked when provided.",
         )
 
+    billing_cycle_mode = _normalize_text(args.get("billing_cycle_mode"))
+    if billing_cycle_mode not in {None, "calendar_month", "anchored_month"}:
+        raise VisibilityFilterError(
+            "invalid_billing_cycle_mode_filter",
+            "Billing cycle mode must be calendar_month or anchored_month when provided.",
+        )
+
     return BillDeterminantFilters(
         bill_determinant_id=_parse_optional_int(
             args.get("bill_determinant_id"),
@@ -387,6 +396,8 @@ def build_bill_determinant_filters(args) -> BillDeterminantFilters:
         external_channel_id=_normalize_text(args.get("external_channel_id")),
         determinant_type=determinant_type,
         calculation_status=calculation_status,
+        quality_summary=_normalize_text(args.get("quality_summary")),
+        billing_cycle_mode=billing_cycle_mode,
         date_from=date_from,
         date_to=date_to,
         include_history=_parse_optional_bool(args.get("include_history"), default=False),
@@ -655,6 +666,13 @@ def list_bill_determinants(
     if filters.calculation_status:
         statement = statement.where(
             BillDeterminant.calculation_status == filters.calculation_status
+        )
+    if filters.quality_summary:
+        statement = statement.where(BillDeterminant.quality_summary == filters.quality_summary)
+    if filters.billing_cycle_mode:
+        statement = statement.where(
+            BillDeterminant.details["billing_context_snapshot"]["billing_cycle_mode"].as_string()
+            == filters.billing_cycle_mode
         )
     if filters.date_from:
         statement = statement.where(BillDeterminant.billing_period_start_at >= filters.date_from)

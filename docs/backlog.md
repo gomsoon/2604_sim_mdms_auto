@@ -169,6 +169,7 @@ This document captures the staged backlog derived from the reference PDF backlog
 - `service_point_billing_context` delete/archive policy
 - `service_point_billing_context` bulk import or source sync
 - `service_point_billing_context` history diff and operator audit view
+- billing context to determinant impact spotlight and audit summary
 - billing timezone and billing-cycle anchor governance
 - tariff assignment baseline
 - simple bill charge persistence and calculation
