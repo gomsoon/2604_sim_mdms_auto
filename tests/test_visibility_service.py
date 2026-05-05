@@ -6,10 +6,12 @@ import pytest
 from sqlalchemy import select
 
 from app.models import HesSystem
+from app.services.bill_charges import calculate_bill_charges
 from app.services.bill_determinants import calculate_bill_determinants
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.seeds import seed_demo_environment
 from app.services.visibility import (
+    build_bill_charge_filters,
     build_bill_determinant_filters,
     VisibilityFilterError,
     build_canonical_filters,
@@ -17,7 +19,10 @@ from app.services.visibility import (
     build_ingest_batch_filters,
     build_operational_event_filters,
     build_usage_transaction_filters,
+    get_bill_charge_detail_context,
     get_bill_determinant_detail_context,
+    get_usage_transaction_detail_context,
+    list_bill_charges,
     list_bill_determinants,
     list_canonical_measurements,
     list_final_measurements,
@@ -28,6 +33,36 @@ from app.services.visibility import (
 from app.services.finalization import finalize_canonical_measurements
 from app.services.operational_events import close_operational_alert
 from app.services.usage import calculate_usage_transactions
+
+
+def _prepare_bill_charge_visibility(session) -> None:
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:bill-charge-visibility",
+    )
+    session.commit()
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="120.00000000",
+    )
+    session.commit()
 
 
 def test_build_ingest_batch_filters_rejects_invalid_date_format():
@@ -390,6 +425,81 @@ def test_get_bill_determinant_detail_context_loads_applicable_tariff_assignment(
     assert detail is not None
     assert detail.applicable_tariff_assignment is not None
     assert detail.applicable_tariff_assignment.tariff_plan_code == "RES-A"
+
+
+def test_build_bill_charge_filters_rejects_invalid_type():
+    with pytest.raises(VisibilityFilterError) as exc_info:
+        build_bill_charge_filters({"charge_type": "demand_charge"})
+
+    assert exc_info.value.error_code == "invalid_bill_charge_type_filter"
+
+
+def test_list_bill_charges_filters_by_service_point_channel_and_status(session):
+    _prepare_bill_charge_visibility(session)
+
+    matched_rows = list_bill_charges(
+        session,
+        build_bill_charge_filters(
+            {
+                "service_point": "SP-1001",
+                "external_channel_id": "CH-01",
+                "charge_type": "flat_energy_charge",
+                "calculation_status": "partial",
+                "tariff_plan_code": "RES-A",
+                "currency_code": "KRW",
+            }
+        ),
+    )
+    unmatched_rows = list_bill_charges(
+        session,
+        build_bill_charge_filters(
+            {
+                "service_point": "SP-4040",
+            }
+        ),
+    )
+
+    assert len(matched_rows) == 1
+    assert matched_rows[0].service_point.external_id == "SP-1001"
+    assert matched_rows[0].measuring_component.external_channel_id == "CH-01"
+    assert matched_rows[0].charge_type == "flat_energy_charge"
+    assert matched_rows[0].calculation_status == "partial"
+    assert matched_rows[0].tariff_plan_code == "RES-A"
+    assert matched_rows[0].currency_code == "KRW"
+    assert unmatched_rows == []
+
+
+def test_get_bill_charge_detail_context_loads_source_determinant_and_revision_rows(session):
+    _prepare_bill_charge_visibility(session)
+
+    detail = get_bill_charge_detail_context(session, 1)
+
+    assert detail is not None
+    assert detail.bill_charge.id == 1
+    assert detail.bill_determinant is not None
+    assert detail.bill_determinant.id == 1
+    assert len(detail.revision_rows) == 1
+
+
+def test_usage_transaction_detail_context_loads_bill_charge_rows(session):
+    _prepare_bill_charge_visibility(session)
+
+    detail = get_usage_transaction_detail_context(session, 1)
+
+    assert detail is not None
+    assert len(detail.bill_determinant_rows) == 1
+    assert len(detail.bill_charge_rows) == 1
+    assert detail.bill_charge_rows[0].charge_type == "flat_energy_charge"
+
+
+def test_get_bill_determinant_detail_context_loads_bill_charge_rows(session):
+    _prepare_bill_charge_visibility(session)
+
+    detail = get_bill_determinant_detail_context(session, 1)
+
+    assert detail is not None
+    assert len(detail.bill_charge_rows) == 1
+    assert detail.bill_charge_rows[0].bill_determinant_id == detail.bill_determinant.id
 
 
 def test_build_operational_event_filters_rejects_invalid_stream_type():
