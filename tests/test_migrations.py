@@ -58,6 +58,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "vee_replay_request" in tables
         assert "vee_replay_request_item" in tables
         assert "estimation_audit" in tables
+        assert "manual_edit_audit" in tables
         assert "usage_transaction" in tables
         assert "bill_determinant" in tables
         assert "bill_charge" in tables
@@ -134,6 +135,13 @@ def test_alembic_upgrade_creates_expected_tables():
         estimation_audit_column_defs = {
             column["name"]: column
             for column in inspector.get_columns("estimation_audit", schema=schema_name)
+        }
+        manual_edit_audit_columns = {
+            column["name"] for column in inspector.get_columns("manual_edit_audit", schema=schema_name)
+        }
+        manual_edit_audit_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("manual_edit_audit", schema=schema_name)
         }
         usage_transaction_columns = {
             column["name"]
@@ -250,6 +258,23 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "result_final_measurement_id" in estimation_audit_columns
         assert "operator_memo" in estimation_audit_columns
         assert "details" in estimation_audit_columns
+        assert "pipeline_run_id" in manual_edit_audit_columns
+        assert "service_point_id" in manual_edit_audit_columns
+        assert "measuring_component_id" in manual_edit_audit_columns
+        assert "device_id" in manual_edit_audit_columns
+        assert "target_initial_measurement_id" in manual_edit_audit_columns
+        assert "related_vee_exception_id" in manual_edit_audit_columns
+        assert "target_measured_at" in manual_edit_audit_columns
+        assert "reason_code" in manual_edit_audit_columns
+        assert "edit_status" in manual_edit_audit_columns
+        assert "edited_value" in manual_edit_audit_columns
+        assert "edited_quality_code" in manual_edit_audit_columns
+        assert "edited_status_code" in manual_edit_audit_columns
+        assert "edited_by" in manual_edit_audit_columns
+        assert "operator_memo" in manual_edit_audit_columns
+        assert "superseded_final_measurement_id" in manual_edit_audit_columns
+        assert "result_final_measurement_id" in manual_edit_audit_columns
+        assert "details" in manual_edit_audit_columns
         assert "pipeline_run_id" in usage_transaction_columns
         assert "usage_type" in usage_transaction_columns
         assert "period_start_at" in usage_transaction_columns
@@ -363,6 +388,15 @@ def test_alembic_upgrade_creates_expected_tables():
         assert estimation_audit_column_defs["estimation_status"]["nullable"] is False
         assert estimation_audit_column_defs["estimated_value"]["type"].precision == 19
         assert estimation_audit_column_defs["estimated_value"]["type"].scale == 4
+        assert manual_edit_audit_column_defs["service_point_id"]["nullable"] is False
+        assert manual_edit_audit_column_defs["target_initial_measurement_id"]["nullable"] is False
+        assert manual_edit_audit_column_defs["related_vee_exception_id"]["nullable"] is False
+        assert manual_edit_audit_column_defs["target_measured_at"]["nullable"] is False
+        assert manual_edit_audit_column_defs["reason_code"]["nullable"] is False
+        assert manual_edit_audit_column_defs["edit_status"]["nullable"] is False
+        assert manual_edit_audit_column_defs["edited_by"]["nullable"] is False
+        assert manual_edit_audit_column_defs["edited_value"]["type"].precision == 19
+        assert manual_edit_audit_column_defs["edited_value"]["type"].scale == 4
         assert usage_transaction_column_defs["usage_value"]["type"].precision == 19
         assert usage_transaction_column_defs["usage_value"]["type"].scale == 4
         assert bill_determinant_column_defs["determinant_value"]["type"].precision == 19
@@ -400,6 +434,7 @@ def test_alembic_upgrade_creates_expected_tables():
                         'vee_replay_request',
                         'vee_replay_request_item',
                         'estimation_audit',
+                        'manual_edit_audit',
                         'usage_transaction',
                         'bill_determinant',
                         'bill_charge',
@@ -448,6 +483,13 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_estimation_audit_strategy_code" in index_defs
         assert "ix_estimation_audit_service_point_target_measured_at" in index_defs
         assert "ix_estimation_audit_pipeline_run_id" in index_defs
+        assert "ix_manual_edit_audit_target_initial_measurement_id" in index_defs
+        assert "ix_manual_edit_audit_related_vee_exception_id" in index_defs
+        assert "ix_manual_edit_audit_target_measured_at" in index_defs
+        assert "ix_manual_edit_audit_edit_status" in index_defs
+        assert "ix_manual_edit_audit_reason_code" in index_defs
+        assert "ix_manual_edit_audit_service_point_target_measured_at" in index_defs
+        assert "ix_manual_edit_audit_pipeline_run_id" in index_defs
         assert "ix_pipeline_run_vee_replay_request_id" in index_defs
         assert "uq_usage_transaction_scope" in index_defs
         assert "UNIQUE INDEX" in index_defs["uq_usage_transaction_scope"]
@@ -528,6 +570,11 @@ def test_alembic_upgrade_creates_expected_tables():
         estimation_audit_check_names = {row["name"] for row in estimation_audit_checks}
         assert "ck_estimation_audit_strategy_code" in estimation_audit_check_names
         assert "ck_estimation_audit_estimation_status" in estimation_audit_check_names
+        manual_edit_audit_checks = inspector.get_check_constraints(
+            "manual_edit_audit", schema=schema_name
+        )
+        manual_edit_audit_check_names = {row["name"] for row in manual_edit_audit_checks}
+        assert "ck_manual_edit_audit_edit_status" in manual_edit_audit_check_names
         hes_meter_reference_indexes = inspector.get_indexes("hes_meter_reference", schema=schema_name)
         hes_meter_reference_index_names = {row["name"] for row in hes_meter_reference_indexes}
         assert "ix_hes_meter_reference_hes_system_id" in hes_meter_reference_index_names

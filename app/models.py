@@ -330,6 +330,9 @@ class ServicePoint(TimestampMixin, Base):
     estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
         back_populates="service_point"
     )
+    manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
+        back_populates="service_point"
+    )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="service_point"
     )
@@ -475,6 +478,9 @@ class Device(TimestampMixin, Base):
     estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
         back_populates="device"
     )
+    manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
+        back_populates="device"
+    )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="device"
     )
@@ -505,6 +511,9 @@ class MeasuringComponent(TimestampMixin, Base):
         back_populates="measuring_component"
     )
     estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="measuring_component"
+    )
+    manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
         back_populates="measuring_component"
     )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
@@ -736,6 +745,9 @@ class InitialMeasurement(TimestampMixin, Base):
     estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
         back_populates="target_initial_measurement"
     )
+    manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
+        back_populates="target_initial_measurement"
+    )
 
 
 class VeeExecutionLog(TimestampMixin, Base):
@@ -792,6 +804,9 @@ class VeeException(TimestampMixin, Base):
     )
     representative_replay_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
         back_populates="representative_vee_exception"
+    )
+    manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
+        back_populates="related_vee_exception"
     )
 
 
@@ -947,6 +962,14 @@ class FinalMeasurement(TimestampMixin, Base):
         back_populates="result_final_measurement",
         foreign_keys=lambda: [EstimationAudit.result_final_measurement_id],
     )
+    superseded_manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
+        back_populates="superseded_final_measurement",
+        foreign_keys=lambda: [ManualEditAudit.superseded_final_measurement_id],
+    )
+    result_manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
+        back_populates="result_final_measurement",
+        foreign_keys=lambda: [ManualEditAudit.result_final_measurement_id],
+    )
 
 
 class EstimationAudit(TimestampMixin, Base):
@@ -1040,6 +1063,95 @@ class EstimationAudit(TimestampMixin, Base):
     )
     result_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
         back_populates="result_estimation_audits",
+        foreign_keys=[result_final_measurement_id],
+    )
+
+
+class ManualEditAudit(TimestampMixin, Base):
+    __tablename__ = "manual_edit_audit"
+    __table_args__ = (
+        CheckConstraint(
+            "edit_status in ('applied', 'blocked', 'failed')",
+            name="ck_manual_edit_audit_edit_status",
+        ),
+        Index(
+            "ix_manual_edit_audit_target_initial_measurement_id",
+            "target_initial_measurement_id",
+        ),
+        Index(
+            "ix_manual_edit_audit_related_vee_exception_id",
+            "related_vee_exception_id",
+        ),
+        Index(
+            "ix_manual_edit_audit_target_measured_at",
+            "target_measured_at",
+        ),
+        Index(
+            "ix_manual_edit_audit_edit_status",
+            "edit_status",
+        ),
+        Index(
+            "ix_manual_edit_audit_reason_code",
+            "reason_code",
+        ),
+        Index(
+            "ix_manual_edit_audit_service_point_target_measured_at",
+            "service_point_id",
+            "target_measured_at",
+        ),
+        Index(
+            "ix_manual_edit_audit_pipeline_run_id",
+            "pipeline_run_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(ForeignKey("pipeline_run.id"), index=True)
+    service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    measuring_component_id: Mapped[int] = mapped_column(
+        ForeignKey("measuring_component.id"), nullable=False
+    )
+    device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
+    target_initial_measurement_id: Mapped[int] = mapped_column(
+        ForeignKey("initial_measurement.id"), nullable=False
+    )
+    related_vee_exception_id: Mapped[int] = mapped_column(
+        ForeignKey("vee_exception.id"), nullable=False
+    )
+    target_measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(60), nullable=False)
+    edit_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    edited_value: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
+    edited_quality_code: Mapped[str | None] = mapped_column(String(40))
+    edited_status_code: Mapped[str | None] = mapped_column(String(40))
+    edited_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    operator_memo: Mapped[str | None] = mapped_column(Text)
+    superseded_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    result_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    pipeline_run: Mapped["PipelineRun | None"] = relationship(back_populates="manual_edit_audits")
+    service_point: Mapped["ServicePoint"] = relationship(back_populates="manual_edit_audits")
+    measuring_component: Mapped["MeasuringComponent"] = relationship(
+        back_populates="manual_edit_audits"
+    )
+    device: Mapped["Device"] = relationship(back_populates="manual_edit_audits")
+    target_initial_measurement: Mapped["InitialMeasurement"] = relationship(
+        back_populates="manual_edit_audits"
+    )
+    related_vee_exception: Mapped["VeeException"] = relationship(
+        back_populates="manual_edit_audits"
+    )
+    superseded_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="superseded_manual_edit_audits",
+        foreign_keys=[superseded_final_measurement_id],
+    )
+    result_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="result_manual_edit_audits",
         foreign_keys=[result_final_measurement_id],
     )
 
@@ -1337,6 +1449,9 @@ class PipelineRun(TimestampMixin, Base):
     )
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(back_populates="pipeline_run")
     estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="pipeline_run"
+    )
+    manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
         back_populates="pipeline_run"
     )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
