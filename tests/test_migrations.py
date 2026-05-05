@@ -59,6 +59,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "vee_replay_request_item" in tables
         assert "usage_transaction" in tables
         assert "bill_determinant" in tables
+        assert "bill_charge" in tables
         assert "service_point_billing_context" in tables
         assert "service_point_tariff_assignment" in tables
         assert "adapter_definition" in tables
@@ -140,6 +141,13 @@ def test_alembic_upgrade_creates_expected_tables():
         bill_determinant_column_defs = {
             column["name"]: column
             for column in inspector.get_columns("bill_determinant", schema=schema_name)
+        }
+        bill_charge_columns = {
+            column["name"] for column in inspector.get_columns("bill_charge", schema=schema_name)
+        }
+        bill_charge_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("bill_charge", schema=schema_name)
         }
         billing_context_columns = {
             column["name"]
@@ -251,6 +259,27 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "is_current" in bill_determinant_columns
         assert "supersedes_bill_determinant_id" in bill_determinant_columns
         assert "calculated_at" in bill_determinant_columns
+        assert "pipeline_run_id" in bill_charge_columns
+        assert "service_point_id" in bill_charge_columns
+        assert "measuring_component_id" in bill_charge_columns
+        assert "device_id" in bill_charge_columns
+        assert "bill_determinant_id" in bill_charge_columns
+        assert "charge_type" in bill_charge_columns
+        assert "billing_period_start_at" in bill_charge_columns
+        assert "billing_period_end_at" in bill_charge_columns
+        assert "currency_code" in bill_charge_columns
+        assert "tariff_plan_code" in bill_charge_columns
+        assert "tariff_version_code" in bill_charge_columns
+        assert "quantity_value" in bill_charge_columns
+        assert "unit_rate_value" in bill_charge_columns
+        assert "charge_amount" in bill_charge_columns
+        assert "calculation_status" in bill_charge_columns
+        assert "quality_summary" in bill_charge_columns
+        assert "revision_number" in bill_charge_columns
+        assert "revision_reason_code" in bill_charge_columns
+        assert "is_current" in bill_charge_columns
+        assert "supersedes_bill_charge_id" in bill_charge_columns
+        assert "calculated_at" in bill_charge_columns
         assert "service_point_id" in billing_context_columns
         assert "timezone_name" in billing_context_columns
         assert "billing_cycle_mode" in billing_context_columns
@@ -309,6 +338,16 @@ def test_alembic_upgrade_creates_expected_tables():
         assert bill_determinant_column_defs["determinant_value"]["type"].scale == 4
         assert bill_determinant_column_defs["revision_number"]["nullable"] is False
         assert bill_determinant_column_defs["is_current"]["nullable"] is False
+        assert bill_charge_column_defs["quantity_value"]["type"].precision == 19
+        assert bill_charge_column_defs["quantity_value"]["type"].scale == 4
+        assert bill_charge_column_defs["unit_rate_value"]["type"].precision == 19
+        assert bill_charge_column_defs["unit_rate_value"]["type"].scale == 8
+        assert bill_charge_column_defs["charge_amount"]["type"].precision == 19
+        assert bill_charge_column_defs["charge_amount"]["type"].scale == 4
+        assert bill_charge_column_defs["charge_type"]["nullable"] is False
+        assert bill_charge_column_defs["quantity_value"]["nullable"] is False
+        assert bill_charge_column_defs["revision_number"]["nullable"] is False
+        assert bill_charge_column_defs["is_current"]["nullable"] is False
 
         engine = create_engine(schema_url)
         with engine.connect() as connection:
@@ -331,6 +370,7 @@ def test_alembic_upgrade_creates_expected_tables():
                         'vee_replay_request_item',
                         'usage_transaction',
                         'bill_determinant',
+                        'bill_charge',
                         'service_point_billing_context',
                         'service_point_tariff_assignment'
                       )
@@ -385,6 +425,14 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_bill_determinant_measuring_component_billing_period_start_at" in index_defs
         assert "ix_bill_determinant_is_current" in index_defs
         assert "ix_bill_determinant_supersedes_bill_determinant_id" in index_defs
+        assert "ix_bill_charge_charge_type" in index_defs
+        assert "ix_bill_charge_billing_period_start_at" in index_defs
+        assert "ix_bill_charge_calculation_status" in index_defs
+        assert "ix_bill_charge_bill_determinant_id" in index_defs
+        assert "ix_bill_charge_service_point_billing_period_start_at" in index_defs
+        assert "ix_bill_charge_measuring_component_billing_period_start_at" in index_defs
+        assert "ix_bill_charge_is_current" in index_defs
+        assert "ix_bill_charge_supersedes_bill_charge_id" in index_defs
         assert "ix_service_point_billing_context_billing_cycle_mode" in index_defs
         assert "ix_service_point_billing_context_effective_from" in index_defs
         assert "ix_service_point_billing_context_effective_to" in index_defs
