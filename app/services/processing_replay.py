@@ -206,7 +206,7 @@ def _snapshot_usage_transaction(row: UsageTransaction | None) -> dict[str, objec
     }
 
 
-def _recalculate_impacted_usage_windows(
+def recalculate_impacted_usage_windows(
     session: Session,
     *,
     previous_final: FinalMeasurement | None,
@@ -392,7 +392,7 @@ def reevaluate_vee_exception_and_replay(
                 monthly_usage_groups_updated,
                 monthly_usage_rows_deleted,
                 usage_recalculation_results,
-            ) = _recalculate_impacted_usage_windows(
+            ) = recalculate_impacted_usage_windows(
                 session,
                 previous_final=previous_final,
                 current_final=current_final,

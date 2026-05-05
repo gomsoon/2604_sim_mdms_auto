@@ -1,0 +1,354 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from decimal import Decimal
+
+from sqlalchemy import select
+
+from app.models import (
+    BillCharge,
+    BillDeterminant,
+    EstimationAudit,
+    FinalMeasurement,
+    HesSystem,
+    InitialMeasurement,
+    ServicePoint,
+    VeeException,
+)
+from app.services.bill_charges import (
+    BILL_CHARGE_TYPE_FLAT_ENERGY_CHARGE,
+    calculate_bill_charges,
+)
+from app.services.bill_determinants import (
+    BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL,
+    calculate_bill_determinants,
+)
+from app.services.estimation import (
+    ESTIMATION_REVISION_REASON_CODE,
+    ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+    ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+    ESTIMATION_QUALITY_CODE,
+    apply_estimation_from_vee_exception,
+)
+from app.services.finalization import finalize_canonical_measurements
+from app.services.ingestion import ingest_reads
+from app.services.seeds import seed_demo_environment
+from app.services.tariff_assignments import create_tariff_assignment
+from app.services.usage import calculate_usage_transactions
+from app.services.vee import evaluate_or_get_vee_baseline
+
+
+def _prepare_estimation_environment(
+    session,
+    *,
+    include_previous: bool = True,
+    include_next: bool = True,
+) -> tuple[int, int, int]:
+    seed_demo_environment(session)
+    hes_system_id = session.scalar(select(HesSystem.id).limit(1))
+    service_point_id = session.scalar(select(ServicePoint.id).limit(1))
+    assert hes_system_id is not None
+    assert service_point_id is not None
+
+    extra_reads: list[dict[str, object]] = []
+    if include_previous:
+        extra_reads.append(
+            {
+                "meter_id": "MTR-1001",
+                "channel_id": "CH-01",
+                "measured_at": "2026-04-18T00:00:00+09:00",
+                "value": 10.0,
+                "quality_code": "OK",
+                "status_code": "ACTUAL",
+                "unit": "kWh",
+            }
+        )
+    if include_next:
+        extra_reads.append(
+            {
+                "meter_id": "MTR-1001",
+                "channel_id": "CH-01",
+                "measured_at": "2026-04-18T00:30:00+09:00",
+                "value": 20.0,
+                "quality_code": "OK",
+                "status_code": "ACTUAL",
+                "unit": "kWh",
+            }
+        )
+    if extra_reads:
+        ingest_reads(
+            session,
+            {
+                "source_system": "HES",
+                "batch_id": "estimation-neighbor-read-batch",
+                "received_at": "2026-04-18T09:10:00+09:00",
+                "reads": extra_reads,
+            },
+            hes_system_id=hes_system_id,
+        )
+    session.commit()
+
+    finalize_canonical_measurements(session, limit=50)
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    create_tariff_assignment(
+        session,
+        service_point_id=service_point_id,
+        tariff_plan_code="KR_BASIC",
+        tariff_version_code="v1",
+        effective_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        effective_to=None,
+        source_system="test",
+        source_reference="test:tariff-assignment",
+    )
+    calculate_bill_determinants(
+        session,
+        determinant_type=BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL,
+        service_point_id=service_point_id,
+    )
+    calculate_bill_charges(
+        session,
+        charge_type=BILL_CHARGE_TYPE_FLAT_ENERGY_CHARGE,
+        unit_rate_value=Decimal("100.00000000"),
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    rows = session.scalars(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.service_point_id == service_point_id)
+        .order_by(InitialMeasurement.measured_at.asc(), InitialMeasurement.id.asc())
+    ).all()
+    if include_previous and include_next:
+        target_row = rows[1]
+    else:
+        target_row = rows[0]
+    return service_point_id, target_row.id, rows[0].measuring_component_id
+
+
+def _open_negative_vee_exception(session, *, initial_measurement_id: int) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    initial_row.value = Decimal("-1.0000")
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_negative_value_detected"
+    return vee_exception
+
+
+def _open_required_field_exception(session, *, initial_measurement_id: int) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    initial_row.unit_of_measure = ""
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_required_field_missing"
+    return vee_exception
+
+
+def test_apply_previous_value_estimation_supersedes_final_and_recalculates_downstream(session):
+    service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    old_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    old_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.measuring_component_id == measuring_component_id)
+        .where(BillCharge.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_final is not None
+    assert old_charge is not None
+
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+        operator_memo="apply previous value",
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    current_determinant = session.scalar(
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == service_point_id)
+        .where(BillDeterminant.is_current.is_(True))
+        .limit(1)
+    )
+    current_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.measuring_component_id == measuring_component_id)
+        .where(BillCharge.is_current.is_(True))
+        .limit(1)
+    )
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    resolved_exception = session.get(VeeException, vee_exception.id)
+
+    assert refreshed_initial is not None
+    assert current_final is not None
+    assert current_determinant is not None
+    assert current_charge is not None
+    assert audit_row is not None
+    assert resolved_exception is not None
+    assert summary.estimation_status == "applied"
+    assert summary.result_code == "estimation_applied"
+    assert summary.estimated_value == Decimal("10.0000")
+    assert summary.final_superseded is True
+    assert summary.daily_usage_groups_updated == 1
+    assert summary.monthly_usage_groups_updated == 1
+    assert summary.bill_determinant_superseded == 1
+    assert summary.bill_charge_superseded == 1
+    assert refreshed_initial.value == Decimal("10.0000")
+    assert refreshed_initial.quality_code == ESTIMATION_QUALITY_CODE
+    assert current_final.id != old_final.id
+    assert current_final.value == Decimal("10.0000")
+    assert current_final.revision_reason_code == ESTIMATION_REVISION_REASON_CODE
+    assert current_determinant.determinant_value == Decimal("40.0000")
+    assert current_determinant.revision_reason_code == ESTIMATION_REVISION_REASON_CODE
+    assert current_charge.id != old_charge.id
+    assert current_charge.quantity_value == Decimal("40.0000")
+    assert current_charge.charge_amount == Decimal("4000.0000")
+    assert current_charge.revision_reason_code == ESTIMATION_REVISION_REASON_CODE
+    assert resolved_exception.exception_status == "resolved"
+    assert resolved_exception.resolution_type == "estimated"
+    assert audit_row.estimation_status == "applied"
+    assert audit_row.source_previous_final_measurement_id is not None
+    assert audit_row.result_final_measurement_id == current_final.id
+    assert audit_row.superseded_final_measurement_id == old_final.id
+
+
+def test_apply_linear_interpolation_estimation_recalculates_charge_chain(session):
+    service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+        operator_memo="apply interpolation",
+    )
+    session.commit()
+
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    current_determinant = session.scalar(
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == service_point_id)
+        .where(BillDeterminant.is_current.is_(True))
+        .limit(1)
+    )
+    current_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.measuring_component_id == measuring_component_id)
+        .where(BillCharge.is_current.is_(True))
+        .limit(1)
+    )
+
+    assert current_final is not None
+    assert current_determinant is not None
+    assert current_charge is not None
+    assert summary.estimation_status == "applied"
+    assert summary.estimated_value == Decimal("15.0000")
+    assert current_final.value == Decimal("15.0000")
+    assert current_determinant.determinant_value == Decimal("45.0000")
+    assert current_charge.quantity_value == Decimal("45.0000")
+    assert current_charge.charge_amount == Decimal("4500.0000")
+
+
+def test_apply_estimation_blocks_for_unsupported_exception_code(session):
+    service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
+        session,
+        include_previous=False,
+        include_next=False,
+    )
+    old_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_final is not None
+
+    vee_exception = _open_required_field_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert refreshed_initial is not None
+    assert current_final is not None
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_unsupported_exception_code"
+    assert summary.final_created is False
+    assert summary.final_superseded is False
+    assert summary.bill_determinant_groups == 0
+    assert summary.bill_charge_groups == 0
+    assert refreshed_initial.value == Decimal("14.2000")
+    assert current_final.id == old_final.id
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.result_final_measurement_id is None

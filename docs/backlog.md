@@ -108,6 +108,16 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Previous-value-based estimation
 - Estimation audit
 - Final measurement update flow
+- first estimation slice starts with substitution-only operator flow
+- first estimation slice supports only selected VEE exception codes such as
+  `vee_negative_value_detected` and `vee_high_value_detected`
+- deferred: synthetic missing-interval estimation
+- deferred: estimation for `duplicate_detected`
+- deferred: estimation for `required_field_missing`
+- deferred: estimation for `interval_size_invalid`
+- deferred: bulk estimation
+- deferred: estimation preview or approval workflow
+- deferred: event-aware estimation policy
 
 ### V4. Exception management
 

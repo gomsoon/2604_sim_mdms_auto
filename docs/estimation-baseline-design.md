@@ -46,12 +46,19 @@ Included:
 - two strategies only:
   - `linear_interpolation`
   - `previous_value_based`
+- first exception allowlist only:
+  - `vee_negative_value_detected`
+  - `vee_high_value_detected`
 - explicit estimation audit persistence
 - downstream recalculation after estimation
 
 Not included in the first slice:
 
 - synthetic creation of a brand-new missing interval row
+- estimation for `missing_interval_detected`
+- estimation for `duplicate_detected`
+- estimation for `required_field_missing`
+- estimation for `interval_size_invalid`
 - automatic estimation policy engine
 - bulk estimation
 - estimation approval chain
@@ -113,6 +120,33 @@ Important policy:
 This keeps the first rollout safer and avoids expanding every VEE status
 consumer immediately.
 
+## Working-copy decision
+
+The first estimation slice should treat `initial_measurement` as the mutable
+VEE working copy.
+
+Recommended first behavior:
+
+- keep `canonical_measurement` immutable
+- keep `hes_read_raw` immutable
+- apply the estimated substitute value to `initial_measurement`
+- set `initial_measurement.quality_code = ESTIMATED`
+- keep `status_code` unchanged in the first slice unless a later rule requires
+  broader status normalization
+
+Why:
+
+- `final_measurement` is currently produced from `initial_measurement`
+- if estimation changed only `final_measurement`, later re-finalization would
+  drift back to the pre-estimation value
+- updating the VEE working copy keeps finalization deterministic and auditable
+
+This means the first slice should be read as:
+
+- raw/canonical remain source lineage
+- initial becomes the operator-adjusted working state
+- final becomes the current authoritative post-estimation output
+
 ## Recommended first strategies
 
 ### 1. `linear_interpolation`
@@ -152,6 +186,7 @@ Estimation should be blocked when:
 - the target interval is not estimation-eligible
 - the selected VEE exception is already resolved
 - the business anchor is missing
+- the selected exception code is outside the first-slice allowlist
 
 Recommended blocked result codes:
 
@@ -161,6 +196,7 @@ Recommended blocked result codes:
 - `blocked_context_mismatch`
 - `blocked_invalid_target_state`
 - `blocked_missing_current_exception`
+- `blocked_unsupported_exception_code`
 
 ## Recommended persistence
 
@@ -241,6 +277,13 @@ Recommended first quality signaling:
 - prefer `quality_code = ESTIMATED`
 - keep this simpler than adding a broad new state framework immediately
 
+If the estimation applies but the target row is still not finalizable after
+baseline VEE is re-evaluated:
+
+- keep the previously current `final_measurement` as-is
+- do not create a new final revision
+- record the post-estimation blocking state in `estimation_audit.details`
+
 ## Downstream recalculation rule
 
 Successful estimation must trigger the same kind of closed-loop recalculation
@@ -257,6 +300,20 @@ Recommended downstream sequence:
 This keeps the repository's downstream chain consistent:
 
 - final -> usage -> determinant -> charge
+
+### First charge recalculation limitation
+
+`bill_charge` currently requires an explicit flat rate input.
+
+The first estimation slice should therefore:
+
+- reuse the existing current `bill_charge.unit_rate_value` for the impacted
+  billing window when one already exists
+- otherwise allow downstream charge recalculation to produce
+  `blocked_missing_tariff_rate`
+
+This keeps the estimation slice small and auditable without pretending a full
+tariff-rate registry already exists.
 
 ## UI baseline
 
