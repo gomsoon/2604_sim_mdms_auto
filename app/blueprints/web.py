@@ -15,6 +15,7 @@ from app.i18n import (
     get_locale,
     translate_hes_system_error,
     translate,
+    translate_estimation_error,
     translate_operational_alert_error,
     translate_vee_exception_error,
     translate_vee_replay_request_error,
@@ -47,6 +48,12 @@ from app.services.adapters import (
 )
 from app.services.billing_contexts import create_billing_context, update_billing_context
 from app.services.dashboard import build_dashboard_snapshot
+from app.services.estimation import (
+    ESTIMATION_ALLOWED_EXCEPTION_CODES,
+    SUPPORTED_ESTIMATION_STRATEGIES,
+    EstimationActionError,
+    apply_estimation_from_vee_exception,
+)
 from app.services.exception_queue import (
     ExceptionReprocessError,
     build_exception_filters,
@@ -524,6 +531,23 @@ def _pop_vee_replay_summary(vee_exception_id: int) -> dict | None:
     return None
 
 
+def _store_estimation_summary(summary) -> None:
+    payload = asdict(summary)
+    if payload.get("estimated_value") is not None:
+        payload["estimated_value"] = str(payload["estimated_value"])
+    browser_session["last_estimation_summary"] = payload
+
+
+def _pop_estimation_summary(vee_exception_id: int) -> dict | None:
+    payload = browser_session.pop("last_estimation_summary", None)
+    if payload is None:
+        return None
+    if payload.get("target_vee_exception_id") == vee_exception_id:
+        return payload
+    browser_session["last_estimation_summary"] = payload
+    return None
+
+
 @bp.get("/vee-exceptions/<int:vee_exception_id>")
 def vee_exception_detail(vee_exception_id: int):
     session = get_session()
@@ -535,6 +559,9 @@ def vee_exception_detail(vee_exception_id: int):
         "vee_exception_detail.html",
         detail=detail,
         replay_summary=_pop_vee_replay_summary(vee_exception_id),
+        estimation_summary=_pop_estimation_summary(vee_exception_id),
+        estimation_strategies=sorted(SUPPORTED_ESTIMATION_STRATEGIES),
+        estimation_supported_exception_codes=ESTIMATION_ALLOWED_EXCEPTION_CODES,
     )
 
 
@@ -587,6 +614,32 @@ def reevaluate_vee_exception_view(vee_exception_id: int):
     except VeeExceptionActionError as exc:
         session.rollback()
         flash(translate_vee_exception_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
+
+
+@bp.post("/vee-exceptions/<int:vee_exception_id>/estimate")
+def estimate_vee_exception_view(vee_exception_id: int):
+    session = get_session()
+    try:
+        summary = apply_estimation_from_vee_exception(
+            session,
+            vee_exception_id,
+            strategy_code=request.form.get("strategy_code") or "",
+            estimated_by="operator_ui",
+            operator_memo=request.form.get("operator_memo"),
+        )
+        session.commit()
+        _store_estimation_summary(summary)
+        if summary.estimation_status == "applied":
+            flash(translate("vee_exception.flash.estimated"), "success")
+        elif summary.estimation_status == "blocked":
+            flash(translate("vee_exception.flash.estimation_blocked"), "warning")
+        else:
+            flash(translate("vee_exception.flash.estimation_failed"), "danger")
+    except EstimationActionError as exc:
+        session.rollback()
+        flash(translate_estimation_error(exc.error_code, exc.fallback_message), "danger")
 
     return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
 
