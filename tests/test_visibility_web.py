@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
+from app.services.bill_charges import calculate_bill_charges
 from app.services.bill_determinants import calculate_bill_determinants
 from app.models import FinalMeasurement, IngestBatch, OperationalEvent, UsageTransaction
 from app.services.finalization import finalize_canonical_measurements
@@ -10,6 +11,36 @@ from app.services.operational_events import close_operational_alert
 from app.services.seeds import seed_demo_environment
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.usage import calculate_usage_transactions
+
+
+def _prepare_bill_charge_rows(session) -> None:
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:bill-charge-web",
+    )
+    session.commit()
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="120.00000000",
+    )
+    session.commit()
 
 
 def test_ingest_batches_page_renders_filtered_results_in_korean(client, session):
@@ -343,6 +374,66 @@ def test_bill_determinants_page_filters_by_tariff_assignment_presence_and_plan_c
     assert "청구 결정값" in text
     assert "SP-1001" in text
     assert "/bill-determinants/1?lang=ko" in text
+
+
+def test_bill_charges_page_filters_by_service_point_and_channel(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get(
+        "/bill-charges?lang=ko&service_point=SP-1001&external_channel_id=CH-01&charge_type=flat_energy_charge"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 금액" in text
+    assert "SP-1001" in text
+    assert "MTR-1001" in text
+    assert "CH-01" in text
+    assert "정액 에너지 요금" in text
+
+
+def test_bill_charge_detail_page_shows_determinant_tariff_and_revision_context(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get("/bill-charges/1?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 금액 상세" in text
+    assert "원본 청구 결정값" in text
+    assert "요금제 할당" in text
+    assert "요율 스냅샷" in text
+    assert "리비전 이력" in text
+    assert "RES-A" in text
+    assert "/bill-determinants/1?lang=ko" in text
+
+
+def test_bill_determinant_detail_page_links_to_related_bill_charges(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get("/bill-determinants/1?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "관련 청구 금액" in text
+    assert "/bill-charges/1?lang=ko" in text
+
+
+def test_usage_transaction_detail_page_links_to_related_bill_charges(client, session):
+    _prepare_bill_charge_rows(session)
+    usage_row = session.scalar(
+        select(UsageTransaction)
+        .where(UsageTransaction.usage_type == "monthly_consumption")
+        .limit(1)
+    )
+    assert usage_row is not None
+
+    response = client.get(f"/usage-transactions/{usage_row.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "관련 청구 금액" in text
+    assert "/bill-charges/1?lang=ko" in text
 
 
 def test_master_data_page_billing_context_rows_link_to_bill_determinants(client, session):

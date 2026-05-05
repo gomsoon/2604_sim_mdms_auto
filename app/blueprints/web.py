@@ -102,6 +102,7 @@ from app.services.vee_replay_requests import (
     create_vee_replay_request,
 )
 from app.services.visibility import (
+    build_bill_charge_filters,
     VisibilityFilterError,
     build_bill_determinant_filters,
     build_canonical_filters,
@@ -111,11 +112,13 @@ from app.services.visibility import (
     build_usage_transaction_filters,
     build_vee_exception_filters,
     build_vee_replay_request_filters,
+    get_bill_charge_detail_context,
     get_bill_determinant_detail_context,
     get_usage_transaction_detail_context,
     get_vee_exception_detail_context,
     get_vee_replay_request_detail_context,
     get_operational_event_detail_context,
+    list_bill_charges,
     list_bill_determinants,
     list_canonical_measurements,
     list_final_measurements,
@@ -710,6 +713,29 @@ def bill_determinant_detail(bill_determinant_id: int):
         abort(404)
 
     return render_template("bill_determinant_detail.html", detail=detail)
+
+
+@bp.get("/bill-charges")
+def bill_charges():
+    session = get_session()
+    try:
+        filters = build_bill_charge_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_bill_charge_filters({})
+
+    rows = list_bill_charges(session, filters)
+    return render_template("bill_charges.html", rows=rows, filters=filters)
+
+
+@bp.get("/bill-charges/<int:bill_charge_id>")
+def bill_charge_detail(bill_charge_id: int):
+    session = get_session()
+    detail = get_bill_charge_detail_context(session, bill_charge_id)
+    if detail is None:
+        abort(404)
+
+    return render_template("bill_charge_detail.html", detail=detail)
 
 
 @bp.get("/operational-events")

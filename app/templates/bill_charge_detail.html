@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set charge_details = detail.bill_charge.details or {} %}
+{% set provenance = charge_details.get("provenance") %}
+{% set billing_context_snapshot = charge_details.get("billing_context_snapshot") %}
+{% set billing_period_source = charge_details.get("billing_period_source") %}
+{% set tariff_assignment_snapshot = charge_details.get("tariff_assignment_snapshot") %}
+{% set rate_snapshot = charge_details.get("rate_snapshot") %}
+{% set determinant_snapshot = charge_details.get("source_bill_determinant_snapshot") %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.bill_charge_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.bill_charge_detail.description") }}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a
+      class="btn btn-outline-secondary"
+      href="{{ url_for('web.bill_charges', lang=current_locale, bill_charge_id=detail.bill_charge.id, include_history=1) }}"
+    >
+      {{ t("button.back_to_bill_charges") }}
+    </a>
+    {% if detail.bill_determinant %}
+    <a
+      class="btn btn-outline-primary"
+      href="{{ url_for('web.bill_determinant_detail', bill_determinant_id=detail.bill_determinant.id, lang=current_locale) }}"
+    >
+      {{ t("button.view_bill_determinants") }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.charge_type") }}</dt>
+          <dd class="col-sm-8">{{ t_or("bill_charge.type." ~ detail.bill_charge.charge_type, detail.bill_charge.charge_type) }}</dd>
+          <dt class="col-sm-4">{{ t("table.billing_period") }}</dt>
+          <dd class="col-sm-8">
+            <div>{{ detail.bill_charge.billing_period_start_at|dt }}</div>
+            <div class="small text-secondary">{{ detail.bill_charge.billing_period_end_at|dt }}</div>
+          </dd>
+          <dt class="col-sm-4">{{ t("table.quantity_value") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.quantity_value }}</dd>
+          <dt class="col-sm-4">{{ t("table.unit_rate_value") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.unit_rate_value if detail.bill_charge.unit_rate_value is not none else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.charge_amount") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.charge_amount if detail.bill_charge.charge_amount is not none else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.currency_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.currency_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("usage.calculation_status." ~ detail.bill_charge.calculation_status, detail.bill_charge.calculation_status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.quality_summary") }}</dt>
+          <dd class="col-sm-8">{{ t_or("bill_charge.quality_summary." ~ detail.bill_charge.quality_summary, detail.bill_charge.quality_summary) }}</dd>
+          <dt class="col-sm-4">{{ t("table.revision") }}</dt>
+          <dd class="col-sm-8">
+            <span class="me-1">r{{ detail.bill_charge.revision_number }}</span>
+            {% if detail.bill_charge.is_current %}
+            <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.current") }}</span>
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.revision_reason_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.revision_reason_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.calculated_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.calculated_at|dt }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.lineage") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.pipeline_run_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.pipeline_run.id if detail.pipeline_run else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.service_point.external_id }}</dd>
+          <dt class="col-sm-4">{{ t("field.device") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.device.external_meter_id if detail.bill_charge.device else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.external_channel_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.bill_charge.measuring_component.external_channel_id if detail.bill_charge.measuring_component else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.bill_determinant_id") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.bill_determinant %}
+            <a
+              class="link-primary text-decoration-none"
+              href="{{ url_for('web.bill_determinant_detail', bill_determinant_id=detail.bill_determinant.id, lang=current_locale) }}"
+            >
+              {{ detail.bill_determinant.id }}
+            </a>
+            {% else %}
+              {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.timezone_name") }}</dt>
+          <dd class="col-sm-8">{{ billing_context_snapshot.timezone_name if billing_context_snapshot else t("common.none") }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.billing_context") }}</h2>
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.billing_period_source") }}</dt>
+      <dd class="col-sm-8">{{ t_or("bill_determinant.billing_period_source." ~ billing_period_source, billing_period_source or t("common.none")) }}</dd>
+      {% if billing_context_snapshot %}
+      <dt class="col-sm-4">{{ t("field.timezone_name") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.timezone_name }}</dd>
+      <dt class="col-sm-4">{{ t("field.billing_cycle_mode") }}</dt>
+      <dd class="col-sm-8">{{ t_or("common.billing_cycle_mode." ~ billing_context_snapshot.billing_cycle_mode, billing_context_snapshot.billing_cycle_mode) }}</dd>
+      <dt class="col-sm-4">{{ t("field.billing_cycle_anchor_day") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.billing_cycle_anchor_day if billing_context_snapshot.billing_cycle_anchor_day is not none else t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.currency_code") }}</dt>
+      <dd class="col-sm-8">{{ billing_context_snapshot.currency_code or t("common.none") }}</dd>
+      {% else %}
+      <dt class="col-sm-4">{{ t("table.status") }}</dt>
+      <dd class="col-sm-8">{{ t("common.none") }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.tariff_assignment") }}</h2>
+    {% if tariff_assignment_snapshot %}
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.tariff_plan_code") }}</dt>
+      <dd class="col-sm-8">{{ tariff_assignment_snapshot.tariff_plan_code }}</dd>
+      <dt class="col-sm-4">{{ t("field.tariff_version_code") }}</dt>
+      <dd class="col-sm-8">{{ tariff_assignment_snapshot.tariff_version_code or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.effective_from") }}</dt>
+      <dd class="col-sm-8">{{ tariff_assignment_snapshot.effective_from or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.effective_to") }}</dt>
+      <dd class="col-sm-8">{{ tariff_assignment_snapshot.effective_to or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.source_system") }}</dt>
+      <dd class="col-sm-8">{{ tariff_assignment_snapshot.source_system or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.source_reference") }}</dt>
+      <dd class="col-sm-8">{{ tariff_assignment_snapshot.source_reference or t("common.none") }}</dd>
+    </dl>
+    {% else %}
+    <div class="alert alert-warning-subtle border text-warning-emphasis mb-0">
+      {{ t("tariff_assignment.readiness.missing_for_bill_charge") }}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.rate_snapshot") }}</h2>
+    {% if rate_snapshot %}
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.rate_kind") }}</dt>
+      <dd class="col-sm-8">{{ t_or("bill_charge.rate_kind." ~ rate_snapshot.rate_kind, rate_snapshot.rate_kind) }}</dd>
+      <dt class="col-sm-4">{{ t("table.unit_rate_value") }}</dt>
+      <dd class="col-sm-8">{{ rate_snapshot.unit_rate_value or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.currency_code") }}</dt>
+      <dd class="col-sm-8">{{ rate_snapshot.currency_code or t("common.none") }}</dd>
+    </dl>
+    {% else %}
+    <div class="text-secondary">{{ t("common.none") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if provenance %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.provenance") }}</h2>
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.trigger_type") }}</dt>
+      <dd class="col-sm-8">{{ t_or("usage.trigger." ~ provenance.trigger_type, provenance.trigger_type) }}</dd>
+      <dt class="col-sm-4">{{ t("field.trigger_source") }}</dt>
+      <dd class="col-sm-8">{{ t_or("usage.trigger_source." ~ provenance.trigger_source, provenance.trigger_source) }}</dd>
+      <dt class="col-sm-4">{{ t("field.source_bill_determinant_ids") }}</dt>
+      <dd class="col-sm-8">
+        {% if provenance.source_bill_determinant_ids %}
+          {{ provenance.source_bill_determinant_ids|join(", ") }}
+        {% else %}
+          {{ t("common.none") }}
+        {% endif %}
+      </dd>
+      {% if provenance.replay_context %}
+      <dt class="col-sm-4">{{ t("table.details") }}</dt>
+      <dd class="col-sm-8">
+        <pre class="bg-light border rounded p-2 mb-0 small"><code>{{ provenance.replay_context | tojson(indent=2) }}</code></pre>
+      </dd>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.source_determinant") }}</h2>
+    {% if detail.bill_determinant %}
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("table.id") }}</dt>
+      <dd class="col-sm-8">
+        <a
+          class="link-primary text-decoration-none"
+          href="{{ url_for('web.bill_determinant_detail', bill_determinant_id=detail.bill_determinant.id, lang=current_locale) }}"
+        >
+          {{ detail.bill_determinant.id }}
+        </a>
+      </dd>
+      <dt class="col-sm-4">{{ t("table.determinant_type") }}</dt>
+      <dd class="col-sm-8">{{ t_or("bill_determinant.type." ~ detail.bill_determinant.determinant_type, detail.bill_determinant.determinant_type) }}</dd>
+      <dt class="col-sm-4">{{ t("table.status") }}</dt>
+      <dd class="col-sm-8">{{ t_or("usage.calculation_status." ~ detail.bill_determinant.calculation_status, detail.bill_determinant.calculation_status) }}</dd>
+      <dt class="col-sm-4">{{ t("table.determinant_value") }}</dt>
+      <dd class="col-sm-8">{{ detail.bill_determinant.determinant_value }}</dd>
+    </dl>
+    {% elif determinant_snapshot %}
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ determinant_snapshot | tojson(indent=2) }}</code></pre>
+    {% else %}
+    <div class="text-secondary">{{ t("page.bill_charge_detail.no_source_determinant") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.bill_charge_detail.revision_history") }}</h2>
+    {% if detail.revision_rows %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.revision") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("field.revision_reason_code") }}</th>
+            <th>{{ t("table.calculated_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.revision_rows %}
+          <tr>
+            <td>
+              {% if row.id == detail.bill_charge.id %}
+                {{ row.id }}
+              {% else %}
+                <a
+                  class="link-primary text-decoration-none"
+                  href="{{ url_for('web.bill_charge_detail', bill_charge_id=row.id, lang=current_locale) }}"
+                >
+                  {{ row.id }}
+                </a>
+              {% endif %}
+            </td>
+            <td>
+              <span class="me-1">r{{ row.revision_number }}</span>
+              {% if row.is_current %}
+              <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.current") }}</span>
+              {% endif %}
+            </td>
+            <td>{{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}</td>
+            <td>{{ row.revision_reason_code or t("common.none") }}</td>
+            <td>{{ row.calculated_at|dt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ t("page.bill_charge_detail.no_revision_history") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("table.details") }}</h2>
+    {% if charge_details %}
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ charge_details | tojson(indent=2) }}</code></pre>
+    {% else %}
+    <div class="text-secondary">{{ t("page.operational_event_detail.no_details") }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -21,6 +21,12 @@
     >
       {{ t("button.view_bill_determinants") }}
     </a>
+    <a
+      class="btn btn-outline-primary"
+      href="{{ url_for('web.bill_charges', lang=current_locale, service_point_id=detail.usage_transaction.service_point_id, measuring_component_id=detail.usage_transaction.measuring_component_id, date_from=detail.usage_transaction.period_start_at.date().isoformat(), date_to=detail.usage_transaction.period_start_at.date().isoformat(), include_history=1) }}"
+    >
+      {{ t("button.view_bill_charges") }}
+    </a>
   </div>
 </div>
 
@@ -179,6 +185,59 @@
     </div>
     {% else %}
     <div class="text-secondary">{{ t("page.usage_transaction_detail.no_bill_determinants") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.usage_transaction_detail.bill_charges") }}</h2>
+    {% if detail.bill_charge_rows %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.charge_type") }}</th>
+            <th>{{ t("table.billing_period") }}</th>
+            <th>{{ t("table.charge_amount") }}</th>
+            <th>{{ t("field.currency_code") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.revision") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.bill_charge_rows %}
+          <tr>
+            <td>
+              <a
+                class="link-primary text-decoration-none"
+                href="{{ url_for('web.bill_charge_detail', bill_charge_id=row.id, lang=current_locale) }}"
+              >
+                {{ row.id }}
+              </a>
+            </td>
+            <td>{{ t_or("bill_charge.type." ~ row.charge_type, row.charge_type) }}</td>
+            <td>
+              <div>{{ row.billing_period_start_at|dt }}</div>
+              <div class="small text-secondary">{{ row.billing_period_end_at|dt }}</div>
+            </td>
+            <td>{{ row.charge_amount if row.charge_amount is not none else t("common.none") }}</td>
+            <td>{{ row.currency_code or t("common.none") }}</td>
+            <td>{{ t_or("usage.calculation_status." ~ row.calculation_status, row.calculation_status) }}</td>
+            <td>
+              <span class="me-1">r{{ row.revision_number }}</span>
+              {% if row.is_current %}
+              <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis border">{{ t("table.current") }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ t("page.usage_transaction_detail.no_bill_charges") }}</div>
     {% endif %}
   </div>
 </div>
