@@ -23,6 +23,7 @@ from app.models import (
     PipelineRun,
     ReprocessRequest,
     ServicePoint,
+    ServicePointTariffAssignment,
     UsageTransaction,
     VeeException,
     VeeExecutionLog,
@@ -104,6 +105,8 @@ class BillDeterminantFilters:
     calculation_status: str | None = None
     quality_summary: str | None = None
     billing_cycle_mode: str | None = None
+    tariff_plan_code: str | None = None
+    tariff_assignment_presence: str | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
     include_history: bool = False
@@ -179,6 +182,7 @@ class BillDeterminantDetailContext:
     pipeline_run: PipelineRun | None = None
     source_usage_rows: list[UsageTransaction] = ()
     revision_rows: list[BillDeterminant] = ()
+    applicable_tariff_assignment: ServicePointTariffAssignment | None = None
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -371,6 +375,13 @@ def build_bill_determinant_filters(args) -> BillDeterminantFilters:
             "Billing cycle mode must be calendar_month or anchored_month when provided.",
         )
 
+    tariff_assignment_presence = _normalize_text(args.get("tariff_assignment_presence"))
+    if tariff_assignment_presence not in {None, "assigned", "missing"}:
+        raise VisibilityFilterError(
+            "invalid_tariff_assignment_presence_filter",
+            "Tariff assignment presence must be assigned or missing when provided.",
+        )
+
     return BillDeterminantFilters(
         bill_determinant_id=_parse_optional_int(
             args.get("bill_determinant_id"),
@@ -398,10 +409,32 @@ def build_bill_determinant_filters(args) -> BillDeterminantFilters:
         calculation_status=calculation_status,
         quality_summary=_normalize_text(args.get("quality_summary")),
         billing_cycle_mode=billing_cycle_mode,
+        tariff_plan_code=_normalize_text(args.get("tariff_plan_code")),
+        tariff_assignment_presence=tariff_assignment_presence,
         date_from=date_from,
         date_to=date_to,
         include_history=_parse_optional_bool(args.get("include_history"), default=False),
     )
+
+
+def _bill_determinant_applicable_tariff_assignment_exists(
+    *,
+    tariff_plan_code: str | None = None,
+):
+    statement = select(ServicePointTariffAssignment.id).where(
+        ServicePointTariffAssignment.service_point_id == BillDeterminant.service_point_id,
+        ServicePointTariffAssignment.effective_from <= BillDeterminant.billing_period_start_at,
+        (ServicePointTariffAssignment.effective_to.is_(None))
+        | (
+            ServicePointTariffAssignment.effective_to
+            > BillDeterminant.billing_period_start_at
+        ),
+    )
+    if tariff_plan_code:
+        statement = statement.where(
+            ServicePointTariffAssignment.tariff_plan_code == tariff_plan_code
+        )
+    return statement.exists()
 
 
 def build_operational_event_filters(args) -> OperationalEventFilters:
@@ -674,6 +707,16 @@ def list_bill_determinants(
             BillDeterminant.details["billing_context_snapshot"]["billing_cycle_mode"].as_string()
             == filters.billing_cycle_mode
         )
+    if filters.tariff_plan_code:
+        statement = statement.where(
+            _bill_determinant_applicable_tariff_assignment_exists(
+                tariff_plan_code=filters.tariff_plan_code
+            )
+        )
+    if filters.tariff_assignment_presence == "assigned":
+        statement = statement.where(_bill_determinant_applicable_tariff_assignment_exists())
+    elif filters.tariff_assignment_presence == "missing":
+        statement = statement.where(~_bill_determinant_applicable_tariff_assignment_exists())
     if filters.date_from:
         statement = statement.where(BillDeterminant.billing_period_start_at >= filters.date_from)
     if filters.date_to:
@@ -845,11 +888,34 @@ def get_bill_determinant_detail_context(
 
     revision_rows = session.scalars(revision_statement.limit(50)).all()
 
+    applicable_tariff_assignment = session.scalar(
+        select(ServicePointTariffAssignment)
+        .where(ServicePointTariffAssignment.service_point_id == bill_determinant.service_point_id)
+        .where(
+            ServicePointTariffAssignment.effective_from
+            <= bill_determinant.billing_period_start_at
+        )
+        .where(
+            (ServicePointTariffAssignment.effective_to.is_(None))
+            | (
+                ServicePointTariffAssignment.effective_to
+                > bill_determinant.billing_period_start_at
+            )
+        )
+        .order_by(
+            ServicePointTariffAssignment.is_current.desc(),
+            ServicePointTariffAssignment.effective_from.desc(),
+            ServicePointTariffAssignment.id.desc(),
+        )
+        .limit(1)
+    )
+
     return BillDeterminantDetailContext(
         bill_determinant=bill_determinant,
         pipeline_run=bill_determinant.pipeline_run,
         source_usage_rows=source_usage_rows,
         revision_rows=revision_rows,
+        applicable_tariff_assignment=applicable_tariff_assignment,
     )
 
 

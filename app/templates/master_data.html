@@ -398,7 +398,15 @@
                       {% endif %}
                     </td>
                     <td>
-                      <button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button>
+                      <div class="d-flex flex-column gap-2">
+                        <button class="btn btn-sm btn-outline-primary" type="submit">{{ t("button.save") }}</button>
+                        <a
+                          class="btn btn-sm btn-outline-secondary"
+                          href="{{ url_for('web.bill_determinants', lang=current_locale, service_point_id=row.service_point_id, tariff_plan_code=row.tariff_plan_code) }}"
+                        >
+                          {{ t("button.view_bill_determinants") }}
+                        </a>
+                      </div>
                     </td>
                   </form>
                 </tr>

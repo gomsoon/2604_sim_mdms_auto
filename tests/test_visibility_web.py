@@ -8,6 +8,7 @@ from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.operational_events import close_operational_alert
 from app.services.seeds import seed_demo_environment
+from app.services.tariff_assignments import create_tariff_assignment
 from app.services.usage import calculate_usage_transactions
 
 
@@ -222,6 +223,40 @@ def test_bill_determinant_detail_page_shows_usage_lineage_and_revision_context(c
     assert "청구 컨텍스트" in text
     assert "청구 컨텍스트 달력 월" in text
     assert "Asia/Seoul" in text
+    assert "적용 가능한 요금제 할당이 아직 없습니다" in text
+
+
+def test_bill_determinant_detail_page_shows_applicable_tariff_assignment(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:web-detail",
+    )
+    session.commit()
+
+    response = client.get("/bill-determinants/1?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "요금제 할당" in text
+    assert "RES-A" in text
+    assert "v1" in text
+    assert "적용 가능한 요금제 할당이 있습니다" in text
 
 
 def test_usage_transaction_detail_page_links_to_related_bill_determinants(client, session):
@@ -274,6 +309,42 @@ def test_bill_determinants_page_filters_by_billing_cycle_mode_and_quality_summar
     assert "누락 구간" in text
 
 
+def test_bill_determinants_page_filters_by_tariff_assignment_presence_and_plan_code(
+    client, session
+):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:web-list",
+    )
+    session.commit()
+
+    response = client.get(
+        "/bill-determinants?lang=ko&tariff_assignment_presence=assigned&tariff_plan_code=RES-A"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 결정값" in text
+    assert "SP-1001" in text
+    assert "/bill-determinants/1?lang=ko" in text
+
+
 def test_master_data_page_billing_context_rows_link_to_bill_determinants(client, session):
     seed_demo_environment(session)
     session.commit()
@@ -293,6 +364,27 @@ def test_master_data_page_billing_context_rows_link_to_bill_determinants(client,
     assert response.status_code == 200
     assert "/bill-determinants?lang=ko&amp;service_point_id=1" in text
     assert "/bill-determinants?lang=ko&amp;service_point_id=1&amp;calculation_status=blocked" in text
+
+
+def test_master_data_page_tariff_assignment_rows_link_to_bill_determinants(client, session):
+    seed_demo_environment(session)
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:master-data-link",
+    )
+    session.commit()
+
+    response = client.get("/master-data?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "/bill-determinants?lang=ko&amp;service_point_id=1&amp;tariff_plan_code=RES-A" in text
 
 
 def test_canonical_measurements_promote_final_via_web_uses_current_filters(client, session):

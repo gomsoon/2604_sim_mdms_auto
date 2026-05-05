@@ -57,6 +57,18 @@
         </select>
       </div>
       <div class="col-md-2">
+        <label class="form-label">{{ t("filter.tariff_assignment_presence") }}</label>
+        <select class="form-select" name="tariff_assignment_presence">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="assigned" {% if filters.tariff_assignment_presence == "assigned" %}selected{% endif %}>
+            {{ t_or("common.tariff_assignment_presence.assigned", "assigned") }}
+          </option>
+          <option value="missing" {% if filters.tariff_assignment_presence == "missing" %}selected{% endif %}>
+            {{ t_or("common.tariff_assignment_presence.missing", "missing") }}
+          </option>
+        </select>
+      </div>
+      <div class="col-md-2">
         <label class="form-label">{{ t("filter.date_from") }}</label>
         <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
       </div>
@@ -67,6 +79,10 @@
       <div class="col-md-3">
         <label class="form-label">{{ t("filter.quality_summary") }}</label>
         <input class="form-control" name="quality_summary" value="{{ filters.quality_summary or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.tariff_plan_code") }}</label>
+        <input class="form-control" name="tariff_plan_code" value="{{ filters.tariff_plan_code or '' }}">
       </div>
       <div class="col-md-3">
         <div class="form-check mt-4 pt-2">

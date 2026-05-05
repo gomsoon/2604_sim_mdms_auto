@@ -120,6 +120,43 @@
   </div>
 </div>
 
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+      <h2 class="h5 mb-0">{{ t("page.bill_determinant_detail.tariff_assignment") }}</h2>
+      <a
+        class="btn btn-sm btn-outline-secondary"
+        href="{{ url_for('web.master_data', lang=current_locale, prefill_service_point_id=detail.bill_determinant.service_point_id) }}#tariff-assignments"
+      >
+        {{ t("button.open_tariff_assignment") }}
+      </a>
+    </div>
+    {% if detail.applicable_tariff_assignment %}
+    <div class="alert alert-success-subtle border text-success-emphasis small">
+      {{ t("tariff_assignment.readiness.available") }}
+    </div>
+    <dl class="row mb-0">
+      <dt class="col-sm-4">{{ t("field.tariff_plan_code") }}</dt>
+      <dd class="col-sm-8">{{ detail.applicable_tariff_assignment.tariff_plan_code }}</dd>
+      <dt class="col-sm-4">{{ t("field.tariff_version_code") }}</dt>
+      <dd class="col-sm-8">{{ detail.applicable_tariff_assignment.tariff_version_code or t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.effective_from") }}</dt>
+      <dd class="col-sm-8">{{ detail.applicable_tariff_assignment.effective_from|dt }}</dd>
+      <dt class="col-sm-4">{{ t("field.effective_to") }}</dt>
+      <dd class="col-sm-8">{{ detail.applicable_tariff_assignment.effective_to|dt if detail.applicable_tariff_assignment.effective_to else t("common.none") }}</dd>
+      <dt class="col-sm-4">{{ t("field.source_system") }}</dt>
+      <dd class="col-sm-8">{{ detail.applicable_tariff_assignment.source_system }}</dd>
+      <dt class="col-sm-4">{{ t("field.source_reference") }}</dt>
+      <dd class="col-sm-8">{{ detail.applicable_tariff_assignment.source_reference or t("common.none") }}</dd>
+    </dl>
+    {% else %}
+    <div class="alert alert-warning-subtle border text-warning-emphasis mb-0">
+      {{ t("tariff_assignment.readiness.missing_for_bill_charge") }}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
 {% if provenance %}
 <div class="card shadow-sm mb-4">
   <div class="card-body">

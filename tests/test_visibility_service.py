@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.models import HesSystem
 from app.services.bill_determinants import calculate_bill_determinants
+from app.services.tariff_assignments import create_tariff_assignment
 from app.services.seeds import seed_demo_environment
 from app.services.visibility import (
     build_bill_determinant_filters,
@@ -280,6 +281,64 @@ def test_list_bill_determinants_filters_by_billing_cycle_mode_and_quality_summar
     assert rows[0].quality_summary == "missing_intervals"
 
 
+def test_list_bill_determinants_filters_by_tariff_assignment_presence_and_plan_code(session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    missing_rows = list_bill_determinants(
+        session,
+        build_bill_determinant_filters(
+            {
+                "tariff_assignment_presence": "missing",
+            }
+        ),
+    )
+    assert len(missing_rows) == 1
+
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:visibility",
+    )
+    session.commit()
+
+    assigned_rows = list_bill_determinants(
+        session,
+        build_bill_determinant_filters(
+            {
+                "tariff_assignment_presence": "assigned",
+                "tariff_plan_code": "RES-A",
+            }
+        ),
+    )
+    unmatched_rows = list_bill_determinants(
+        session,
+        build_bill_determinant_filters(
+            {
+                "tariff_plan_code": "RES-Z",
+            }
+        ),
+    )
+
+    assert len(assigned_rows) == 1
+    assert assigned_rows[0].service_point.external_id == "SP-1001"
+    assert unmatched_rows == []
+
+
 def test_get_bill_determinant_detail_context_loads_source_usage_and_revision_rows(session):
     seed_demo_environment(session)
     session.commit()
@@ -300,6 +359,37 @@ def test_get_bill_determinant_detail_context_loads_source_usage_and_revision_row
     assert len(detail.source_usage_rows) == 1
     assert detail.source_usage_rows[0].usage_type == "monthly_consumption"
     assert len(detail.revision_rows) == 1
+    assert detail.applicable_tariff_assignment is None
+
+
+def test_get_bill_determinant_detail_context_loads_applicable_tariff_assignment(session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:detail",
+    )
+    session.commit()
+
+    detail = get_bill_determinant_detail_context(session, 1)
+
+    assert detail is not None
+    assert detail.applicable_tariff_assignment is not None
+    assert detail.applicable_tariff_assignment.tariff_plan_code == "RES-A"
 
 
 def test_build_operational_event_filters_rejects_invalid_stream_type():
