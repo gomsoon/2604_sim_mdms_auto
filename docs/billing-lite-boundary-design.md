@@ -157,6 +157,7 @@ Recommended next supporting model after that:
 
 - minimal tariff assignment
 - deterministic rate input structure
+- `bill_charge`
 
 These should be designed before charge calculation is implemented.
 
@@ -172,9 +173,10 @@ Recommended first rule:
 1. lock the `billing-lite` boundary
 2. define billing context baseline
 3. define minimal tariff assignment baseline
-4. add `bill_charge` persistence and revision semantics
-5. add one simple volumetric charge calculation path
-6. later add optional invoice summary output
+4. define `bill_charge` baseline
+5. add `bill_charge` persistence and revision semantics
+6. add one simple volumetric charge calculation path
+7. later add optional invoice summary output
 
 ## Summary
 

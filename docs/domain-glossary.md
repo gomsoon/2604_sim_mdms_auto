@@ -194,6 +194,12 @@ forcing the first determinant baseline to depend on tariff lookup.
 A charge-ready output value derived from `bill_determinant`, typically after
 applying a minimal tariff or rate rule plus tariff-assignment context.
 
+### charge-ready
+
+The state in which downstream outputs are suitable for tariff-based charge
+calculation, typically after `bill_determinant` plus explicit billing and
+tariff context have been applied.
+
 ### invoice_summary
 
 A lightweight aggregated billing output that groups one or more bill charges for

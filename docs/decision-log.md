@@ -263,6 +263,16 @@ This document records current architectural and process decisions so that the te
   - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
   - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
 
+### D-028. The first `bill_charge` rollout should stay flat-rate and determinant-driven
+
+- Status: locked
+- Summary: The first `bill_charge` baseline should derive only from `bill_determinant`, require explicit billing and tariff context, and support only a narrow flat-rate charge path before broader billing logic is introduced
+- Why: This preserves the boundary between billing-ready and charge-ready outputs, allows realistic end-to-end testing, and avoids prematurely absorbing TOU, tax, invoice, and CIS complexity into the first billing-lite rollout
+- Related docs:
+  - [bill-charge-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-charge-baseline-design.md)
+  - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
+  - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
+
 ### O-011. What is the minimum billing context needed before determinant results can be treated as truly billing-ready
 
 - Status: open

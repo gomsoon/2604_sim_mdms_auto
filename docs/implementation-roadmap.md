@@ -4,6 +4,23 @@
 
 This document turns the current backlog and planning documents into an implementation sequence for the near-term development of the minimal stage.
 
+## Current billing-lite direction
+
+The near-term downstream billing-lite sequence should now be read as:
+
+1. `usage_transaction`
+2. `bill_determinant`
+3. `service_point_billing_context`
+4. `service_point_tariff_assignment`
+5. `bill_charge`
+6. optional `invoice_summary`
+
+Key rule:
+
+- `bill_determinant` is billing-ready
+- `bill_charge` is charge-ready
+- invoice and CIS handoff remain later steps
+
 ## Guiding principles
 
 - Structural alignment comes before feature expansion

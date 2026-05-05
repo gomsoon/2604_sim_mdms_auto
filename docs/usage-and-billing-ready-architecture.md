@@ -160,6 +160,7 @@ Recommended interpretation:
 
 - `usage_transaction` is usage-ready business output
 - `bill_determinant` is billing-ready output
+- later `bill_charge` is charge-ready output
 
 Examples:
 
@@ -178,6 +179,8 @@ Recommended interpretation:
 
 - `MDM core` remains responsible for metering truth
 - `bill_determinant` remains the billing-ready handoff output
+- later `bill_charge` becomes the first charge-ready internal output inside the
+  optional billing-lite slice
 - optional `billing-lite` may calculate a narrow set of charges for small-scale
   deployment or end-to-end testing
 - full customer, contract, and financial workflow depth still belongs in a

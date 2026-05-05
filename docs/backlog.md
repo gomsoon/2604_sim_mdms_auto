@@ -177,7 +177,18 @@ This document captures the staged backlog derived from the reference PDF backlog
 - tariff assignment source sync or bulk import
 - tariff assignment to bill charge impact visibility
 - simple bill charge persistence and calculation
+- `bill_charge` baseline design
+- `flat_energy_charge` only in the first bill-charge rollout
+- code-backed minimal tariff rate registry before a full tariff engine
+- determinant-to-charge revision lineage and supersession
+- bill charge blocked visibility for missing tariff assignment
+- bill charge blocked visibility for missing tariff rate
+- deferred: TOU charge rules
+- deferred: demand charge rules
+- deferred: tax and surcharge calculation
+- deferred: discount or subsidy rules
 - optional invoice summary baseline
+- deferred: invoice document rendering
 - Billing export queue
 - Export payload contract
 - Batch or API export
