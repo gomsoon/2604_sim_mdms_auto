@@ -57,6 +57,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "vee_exception" in tables
         assert "vee_replay_request" in tables
         assert "vee_replay_request_item" in tables
+        assert "estimation_audit" in tables
         assert "usage_transaction" in tables
         assert "bill_determinant" in tables
         assert "bill_charge" in tables
@@ -126,6 +127,13 @@ def test_alembic_upgrade_creates_expected_tables():
         vee_replay_request_item_columns = {
             column["name"]
             for column in inspector.get_columns("vee_replay_request_item", schema=schema_name)
+        }
+        estimation_audit_columns = {
+            column["name"] for column in inspector.get_columns("estimation_audit", schema=schema_name)
+        }
+        estimation_audit_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("estimation_audit", schema=schema_name)
         }
         usage_transaction_columns = {
             column["name"]
@@ -226,6 +234,22 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "vee_execution_log_id" in vee_replay_request_item_columns
         assert "previous_final_measurement_id" in vee_replay_request_item_columns
         assert "current_final_measurement_id" in vee_replay_request_item_columns
+        assert "pipeline_run_id" in estimation_audit_columns
+        assert "service_point_id" in estimation_audit_columns
+        assert "measuring_component_id" in estimation_audit_columns
+        assert "device_id" in estimation_audit_columns
+        assert "target_initial_measurement_id" in estimation_audit_columns
+        assert "target_measured_at" in estimation_audit_columns
+        assert "strategy_code" in estimation_audit_columns
+        assert "estimation_status" in estimation_audit_columns
+        assert "estimated_value" in estimation_audit_columns
+        assert "unit_of_measure" in estimation_audit_columns
+        assert "source_previous_final_measurement_id" in estimation_audit_columns
+        assert "source_next_final_measurement_id" in estimation_audit_columns
+        assert "superseded_final_measurement_id" in estimation_audit_columns
+        assert "result_final_measurement_id" in estimation_audit_columns
+        assert "operator_memo" in estimation_audit_columns
+        assert "details" in estimation_audit_columns
         assert "pipeline_run_id" in usage_transaction_columns
         assert "usage_type" in usage_transaction_columns
         assert "period_start_at" in usage_transaction_columns
@@ -332,6 +356,13 @@ def test_alembic_upgrade_creates_expected_tables():
         assert final_column_defs["value"]["type"].scale == 4
         assert final_column_defs["revision_number"]["nullable"] is False
         assert final_column_defs["is_current"]["nullable"] is False
+        assert estimation_audit_column_defs["service_point_id"]["nullable"] is False
+        assert estimation_audit_column_defs["target_initial_measurement_id"]["nullable"] is False
+        assert estimation_audit_column_defs["target_measured_at"]["nullable"] is False
+        assert estimation_audit_column_defs["strategy_code"]["nullable"] is False
+        assert estimation_audit_column_defs["estimation_status"]["nullable"] is False
+        assert estimation_audit_column_defs["estimated_value"]["type"].precision == 19
+        assert estimation_audit_column_defs["estimated_value"]["type"].scale == 4
         assert usage_transaction_column_defs["usage_value"]["type"].precision == 19
         assert usage_transaction_column_defs["usage_value"]["type"].scale == 4
         assert bill_determinant_column_defs["determinant_value"]["type"].precision == 19
@@ -368,6 +399,7 @@ def test_alembic_upgrade_creates_expected_tables():
                         'vee_exception',
                         'vee_replay_request',
                         'vee_replay_request_item',
+                        'estimation_audit',
                         'usage_transaction',
                         'bill_determinant',
                         'bill_charge',
@@ -410,6 +442,12 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_vee_replay_request_item_status" in index_defs
         assert "ix_vee_replay_request_item_initial_measurement_id" in index_defs
         assert "ix_vee_replay_request_item_representative_vee_exception_id" in index_defs
+        assert "ix_estimation_audit_target_initial_measurement_id" in index_defs
+        assert "ix_estimation_audit_target_measured_at" in index_defs
+        assert "ix_estimation_audit_estimation_status" in index_defs
+        assert "ix_estimation_audit_strategy_code" in index_defs
+        assert "ix_estimation_audit_service_point_target_measured_at" in index_defs
+        assert "ix_estimation_audit_pipeline_run_id" in index_defs
         assert "ix_pipeline_run_vee_replay_request_id" in index_defs
         assert "uq_usage_transaction_scope" in index_defs
         assert "UNIQUE INDEX" in index_defs["uq_usage_transaction_scope"]
@@ -484,6 +522,12 @@ def test_alembic_upgrade_creates_expected_tables():
             "ck_service_point_tariff_assignment_effective_window"
             in tariff_assignment_check_names
         )
+        estimation_audit_checks = inspector.get_check_constraints(
+            "estimation_audit", schema=schema_name
+        )
+        estimation_audit_check_names = {row["name"] for row in estimation_audit_checks}
+        assert "ck_estimation_audit_strategy_code" in estimation_audit_check_names
+        assert "ck_estimation_audit_estimation_status" in estimation_audit_check_names
         hes_meter_reference_indexes = inspector.get_indexes("hes_meter_reference", schema=schema_name)
         hes_meter_reference_index_names = {row["name"] for row in hes_meter_reference_indexes}
         assert "ix_hes_meter_reference_hes_system_id" in hes_meter_reference_index_names

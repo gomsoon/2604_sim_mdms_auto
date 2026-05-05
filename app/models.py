@@ -327,6 +327,9 @@ class ServicePoint(TimestampMixin, Base):
     initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
         back_populates="service_point"
     )
+    estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="service_point"
+    )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="service_point"
     )
@@ -469,6 +472,9 @@ class Device(TimestampMixin, Base):
     initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
         back_populates="device"
     )
+    estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="device"
+    )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="device"
     )
@@ -496,6 +502,9 @@ class MeasuringComponent(TimestampMixin, Base):
         back_populates="measuring_component"
     )
     initial_measurements: Mapped[list["InitialMeasurement"]] = relationship(
+        back_populates="measuring_component"
+    )
+    estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
         back_populates="measuring_component"
     )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
@@ -724,6 +733,9 @@ class InitialMeasurement(TimestampMixin, Base):
     vee_replay_request_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
         back_populates="initial_measurement"
     )
+    estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="target_initial_measurement"
+    )
 
 
 class VeeExecutionLog(TimestampMixin, Base):
@@ -733,7 +745,7 @@ class VeeExecutionLog(TimestampMixin, Base):
     initial_measurement_id: Mapped[int | None] = mapped_column(
         ForeignKey("initial_measurement.id"), index=True
     )
-    pipeline_run_id: Mapped[int | None] = mapped_column(ForeignKey("pipeline_run.id"), index=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(ForeignKey("pipeline_run.id"))
     execution_scope: Mapped[str] = mapped_column(String(30), nullable=False)
     trigger_type: Mapped[str] = mapped_column(String(30), nullable=False)
     rule_set_code: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -918,6 +930,117 @@ class FinalMeasurement(TimestampMixin, Base):
     )
     supersedes_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
         remote_side=lambda: [FinalMeasurement.id]
+    )
+    previous_source_estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="source_previous_final_measurement",
+        foreign_keys=lambda: [EstimationAudit.source_previous_final_measurement_id],
+    )
+    next_source_estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="source_next_final_measurement",
+        foreign_keys=lambda: [EstimationAudit.source_next_final_measurement_id],
+    )
+    superseded_estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="superseded_final_measurement",
+        foreign_keys=lambda: [EstimationAudit.superseded_final_measurement_id],
+    )
+    result_estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="result_final_measurement",
+        foreign_keys=lambda: [EstimationAudit.result_final_measurement_id],
+    )
+
+
+class EstimationAudit(TimestampMixin, Base):
+    __tablename__ = "estimation_audit"
+    __table_args__ = (
+        CheckConstraint(
+            "strategy_code in ('linear_interpolation', 'previous_value_based')",
+            name="ck_estimation_audit_strategy_code",
+        ),
+        CheckConstraint(
+            "estimation_status in ('applied', 'blocked', 'failed')",
+            name="ck_estimation_audit_estimation_status",
+        ),
+        Index(
+            "ix_estimation_audit_target_initial_measurement_id",
+            "target_initial_measurement_id",
+        ),
+        Index(
+            "ix_estimation_audit_target_measured_at",
+            "target_measured_at",
+        ),
+        Index(
+            "ix_estimation_audit_estimation_status",
+            "estimation_status",
+        ),
+        Index(
+            "ix_estimation_audit_strategy_code",
+            "strategy_code",
+        ),
+        Index(
+            "ix_estimation_audit_service_point_target_measured_at",
+            "service_point_id",
+            "target_measured_at",
+        ),
+        Index(
+            "ix_estimation_audit_pipeline_run_id",
+            "pipeline_run_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(ForeignKey("pipeline_run.id"), index=True)
+    service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    measuring_component_id: Mapped[int] = mapped_column(
+        ForeignKey("measuring_component.id"), nullable=False
+    )
+    device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
+    target_initial_measurement_id: Mapped[int] = mapped_column(
+        ForeignKey("initial_measurement.id"), nullable=False
+    )
+    target_measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    strategy_code: Mapped[str] = mapped_column(String(40), nullable=False)
+    estimation_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
+    unit_of_measure: Mapped[str | None] = mapped_column(String(20))
+    source_previous_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    source_next_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    superseded_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    result_final_measurement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("final_measurement.id")
+    )
+    operator_memo: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    pipeline_run: Mapped["PipelineRun | None"] = relationship(back_populates="estimation_audits")
+    service_point: Mapped["ServicePoint"] = relationship(back_populates="estimation_audits")
+    measuring_component: Mapped["MeasuringComponent"] = relationship(
+        back_populates="estimation_audits"
+    )
+    device: Mapped["Device"] = relationship(back_populates="estimation_audits")
+    target_initial_measurement: Mapped["InitialMeasurement"] = relationship(
+        back_populates="estimation_audits"
+    )
+    source_previous_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="previous_source_estimation_audits",
+        foreign_keys=[source_previous_final_measurement_id],
+    )
+    source_next_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="next_source_estimation_audits",
+        foreign_keys=[source_next_final_measurement_id],
+    )
+    superseded_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="superseded_estimation_audits",
+        foreign_keys=[superseded_final_measurement_id],
+    )
+    result_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
+        back_populates="result_estimation_audits",
+        foreign_keys=[result_final_measurement_id],
     )
 
 
@@ -1213,6 +1336,9 @@ class PipelineRun(TimestampMixin, Base):
         back_populates="pipeline_runs"
     )
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(back_populates="pipeline_run")
+    estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="pipeline_run"
+    )
     usage_transactions: Mapped[list["UsageTransaction"]] = relationship(
         back_populates="pipeline_run"
     )
