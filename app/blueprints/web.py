@@ -16,6 +16,7 @@ from app.i18n import (
     translate_hes_system_error,
     translate,
     translate_estimation_error,
+    translate_manual_edit_error,
     translate_operational_alert_error,
     translate_vee_exception_error,
     translate_vee_replay_request_error,
@@ -53,6 +54,12 @@ from app.services.estimation import (
     SUPPORTED_ESTIMATION_STRATEGIES,
     EstimationActionError,
     apply_estimation_from_vee_exception,
+)
+from app.services.manual_edits import (
+    MANUAL_EDIT_ALLOWED_EXCEPTION_CODES,
+    SUPPORTED_MANUAL_EDIT_REASON_CODES,
+    ManualEditActionError,
+    apply_manual_edit_from_vee_exception,
 )
 from app.services.exception_queue import (
     ExceptionReprocessError,
@@ -548,6 +555,23 @@ def _pop_estimation_summary(vee_exception_id: int) -> dict | None:
     return None
 
 
+def _store_manual_edit_summary(summary) -> None:
+    payload = asdict(summary)
+    if payload.get("edited_value") is not None:
+        payload["edited_value"] = str(payload["edited_value"])
+    browser_session["last_manual_edit_summary"] = payload
+
+
+def _pop_manual_edit_summary(vee_exception_id: int) -> dict | None:
+    payload = browser_session.pop("last_manual_edit_summary", None)
+    if payload is None:
+        return None
+    if payload.get("target_vee_exception_id") == vee_exception_id:
+        return payload
+    browser_session["last_manual_edit_summary"] = payload
+    return None
+
+
 @bp.get("/vee-exceptions/<int:vee_exception_id>")
 def vee_exception_detail(vee_exception_id: int):
     session = get_session()
@@ -560,8 +584,11 @@ def vee_exception_detail(vee_exception_id: int):
         detail=detail,
         replay_summary=_pop_vee_replay_summary(vee_exception_id),
         estimation_summary=_pop_estimation_summary(vee_exception_id),
+        manual_edit_summary=_pop_manual_edit_summary(vee_exception_id),
         estimation_strategies=sorted(SUPPORTED_ESTIMATION_STRATEGIES),
         estimation_supported_exception_codes=ESTIMATION_ALLOWED_EXCEPTION_CODES,
+        manual_edit_reason_codes=sorted(SUPPORTED_MANUAL_EDIT_REASON_CODES),
+        manual_edit_supported_exception_codes=MANUAL_EDIT_ALLOWED_EXCEPTION_CODES,
     )
 
 
@@ -640,6 +667,35 @@ def estimate_vee_exception_view(vee_exception_id: int):
     except EstimationActionError as exc:
         session.rollback()
         flash(translate_estimation_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
+
+
+@bp.post("/vee-exceptions/<int:vee_exception_id>/manual-edit")
+def manual_edit_vee_exception_view(vee_exception_id: int):
+    session = get_session()
+    try:
+        summary = apply_manual_edit_from_vee_exception(
+            session,
+            vee_exception_id,
+            edited_value=request.form.get("edited_value"),
+            edited_quality_code=request.form.get("edited_quality_code"),
+            edited_status_code=request.form.get("edited_status_code"),
+            reason_code=request.form.get("reason_code") or "",
+            edited_by="operator_ui",
+            operator_memo=request.form.get("operator_memo"),
+        )
+        session.commit()
+        _store_manual_edit_summary(summary)
+        if summary.edit_status == "applied":
+            flash(translate("vee_exception.flash.manually_edited"), "success")
+        elif summary.edit_status == "blocked":
+            flash(translate("vee_exception.flash.manual_edit_blocked"), "warning")
+        else:
+            flash(translate("vee_exception.flash.manual_edit_failed"), "danger")
+    except ManualEditActionError as exc:
+        session.rollback()
+        flash(translate_manual_edit_error(exc.error_code, exc.fallback_message), "danger")
 
     return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
 

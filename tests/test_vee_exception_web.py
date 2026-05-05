@@ -12,6 +12,7 @@ from app.models import (
     FinalMeasurement,
     HesSystem,
     InitialMeasurement,
+    ManualEditAudit,
     ServicePoint,
     UsageTransaction,
     VeeException,
@@ -219,6 +220,21 @@ def test_vee_exception_detail_page_shows_estimation_form_for_supported_exception
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" in text
 
 
+def test_vee_exception_detail_page_shows_manual_edit_form_for_supported_exception(client, session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    response = client.get(f"/vee-exceptions/{vee_exception.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "수동 보정" in text
+    assert "운영자 계량기 보정" in text
+    assert f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko" in text
+
+
 def test_vee_exception_detail_page_hides_estimation_form_for_unsupported_exception(client, session):
     vee_exception = _create_open_vee_exception(session)
 
@@ -229,6 +245,18 @@ def test_vee_exception_detail_page_hides_estimation_form_for_unsupported_excepti
     assert "이 VEE 예외 유형에는 아직 추정 적용이 열려 있지 않습니다." in text
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" not in text
     assert 'name="strategy_code"' not in text
+
+
+def test_vee_exception_detail_hides_manual_edit_form_for_unsupported_exception(client, session):
+    vee_exception = _create_open_vee_exception(session)
+
+    response = client.get(f"/vee-exceptions/{vee_exception.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이 VEE 예외 유형에는 아직 수동 보정이 열려 있지 않습니다." in text
+    assert f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko" not in text
+    assert 'name="reason_code"' not in text
 
 
 def test_vee_exception_acknowledge_via_web_updates_status(client, session):
@@ -393,3 +421,83 @@ def test_vee_exception_estimate_via_web_applies_estimation_and_shows_result(sess
     assert updated_exception is not None
     assert updated_exception.exception_status == "resolved"
     assert updated_exception.resolution_type == "estimated"
+
+
+def test_vee_exception_manual_edit_via_web_applies_edit_and_shows_result(session, client):
+    service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    old_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.measuring_component_id == measuring_component_id)
+        .where(BillCharge.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_charge is not None
+
+    response = client.post(
+        f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko",
+        data={
+            "next": f"/vee-exceptions/{vee_exception.id}?lang=ko",
+            "edited_value": "12.5000",
+            "edited_quality_code": "MANUAL",
+            "edited_status_code": "OVERRIDDEN",
+            "reason_code": "operator_meter_correction",
+            "operator_memo": "운영 수동 보정 적용",
+        },
+        follow_redirects=True,
+    )
+    text = response.get_data(as_text=True)
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    current_determinant = session.scalar(
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == service_point_id)
+        .where(BillDeterminant.is_current.is_(True))
+        .limit(1)
+    )
+    current_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.measuring_component_id == measuring_component_id)
+        .where(BillCharge.is_current.is_(True))
+        .limit(1)
+    )
+    audit_row = session.scalar(
+        select(ManualEditAudit)
+        .where(ManualEditAudit.target_initial_measurement_id == target_initial_id)
+        .order_by(ManualEditAudit.id.desc())
+        .limit(1)
+    )
+    updated_exception = session.get(VeeException, vee_exception.id)
+
+    assert response.status_code == 200
+    assert "VEE 예외에 수동 보정이 적용되었습니다." in text
+    assert "수동 보정 결과" in text
+    assert "운영자 계량기 보정" in text
+    assert "수동 보정 적용 완료" in text
+    assert "청구 결정값 재계산" in text
+    assert "청구 금액 재계산" in text
+    assert refreshed_initial is not None
+    assert refreshed_initial.value == Decimal("12.5000")
+    assert refreshed_initial.quality_code == "MANUAL"
+    assert refreshed_initial.status_code == "OVERRIDDEN"
+    assert current_final is not None
+    assert current_final.value == Decimal("12.5000")
+    assert current_determinant is not None
+    assert current_determinant.determinant_value == Decimal("42.5000")
+    assert current_charge is not None
+    assert current_charge.id != old_charge.id
+    assert current_charge.charge_amount == Decimal("4250.0000")
+    assert audit_row is not None
+    assert updated_exception is not None
+    assert updated_exception.exception_status == "resolved"
+    assert updated_exception.resolution_type == "manually_corrected"

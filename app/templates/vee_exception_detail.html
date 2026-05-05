@@ -215,58 +215,214 @@
 </div>
 {% endif %}
 
+{% if manual_edit_summary %}
+<div class="card border-success-subtle shadow-sm mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+      <div>
+        <h2 class="h5 mb-1">{{ t("page.vee_exception_detail.manual_edit_result") }}</h2>
+        <p class="text-secondary mb-0">{{ t("page.vee_exception_detail.manual_edit_result_description") }}</p>
+      </div>
+      <div class="small text-secondary">
+        {{ t("table.id") }} / Audit: {{ manual_edit_summary.manual_edit_audit_id }}
+      </div>
+    </div>
+    <div class="row g-3 mt-1">
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.manual_edit_outcome") }}</div>
+          <div class="fw-semibold">
+            {{ t_or("manual_edit.status." ~ manual_edit_summary.edit_status, manual_edit_summary.edit_status) }}
+          </div>
+          <div class="small text-secondary mt-1">
+            {{ t_or("manual_edit.result_code." ~ manual_edit_summary.result_code, manual_edit_summary.result_code) }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.manual_edit_reason") }}</div>
+          <div class="fw-semibold">
+            {{ t_or("manual_edit.reason_code." ~ manual_edit_summary.reason_code, manual_edit_summary.reason_code) }}
+          </div>
+          <div class="small text-secondary mt-1">
+            {{ t("field.edited_value") }}: {{ manual_edit_summary.edited_value or t("common.none") }}
+          </div>
+          <div class="small text-secondary mt-1">
+            {{ t("field.edited_quality_code") }}: {{ manual_edit_summary.edited_quality_code or t("common.none") }},
+            {{ t("field.edited_status_code") }}: {{ manual_edit_summary.edited_status_code or t("common.none") }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.finalization_outcome") }}</div>
+          {% if manual_edit_summary.final_superseded %}
+          <div class="fw-semibold text-primary">{{ t("vee.replay_final.superseded") }}</div>
+          {% elif manual_edit_summary.final_created %}
+          <div class="fw-semibold text-primary">{{ t("vee.replay_final.created") }}</div>
+          {% else %}
+          <div class="fw-semibold text-secondary">{{ t("vee.replay_final.not_ready") }}</div>
+          {% endif %}
+          <div class="small text-secondary mt-1">
+            {{ t("field.previous_final") }}: {{ manual_edit_summary.previous_final_id or t("common.none") }},
+            {{ t("field.current_final") }}: {{ manual_edit_summary.current_final_id or t("common.none") }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.downstream_recalculation") }}</div>
+          <div class="small">
+            <div>{{ t("field.daily_usage_recalculation") }}: {{ manual_edit_summary.daily_usage_groups_updated }}</div>
+            <div>{{ t("field.monthly_usage_recalculation") }}: {{ manual_edit_summary.monthly_usage_groups_updated }}</div>
+            <div>{{ t("field.bill_determinant_recalculation") }}: {{ manual_edit_summary.bill_determinant_groups }}</div>
+            <div>{{ t("field.bill_charge_recalculation") }}: {{ manual_edit_summary.bill_charge_groups }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if detail.vee_exception.exception_status != "resolved" %}
 <div class="card shadow-sm mb-4">
-  <div class="card-body d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between">
-    <div>
-      <div class="fw-semibold">{{ t_or("vee.exception_code." ~ detail.vee_exception.exception_code, detail.vee_exception.exception_code) }}</div>
-      <div class="small text-secondary">{{ detail.vee_exception.exception_code }}</div>
+  <div class="card-body">
+    <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between">
+      <div>
+        <div class="fw-semibold">{{ t_or("vee.exception_code." ~ detail.vee_exception.exception_code, detail.vee_exception.exception_code) }}</div>
+        <div class="small text-secondary">{{ detail.vee_exception.exception_code }}</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <form method="post" action="{{ url_for('web.reevaluate_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+          <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+          <button type="submit" class="btn btn-outline-secondary">{{ t("button.re_evaluate") }}</button>
+        </form>
+        {% if detail.vee_exception.exception_status == "open" %}
+        <form method="post" action="{{ url_for('web.acknowledge_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+          <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+          <button type="submit" class="btn btn-outline-primary">{{ t("button.acknowledge") }}</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('web.resolve_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-wrap gap-2 align-items-center">
+          <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+          <input type="hidden" name="resolution_type" value="operator_resolution">
+          <input
+            type="text"
+            name="operator_memo"
+            class="form-control form-control-sm"
+            style="max-width: 16rem;"
+            placeholder="{{ t('dashboard.alert_memo_placeholder') }}"
+          >
+          <button type="submit" class="btn btn-outline-success">{{ t("button.resolve") }}</button>
+        </form>
+      </div>
     </div>
-    <div class="d-flex flex-wrap gap-2 align-items-center">
-      {% if detail.vee_exception.exception_code in estimation_supported_exception_codes %}
-      <form method="post" action="{{ url_for('web.estimate_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-wrap gap-2 align-items-center">
-        <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
-        <select name="strategy_code" class="form-select form-select-sm" style="max-width: 14rem;">
-          {% for strategy_code in estimation_strategies %}
-          <option value="{{ strategy_code }}">
-            {{ t_or("estimation.strategy." ~ strategy_code, strategy_code) }}
-          </option>
-          {% endfor %}
-        </select>
-        <input
-          type="text"
-          name="operator_memo"
-          class="form-control form-control-sm"
-          style="max-width: 16rem;"
-          placeholder="{{ t('page.vee_exception_detail.estimation_memo_placeholder') }}"
-        >
-        <button type="submit" class="btn btn-outline-warning">{{ t("button.estimate") }}</button>
-      </form>
-      {% else %}
-      <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_not_supported_for_exception") }}</div>
-      {% endif %}
-      <form method="post" action="{{ url_for('web.reevaluate_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
-        <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
-        <button type="submit" class="btn btn-outline-secondary">{{ t("button.re_evaluate") }}</button>
-      </form>
-      {% if detail.vee_exception.exception_status == "open" %}
-      <form method="post" action="{{ url_for('web.acknowledge_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
-        <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
-        <button type="submit" class="btn btn-outline-primary">{{ t("button.acknowledge") }}</button>
-      </form>
-      {% endif %}
-      <form method="post" action="{{ url_for('web.resolve_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-wrap gap-2 align-items-center">
-        <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
-        <input type="hidden" name="resolution_type" value="operator_resolution">
-        <input
-          type="text"
-          name="operator_memo"
-          class="form-control form-control-sm"
-          style="max-width: 16rem;"
-          placeholder="{{ t('dashboard.alert_memo_placeholder') }}"
-        >
-        <button type="submit" class="btn btn-outline-success">{{ t("button.resolve") }}</button>
-      </form>
+    <div class="row g-3 mt-1">
+      <div class="col-xl-6">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex justify-content-between gap-3 align-items-start mb-2">
+            <div>
+              <h3 class="h6 mb-1">{{ t("button.estimate") }}</h3>
+              <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_result_description") }}</div>
+            </div>
+          </div>
+          {% if detail.vee_exception.exception_code in estimation_supported_exception_codes %}
+          <form method="post" action="{{ url_for('web.estimate_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-column gap-2">
+            <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <select name="strategy_code" class="form-select form-select-sm">
+                  {% for strategy_code in estimation_strategies %}
+                  <option value="{{ strategy_code }}">
+                    {{ t_or("estimation.strategy." ~ strategy_code, strategy_code) }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input
+                  type="text"
+                  name="operator_memo"
+                  class="form-control form-control-sm"
+                  placeholder="{{ t('page.vee_exception_detail.estimation_memo_placeholder') }}"
+                >
+              </div>
+            </div>
+            <div>
+              <button type="submit" class="btn btn-outline-warning btn-sm">{{ t("button.estimate") }}</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_not_supported_for_exception") }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-xl-6">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex justify-content-between gap-3 align-items-start mb-2">
+            <div>
+              <h3 class="h6 mb-1">{{ t("button.manual_edit") }}</h3>
+              <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_result_description") }}</div>
+            </div>
+          </div>
+          {% if detail.vee_exception.exception_code in manual_edit_supported_exception_codes %}
+          <form method="post" action="{{ url_for('web.manual_edit_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-column gap-2">
+            <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <input
+                  type="number"
+                  step="0.0001"
+                  name="edited_value"
+                  class="form-control form-control-sm"
+                  required
+                  placeholder="{{ t('field.edited_value') }}"
+                >
+              </div>
+              <div class="col-md-6">
+                <select name="reason_code" class="form-select form-select-sm" required>
+                  <option value="">{{ t("page.vee_exception_detail.manual_edit_reason_placeholder") }}</option>
+                  {% for reason_code in manual_edit_reason_codes %}
+                  <option value="{{ reason_code }}">
+                    {{ t_or("manual_edit.reason_code." ~ reason_code, reason_code) }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input
+                  type="text"
+                  name="edited_quality_code"
+                  class="form-control form-control-sm"
+                  placeholder="{{ t('field.edited_quality_code') }}"
+                >
+              </div>
+              <div class="col-md-6">
+                <input
+                  type="text"
+                  name="edited_status_code"
+                  class="form-control form-control-sm"
+                  placeholder="{{ t('field.edited_status_code') }}"
+                >
+              </div>
+            </div>
+            <input
+              type="text"
+              name="operator_memo"
+              class="form-control form-control-sm"
+              placeholder="{{ t('page.vee_exception_detail.manual_edit_memo_placeholder') }}"
+            >
+            <div>
+              <button type="submit" class="btn btn-outline-success btn-sm">{{ t("button.manual_edit") }}</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_not_supported_for_exception") }}</div>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
 </div>
