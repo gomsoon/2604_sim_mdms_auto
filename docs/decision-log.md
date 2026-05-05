@@ -273,6 +273,16 @@ This document records current architectural and process decisions so that the te
   - [billing-lite-boundary-design.md](/home/tprover/2604_sim_mdms_auto/docs/billing-lite-boundary-design.md)
   - [bill-determinant-design.md](/home/tprover/2604_sim_mdms_auto/docs/bill-determinant-design.md)
 
+### D-029. The first manual edit slice should be substitution-only and update `initial_measurement`
+
+- Status: locked
+- Summary: The first manual edit baseline should correct only an already-existing interval, update `initial_measurement` as the mutable working copy, and regenerate downstream authoritative state through final revision plus recalculation
+- Why: This keeps the first operator-correction path compatible with the current processing core, preserves immutable raw and canonical lineage, and avoids prematurely introducing synthetic interval creation, broad remapping, or approval-heavy workflows
+- Related docs:
+  - [manual-edit-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/manual-edit-baseline-design.md)
+  - [estimation-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/estimation-baseline-design.md)
+  - [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md)
+
 ### O-011. What is the minimum billing context needed before determinant results can be treated as truly billing-ready
 
 - Status: open

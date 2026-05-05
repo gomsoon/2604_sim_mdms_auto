@@ -194,6 +194,12 @@ forcing the first determinant baseline to depend on tariff lookup.
 A charge-ready output value derived from `bill_determinant`, typically after
 applying a minimal tariff or rate rule plus tariff-assignment context.
 
+### manual_edit_audit
+
+The append-only audit record of one operator-entered manual correction attempt
+against an existing interval, including reason code, editor identity, before
+and after business state, and resulting final lineage.
+
 ### charge-ready
 
 The state in which downstream outputs are suitable for tariff-based charge

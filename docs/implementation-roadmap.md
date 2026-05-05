@@ -350,6 +350,39 @@ Introduce the first true MDM processing boundary between canonical mapping resul
 
 ### Stage 11. Billing-ready determinant foundation
 
+### Stage 10A. Processing correction and audit baseline
+
+#### Goal
+
+Add the first operator correction layer above VEE without collapsing
+estimation, manual edit, and downstream recalculation into undocumented
+side-effects.
+
+#### Key tasks
+
+- finish the first operator-triggered estimation path
+- define a narrow manual-edit-and-audit baseline
+- keep both correction paths anchored to `initial_measurement`
+- regenerate current `final_measurement` through revision rather than overwrite
+- recalculate downstream `usage_transaction`, `bill_determinant`, and
+  `bill_charge` from the new authoritative final state
+
+#### Test gate
+
+- estimation remains substitution-only and auditable
+- manual correction is append-only in audit storage
+- final supersession stays explicit
+- downstream recalculation remains deterministic after correction
+
+#### Related documents
+
+- [estimation-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/estimation-baseline-design.md)
+- [manual-edit-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/manual-edit-baseline-design.md)
+- [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md)
+- [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
+
+### Stage 11. Billing-ready determinant foundation
+
 #### Goal
 
 Define the first billing-ready determinant layer that follows `usage_transaction`

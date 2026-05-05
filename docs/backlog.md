@@ -132,6 +132,21 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Approver and editor identity tracking
 - Manual edit audit
 - Final measurement regeneration
+- first manual edit slice starts from active `vee_exception`
+- first manual edit slice is substitution-only on existing `initial_measurement`
+- first manual edit slice supports only selected VEE exception codes such as
+  `vee_negative_value_detected`, `vee_high_value_detected`, and
+  `vee_zero_value_detected`
+- first manual edit slice updates `initial_measurement` as the mutable working
+  copy and regenerates current `final_measurement` through revision
+- deferred: synthetic missing-interval manual creation
+- deferred: measured-at change
+- deferred: unit-of-measure change
+- deferred: remapping edits across service point, device, or component
+- deferred: bulk manual edit
+- deferred: approval workflow
+- deferred: preview-and-compare correction workspace
+- deferred: event-aware correction policy
 
 ### V6. Usage calculation
 
