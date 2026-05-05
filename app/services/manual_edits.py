@@ -2,74 +2,69 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    EstimationAudit,
     FinalMeasurement,
     InitialMeasurement,
+    ManualEditAudit,
     VeeException,
 )
 from app.services.bill_charges import BillChargeCalculationSummary
-from app.services.bill_determinants import (
-    BillDeterminantCalculationSummary,
-)
+from app.services.bill_determinants import BillDeterminantCalculationSummary
 from app.services.downstream_recalculation import recalculate_downstream_artifacts
 from app.services.finalization import create_or_get_final_measurement, is_initial_measurement_finalizable
 from app.services.pipeline import complete_pipeline_run, fail_pipeline_run, start_pipeline_run
 from app.services.processing_replay import UsageRecalculationResult
-from app.services.vee import (
-    evaluate_or_get_vee_baseline,
-    resolve_vee_exception,
-)
+from app.services.vee import evaluate_or_get_vee_baseline, resolve_vee_exception
 
 
-ESTIMATION_STRATEGY_LINEAR_INTERPOLATION = "linear_interpolation"
-ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED = "previous_value_based"
-SUPPORTED_ESTIMATION_STRATEGIES = {
-    ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
-    ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
-}
-
-ESTIMATION_ALLOWED_EXCEPTION_CODES = {
+MANUAL_EDIT_ALLOWED_EXCEPTION_CODES = {
     "vee_negative_value_detected",
     "vee_high_value_detected",
+    "vee_zero_value_detected",
 }
-
-ESTIMATION_QUALITY_CODE = "ESTIMATED"
-ESTIMATION_REVISION_REASON_CODE = "estimation_applied"
+SUPPORTED_MANUAL_EDIT_REASON_CODES = {
+    "operator_meter_correction",
+    "operator_source_override",
+    "operator_data_entry_fix",
+    "operator_business_override",
+}
+MANUAL_EDIT_REVISION_REASON_CODE = "manual_edit_applied"
 _VALUE_SCALE = Decimal("0.0001")
 
 
 @dataclass(frozen=True, slots=True)
-class EstimationActionError(Exception):
+class ManualEditActionError(Exception):
     error_code: str
     fallback_message: str
 
 
 @dataclass(frozen=True, slots=True)
-class EstimationComputationResult:
-    estimation_status: str
+class ManualEditComputationResult:
+    edit_status: str
     result_code: str
-    estimated_value: Decimal | None
-    source_previous_final: FinalMeasurement | None
-    source_next_final: FinalMeasurement | None
+    edited_value: Decimal | None
+    edited_quality_code: str | None
+    edited_status_code: str | None
     details: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
-class EstimationSummary:
-    estimation_audit_id: int
+class ManualEditSummary:
+    manual_edit_audit_id: int
     pipeline_run_id: int
     target_vee_exception_id: int
     initial_measurement_id: int
-    strategy_code: str
-    estimation_status: str
+    reason_code: str
+    edit_status: str
     result_code: str
-    estimated_value: Decimal | None
+    edited_value: Decimal | None
+    edited_quality_code: str | None
+    edited_status_code: str | None
     vee_execution_log_id: int | None
     active_exception_count: int
     blocking_exception_count: int
@@ -92,12 +87,27 @@ class EstimationSummary:
     bill_charge_reused: int
 
 
+def _normalize_optional_text(value: str | None) -> str | None:
+    normalized = (value or "").strip()
+    return normalized or None
+
+
+def _normalize_value(value: Decimal | int | float | str | None) -> Decimal | None:
+    if value in (None, ""):
+        return None
+    try:
+        normalized = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return normalized.quantize(_VALUE_SCALE, rounding=ROUND_HALF_UP)
+
+
 def _get_active_vee_exception(session: Session, vee_exception_id: int) -> VeeException:
     vee_exception = session.get(VeeException, vee_exception_id)
     if vee_exception is None:
-        raise EstimationActionError("not_found", "The selected VEE exception does not exist.")
+        raise ManualEditActionError("not_found", "The selected VEE exception does not exist.")
     if vee_exception.exception_status not in {"open", "acknowledged"}:
-        raise EstimationActionError(
+        raise ManualEditActionError(
             "exception_not_active",
             "The selected VEE exception is not active.",
         )
@@ -135,46 +145,6 @@ def _load_active_vee_exceptions(
     ).all()
 
 
-def _find_supporting_previous_final(
-    session: Session,
-    *,
-    initial_row: InitialMeasurement,
-) -> FinalMeasurement | None:
-    return session.scalar(
-        select(FinalMeasurement)
-        .where(
-            FinalMeasurement.is_current.is_(True),
-            FinalMeasurement.final_status == "finalized",
-            FinalMeasurement.service_point_id == initial_row.service_point_id,
-            FinalMeasurement.measuring_component_id == initial_row.measuring_component_id,
-            FinalMeasurement.device_id == initial_row.device_id,
-            FinalMeasurement.measured_at < initial_row.measured_at,
-        )
-        .order_by(FinalMeasurement.measured_at.desc(), FinalMeasurement.id.desc())
-        .limit(1)
-    )
-
-
-def _find_supporting_next_final(
-    session: Session,
-    *,
-    initial_row: InitialMeasurement,
-) -> FinalMeasurement | None:
-    return session.scalar(
-        select(FinalMeasurement)
-        .where(
-            FinalMeasurement.is_current.is_(True),
-            FinalMeasurement.final_status == "finalized",
-            FinalMeasurement.service_point_id == initial_row.service_point_id,
-            FinalMeasurement.measuring_component_id == initial_row.measuring_component_id,
-            FinalMeasurement.device_id == initial_row.device_id,
-            FinalMeasurement.measured_at > initial_row.measured_at,
-        )
-        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
-        .limit(1)
-    )
-
-
 def _snapshot_initial_measurement(initial_row: InitialMeasurement) -> dict[str, object]:
     return {
         "initial_measurement_id": initial_row.id,
@@ -202,151 +172,100 @@ def _snapshot_final_measurement(final_row: FinalMeasurement | None) -> dict[str,
     }
 
 
-def _quantize_value(value: Decimal) -> Decimal:
-    return value.quantize(_VALUE_SCALE, rounding=ROUND_HALF_UP)
-
-
-def _build_estimation_result(
-    session: Session,
+def _build_manual_edit_result(
     *,
     initial_row: InitialMeasurement,
     target_exception: VeeException,
-    strategy_code: str,
-) -> EstimationComputationResult:
-    previous_final = _find_supporting_previous_final(session, initial_row=initial_row)
-    next_final = _find_supporting_next_final(session, initial_row=initial_row)
-
-    if target_exception.exception_code not in ESTIMATION_ALLOWED_EXCEPTION_CODES:
-        return EstimationComputationResult(
-            estimation_status="blocked",
+    reason_code: str | None,
+    edited_value: Decimal | None,
+    edited_quality_code: str | None,
+    edited_status_code: str | None,
+) -> ManualEditComputationResult:
+    if target_exception.exception_code not in MANUAL_EDIT_ALLOWED_EXCEPTION_CODES:
+        return ManualEditComputationResult(
+            edit_status="blocked",
             result_code="blocked_unsupported_exception_code",
-            estimated_value=None,
-            source_previous_final=previous_final,
-            source_next_final=next_final,
+            edited_value=edited_value,
+            edited_quality_code=edited_quality_code,
+            edited_status_code=edited_status_code,
             details={
                 "blocked_reason": "unsupported_exception_code",
                 "exception_code": target_exception.exception_code,
             },
         )
 
-    unit_of_measure = (initial_row.unit_of_measure or "").strip()
-    if not unit_of_measure:
-        return EstimationComputationResult(
-            estimation_status="blocked",
-            result_code="blocked_invalid_target_state",
-            estimated_value=None,
-            source_previous_final=previous_final,
-            source_next_final=next_final,
-            details={"blocked_reason": "missing_unit_of_measure"},
-        )
-
-    if strategy_code == ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED:
-        if previous_final is None:
-            return EstimationComputationResult(
-                estimation_status="blocked",
-                result_code="blocked_missing_previous_final",
-                estimated_value=None,
-                source_previous_final=None,
-                source_next_final=next_final,
-                details={"blocked_reason": "missing_previous_final"},
-            )
-        if previous_final.unit_of_measure != unit_of_measure:
-            return EstimationComputationResult(
-                estimation_status="blocked",
-                result_code="blocked_uom_mismatch",
-                estimated_value=None,
-                source_previous_final=previous_final,
-                source_next_final=next_final,
-                details={
-                    "blocked_reason": "uom_mismatch",
-                    "target_unit_of_measure": unit_of_measure,
-                    "previous_unit_of_measure": previous_final.unit_of_measure,
-                },
-            )
-        return EstimationComputationResult(
-            estimation_status="applied",
-            result_code="applied_previous_value_based",
-            estimated_value=_quantize_value(previous_final.value),
-            source_previous_final=previous_final,
-            source_next_final=next_final,
-            details={},
-        )
-
-    if strategy_code == ESTIMATION_STRATEGY_LINEAR_INTERPOLATION:
-        if previous_final is None:
-            return EstimationComputationResult(
-                estimation_status="blocked",
-                result_code="blocked_missing_previous_final",
-                estimated_value=None,
-                source_previous_final=None,
-                source_next_final=next_final,
-                details={"blocked_reason": "missing_previous_final"},
-            )
-        if next_final is None:
-            return EstimationComputationResult(
-                estimation_status="blocked",
-                result_code="blocked_missing_next_final",
-                estimated_value=None,
-                source_previous_final=previous_final,
-                source_next_final=None,
-                details={"blocked_reason": "missing_next_final"},
-            )
-        if previous_final.unit_of_measure != unit_of_measure or next_final.unit_of_measure != unit_of_measure:
-            return EstimationComputationResult(
-                estimation_status="blocked",
-                result_code="blocked_uom_mismatch",
-                estimated_value=None,
-                source_previous_final=previous_final,
-                source_next_final=next_final,
-                details={
-                    "blocked_reason": "uom_mismatch",
-                    "target_unit_of_measure": unit_of_measure,
-                    "previous_unit_of_measure": previous_final.unit_of_measure,
-                    "next_unit_of_measure": next_final.unit_of_measure,
-                },
-            )
-        total_seconds = (next_final.measured_at - previous_final.measured_at).total_seconds()
-        if total_seconds <= 0:
-            return EstimationComputationResult(
-                estimation_status="blocked",
-                result_code="blocked_context_mismatch",
-                estimated_value=None,
-                source_previous_final=previous_final,
-                source_next_final=next_final,
-                details={"blocked_reason": "invalid_neighbor_order"},
-            )
-        offset_seconds = (initial_row.measured_at - previous_final.measured_at).total_seconds()
-        ratio = Decimal(str(offset_seconds / total_seconds))
-        estimated_value = previous_final.value + (next_final.value - previous_final.value) * ratio
-        return EstimationComputationResult(
-            estimation_status="applied",
-            result_code="applied_linear_interpolation",
-            estimated_value=_quantize_value(estimated_value),
-            source_previous_final=previous_final,
-            source_next_final=next_final,
+    if reason_code not in SUPPORTED_MANUAL_EDIT_REASON_CODES:
+        return ManualEditComputationResult(
+            edit_status="blocked",
+            result_code="blocked_invalid_reason_code",
+            edited_value=edited_value,
+            edited_quality_code=edited_quality_code,
+            edited_status_code=edited_status_code,
             details={
-                "interpolation_ratio": str(ratio),
+                "blocked_reason": "invalid_reason_code",
+                "reason_code": reason_code,
             },
         )
 
-    raise EstimationActionError(
-        "unsupported_strategy",
-        "The selected estimation strategy is not supported.",
+    if edited_value is None:
+        return ManualEditComputationResult(
+            edit_status="blocked",
+            result_code="blocked_invalid_edited_value",
+            edited_value=None,
+            edited_quality_code=edited_quality_code,
+            edited_status_code=edited_status_code,
+            details={"blocked_reason": "invalid_edited_value"},
+        )
+
+    effective_quality_code = (
+        edited_quality_code if edited_quality_code is not None else initial_row.quality_code
+    )
+    effective_status_code = (
+        edited_status_code if edited_status_code is not None else initial_row.status_code
+    )
+    if (
+        edited_value == initial_row.value
+        and effective_quality_code == initial_row.quality_code
+        and effective_status_code == initial_row.status_code
+    ):
+        return ManualEditComputationResult(
+            edit_status="blocked",
+            result_code="blocked_no_effective_change",
+            edited_value=edited_value,
+            edited_quality_code=edited_quality_code,
+            edited_status_code=edited_status_code,
+            details={"blocked_reason": "no_effective_change"},
+        )
+
+    return ManualEditComputationResult(
+        edit_status="applied",
+        result_code="manual_edit_applied",
+        edited_value=edited_value,
+        edited_quality_code=edited_quality_code,
+        edited_status_code=edited_status_code,
+        details={
+            "effective_quality_code": effective_quality_code,
+            "effective_status_code": effective_status_code,
+        },
     )
 
 
-def apply_estimation_from_vee_exception(
+def apply_manual_edit_from_vee_exception(
     session: Session,
     vee_exception_id: int,
     *,
-    strategy_code: str,
-    estimated_by: str,
+    edited_value: Decimal | int | float | str | None,
+    reason_code: str,
+    edited_by: str,
     operator_memo: str | None = None,
-) -> EstimationSummary:
-    if strategy_code not in SUPPORTED_ESTIMATION_STRATEGIES:
-        raise EstimationActionError(
-            "unsupported_strategy",
-            "The selected estimation strategy is not supported.",
+    edited_quality_code: str | None = None,
+    edited_status_code: str | None = None,
+) -> ManualEditSummary:
+    normalized_edited_by = _normalize_optional_text(edited_by)
+    if normalized_edited_by is None:
+        raise ManualEditActionError(
+            "missing_edited_by",
+            "The editing actor must be provided.",
         )
 
     target_exception = _get_active_vee_exception(session, vee_exception_id)
@@ -355,50 +274,53 @@ def apply_estimation_from_vee_exception(
         session,
         initial_measurement_id=initial_row.id,
     )
+    normalized_reason_code = _normalize_optional_text(reason_code)
+    normalized_edited_value = _normalize_value(edited_value)
+    normalized_edited_quality_code = _normalize_optional_text(edited_quality_code)
+    normalized_edited_status_code = _normalize_optional_text(edited_status_code)
+
     pipeline_run = start_pipeline_run(
         session,
-        pipeline_name="estimation",
+        pipeline_name="manual_edit",
         trigger_type="manual",
         details={
             "vee_exception_id": vee_exception_id,
             "initial_measurement_id": initial_row.id,
-            "strategy_code": strategy_code,
-            "estimated_by": estimated_by,
+            "reason_code": normalized_reason_code,
+            "edited_by": normalized_edited_by,
+            "edited_value": None if normalized_edited_value is None else str(normalized_edited_value),
+            "edited_quality_code": normalized_edited_quality_code,
+            "edited_status_code": normalized_edited_status_code,
             "operator_memo": operator_memo,
         },
     )
 
     try:
-        computation_result = _build_estimation_result(
-            session,
+        computation_result = _build_manual_edit_result(
             initial_row=initial_row,
             target_exception=target_exception,
-            strategy_code=strategy_code,
+            reason_code=normalized_reason_code,
+            edited_value=normalized_edited_value,
+            edited_quality_code=normalized_edited_quality_code,
+            edited_status_code=normalized_edited_status_code,
         )
-        audit_row = EstimationAudit(
+        audit_row = ManualEditAudit(
             pipeline_run_id=pipeline_run.id,
             service_point_id=initial_row.service_point_id,
             measuring_component_id=initial_row.measuring_component_id,
             device_id=initial_row.device_id,
             target_initial_measurement_id=initial_row.id,
+            related_vee_exception_id=target_exception.id,
             target_measured_at=initial_row.measured_at,
-            strategy_code=strategy_code,
-            estimation_status=computation_result.estimation_status,
-            estimated_value=computation_result.estimated_value,
-            unit_of_measure=initial_row.unit_of_measure or None,
-            source_previous_final_measurement_id=(
-                computation_result.source_previous_final.id
-                if computation_result.source_previous_final is not None
-                else None
-            ),
-            source_next_final_measurement_id=(
-                computation_result.source_next_final.id
-                if computation_result.source_next_final is not None
-                else None
-            ),
+            reason_code=normalized_reason_code or "invalid_reason_code",
+            edit_status=computation_result.edit_status,
+            edited_value=computation_result.edited_value,
+            edited_quality_code=computation_result.edited_quality_code,
+            edited_status_code=computation_result.edited_status_code,
+            edited_by=normalized_edited_by,
+            operator_memo=operator_memo,
             superseded_final_measurement_id=None,
             result_final_measurement_id=None,
-            operator_memo=operator_memo,
             details={
                 "target_vee_exception_snapshot": {
                     "vee_exception_id": target_exception.id,
@@ -407,38 +329,33 @@ def apply_estimation_from_vee_exception(
                     "blocking_finalization": target_exception.blocking_finalization,
                 },
                 "original_initial_measurement_snapshot": _snapshot_initial_measurement(initial_row),
-                "source_previous_final_snapshot": _snapshot_final_measurement(
-                    computation_result.source_previous_final
-                ),
-                "source_next_final_snapshot": _snapshot_final_measurement(
-                    computation_result.source_next_final
-                ),
-                "estimation_result": computation_result.details,
+                "manual_edit_result": computation_result.details,
             },
         )
         session.add(audit_row)
         session.flush()
 
-        if computation_result.estimation_status == "blocked":
-            details = {
-                **pipeline_run.details,
-                "estimation_audit_id": audit_row.id,
-                "result_code": computation_result.result_code,
-            }
+        if computation_result.edit_status == "blocked":
             complete_pipeline_run(
                 pipeline_run,
-                result_code="estimation_blocked",
-                details=details,
+                result_code="manual_edit_blocked",
+                details={
+                    **pipeline_run.details,
+                    "manual_edit_audit_id": audit_row.id,
+                    "result_code": computation_result.result_code,
+                },
             )
-            return EstimationSummary(
-                estimation_audit_id=audit_row.id,
+            return ManualEditSummary(
+                manual_edit_audit_id=audit_row.id,
                 pipeline_run_id=pipeline_run.id,
                 target_vee_exception_id=target_exception.id,
                 initial_measurement_id=initial_row.id,
-                strategy_code=strategy_code,
-                estimation_status="blocked",
+                reason_code=audit_row.reason_code,
+                edit_status="blocked",
                 result_code=computation_result.result_code,
-                estimated_value=None,
+                edited_value=computation_result.edited_value,
+                edited_quality_code=computation_result.edited_quality_code,
+                edited_status_code=computation_result.edited_status_code,
                 vee_execution_log_id=None,
                 active_exception_count=1,
                 blocking_exception_count=1 if target_exception.blocking_finalization else 0,
@@ -461,29 +378,32 @@ def apply_estimation_from_vee_exception(
                 bill_charge_reused=0,
             )
 
-        assert computation_result.estimated_value is not None
-        initial_row.value = computation_result.estimated_value
-        initial_row.quality_code = ESTIMATION_QUALITY_CODE
+        assert computation_result.edited_value is not None
+        initial_row.value = computation_result.edited_value
+        if computation_result.edited_quality_code is not None:
+            initial_row.quality_code = computation_result.edited_quality_code
+        if computation_result.edited_status_code is not None:
+            initial_row.status_code = computation_result.edited_status_code
         updated_details = dict(initial_row.details or {})
-        updated_details["estimation"] = {
-            "estimation_audit_id": audit_row.id,
-            "strategy_code": strategy_code,
-            "estimated_at": datetime.now(timezone.utc).isoformat(),
-            "estimated_by": estimated_by,
+        updated_details["manual_edit"] = {
+            "manual_edit_audit_id": audit_row.id,
+            "reason_code": audit_row.reason_code,
+            "edited_at": datetime.now(timezone.utc).isoformat(),
+            "edited_by": normalized_edited_by,
         }
         initial_row.details = updated_details
 
         resolve_vee_exception(
             session,
             target_exception.id,
-            resolution_type="estimated",
+            resolution_type="manually_corrected",
             operator_memo=operator_memo,
         )
         execution, _ = evaluate_or_get_vee_baseline(
             session,
             initial_row,
             pipeline_run=pipeline_run,
-            trigger_type="estimation_apply",
+            trigger_type="manual_edit_apply",
             force=True,
         )
         active_exceptions = _load_active_vee_exceptions(
@@ -507,7 +427,7 @@ def apply_estimation_from_vee_exception(
             current_final, final_created = create_or_get_final_measurement(
                 session,
                 initial_row,
-                revision_reason_code=ESTIMATION_REVISION_REASON_CODE,
+                revision_reason_code=MANUAL_EDIT_REVISION_REASON_CODE,
             )
             final_superseded = (
                 final_created
@@ -527,11 +447,11 @@ def apply_estimation_from_vee_exception(
                     session,
                     previous_final=previous_current_final,
                     current_final=current_final,
-                    trigger_type="estimation_apply",
-                    revision_reason_code=ESTIMATION_REVISION_REASON_CODE,
+                    trigger_type="manual_edit_apply",
+                    revision_reason_code=MANUAL_EDIT_REVISION_REASON_CODE,
                     details_context={
-                        "trigger_source": "estimation",
-                        "estimation_audit_id": audit_row.id,
+                        "trigger_source": "manual_edit",
+                        "manual_edit_audit_id": audit_row.id,
                         "initial_measurement_id": initial_row.id,
                         "vee_exception_id": target_exception.id,
                         "previous_final_measurement_id": (
@@ -571,18 +491,18 @@ def apply_estimation_from_vee_exception(
         }
         session.flush()
 
-        result_code = "estimation_applied"
+        result_code = "manual_edit_applied"
         if blocking_exception_count > 0:
-            result_code = "estimation_applied_with_open_exceptions"
+            result_code = "manual_edit_applied_with_open_exceptions"
         elif not final_created:
-            result_code = "estimation_applied_without_final_change"
+            result_code = "manual_edit_applied_without_final_change"
 
         complete_pipeline_run(
             pipeline_run,
             result_code=result_code,
             details={
                 **pipeline_run.details,
-                "estimation_audit_id": audit_row.id,
+                "manual_edit_audit_id": audit_row.id,
                 "vee_execution_log_id": execution.id,
                 "active_exception_count": len(active_exceptions),
                 "blocking_exception_count": blocking_exception_count,
@@ -590,15 +510,17 @@ def apply_estimation_from_vee_exception(
                 "final_superseded": final_superseded,
             },
         )
-        return EstimationSummary(
-            estimation_audit_id=audit_row.id,
+        return ManualEditSummary(
+            manual_edit_audit_id=audit_row.id,
             pipeline_run_id=pipeline_run.id,
             target_vee_exception_id=target_exception.id,
             initial_measurement_id=initial_row.id,
-            strategy_code=strategy_code,
-            estimation_status="applied",
+            reason_code=audit_row.reason_code,
+            edit_status="applied",
             result_code=result_code,
-            estimated_value=computation_result.estimated_value,
+            edited_value=computation_result.edited_value,
+            edited_quality_code=computation_result.edited_quality_code,
+            edited_status_code=computation_result.edited_status_code,
             vee_execution_log_id=execution.id,
             active_exception_count=len(active_exceptions),
             blocking_exception_count=blocking_exception_count,
@@ -625,7 +547,7 @@ def apply_estimation_from_vee_exception(
     except Exception:
         fail_pipeline_run(
             pipeline_run,
-            result_code="estimation_failed_exception",
+            result_code="manual_edit_failed_exception",
             details=pipeline_run.details,
         )
         raise
