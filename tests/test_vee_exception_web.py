@@ -27,7 +27,7 @@ from app.services.bill_determinants import (
     calculate_bill_determinants,
 )
 from app.services.finalization import finalize_canonical_measurements
-from app.services.ingestion import ingest_reads
+from app.services.ingestion import ingest_events, ingest_reads
 from app.services.seeds import seed_demo_environment
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.usage import calculate_usage_transactions
@@ -159,6 +159,59 @@ def _open_negative_vee_exception(session, *, initial_measurement_id: int) -> Vee
     return vee_exception
 
 
+def _open_high_value_vee_exception_with_tamper(session) -> VeeException:
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).order_by(InitialMeasurement.id.asc()).limit(1))
+    assert initial is not None
+    raw_row = initial.canonical_measurement.hes_read_raw
+    assert raw_row is not None
+    assert raw_row.hes_system_id is not None
+    assert raw_row.meter_identifier is not None
+
+    ingest_events(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "tamper-web-batch",
+            "received_at": "2026-04-18T09:06:00+09:00",
+            "events": [
+                {
+                    "meter_id": raw_row.meter_identifier,
+                    "event_time": "2026-04-18T00:15:00+09:00",
+                    "event_code": "METER_TAMPER",
+                    "severity": "high",
+                }
+            ],
+        },
+        hes_system_id=raw_row.hes_system_id,
+    )
+    session.commit()
+
+    for row in list(initial.vee_exceptions):
+        session.delete(row)
+    for row in list(initial.vee_execution_logs):
+        session.delete(row)
+    initial.initial_status = "ready"
+    initial.value = Decimal("1500.0000")
+    initial.unit_of_measure = "kWh"
+    session.flush()
+
+    evaluate_or_get_vee_baseline(session, initial, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_high_value_detected"
+    return vee_exception
+
+
 def test_vee_exceptions_page_renders_exception_in_korean(client, session):
     vee_exception = _create_open_vee_exception(session)
 
@@ -202,6 +255,18 @@ def test_vee_exception_detail_page_shows_lineage(client, session):
     assert "VEE 실행 정보" in text
     assert "demo-read-batch" in text
     assert "MTR-1001" in text
+
+
+def test_vee_exception_detail_page_shows_event_context_for_tamper_linked_rule(client, session):
+    vee_exception = _open_high_value_vee_exception_with_tamper(session)
+
+    response = client.get(f"/vee-exceptions/{vee_exception.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이벤트 컨텍스트" in text
+    assert "변조 이벤트와 연계된 값 이상" in text
+    assert "METER_TAMPER" in text
 
 
 def test_vee_exception_detail_page_shows_estimation_form_for_supported_exception(client, session):

@@ -11,6 +11,7 @@ from app.models import (
     VeeException,
     VeeExecutionLog,
 )
+from app.services.ingestion import ingest_events
 from app.services.processing_core import ensure_processing_core_lineage
 from app.services.vee import evaluate_or_get_vee_baseline
 from app.services.seeds import seed_demo_environment
@@ -254,3 +255,119 @@ def test_evaluate_or_get_vee_baseline_marks_partial_window_as_missing_interval(s
     assert exception is not None
     assert exception.exception_code == "vee_missing_interval_detected"
     assert exception.blocking_finalization is True
+    assert exception.details["event_linked_decision"] == "outage_correlated_missing_interval"
+    assert exception.details["event_context_snapshot"]["primary_context_type"] == "outage"
+    assert execution.details["event_context_snapshot"]["primary_context_type"] == "outage"
+
+
+def test_evaluate_or_get_vee_baseline_escalates_negative_value_with_tamper_context(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    canonical = session.scalar(select(CanonicalMeasurement).limit(1))
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert canonical is not None
+    assert initial is not None
+    assert canonical.hes_read_raw is not None
+    raw_row = canonical.hes_read_raw
+    assert raw_row.hes_system_id is not None
+    assert raw_row.meter_identifier is not None
+
+    ingest_events(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "tamper-negative-batch",
+            "received_at": "2026-04-18T09:06:00+09:00",
+            "events": [
+                {
+                    "meter_id": raw_row.meter_identifier,
+                    "event_time": "2026-04-18T00:15:00+09:00",
+                    "event_code": "METER_TAMPER",
+                    "severity": "critical",
+                }
+            ],
+        },
+        hes_system_id=raw_row.hes_system_id,
+    )
+    session.commit()
+
+    _reset_vee_baseline(session, initial)
+    initial.value = Decimal("-1.0000")
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "exception"
+    assert execution.summary_code == "vee_failed_negative_value"
+    assert exception is not None
+    assert exception.exception_code == "vee_negative_value_detected"
+    assert exception.severity == "critical"
+    assert exception.blocking_finalization is True
+    assert exception.details["event_linked_decision"] == "tamper_correlated_value_anomaly"
+    assert exception.details["event_context_snapshot"]["primary_context_type"] == "tamper"
+    assert execution.details["event_context_snapshot"]["primary_context_type"] == "tamper"
+
+
+def test_evaluate_or_get_vee_baseline_escalates_high_value_with_tamper_context(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    canonical = session.scalar(select(CanonicalMeasurement).limit(1))
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert canonical is not None
+    assert initial is not None
+    assert canonical.hes_read_raw is not None
+    raw_row = canonical.hes_read_raw
+    assert raw_row.hes_system_id is not None
+    assert raw_row.meter_identifier is not None
+
+    ingest_events(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "tamper-high-batch",
+            "received_at": "2026-04-18T09:07:00+09:00",
+            "events": [
+                {
+                    "meter_id": raw_row.meter_identifier,
+                    "event_time": "2026-04-18T00:15:00+09:00",
+                    "event_code": "METER_TAMPER",
+                    "severity": "high",
+                }
+            ],
+        },
+        hes_system_id=raw_row.hes_system_id,
+    )
+    session.commit()
+
+    _reset_vee_baseline(session, initial)
+    initial.value = Decimal("1500.0000")
+    initial.unit_of_measure = "kWh"
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "exception"
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_failed_high_value"
+    assert exception is not None
+    assert exception.exception_code == "vee_high_value_detected"
+    assert exception.severity == "error"
+    assert exception.blocking_finalization is True
+    assert exception.details["event_linked_decision"] == "tamper_correlated_value_anomaly"
+    assert exception.details["event_context_snapshot"]["primary_context_type"] == "tamper"

@@ -509,8 +509,14 @@
   </div>
 </div>
 
+{% set event_context = detail.vee_exception.details.get("event_context_snapshot") if detail.vee_exception.details else none %}
+{% if not event_context and detail.vee_execution_log and detail.vee_execution_log.details %}
+  {% set event_context = detail.vee_execution_log.details.get("event_context_snapshot") %}
+{% endif %}
+{% set event_linked_decision = detail.vee_exception.details.get("event_linked_decision") if detail.vee_exception.details else none %}
+
 <div class="row g-4 mb-4">
-  <div class="col-xl-6">
+  <div class="col-xl-4">
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.execution_context") }}</h2>
@@ -535,7 +541,40 @@
       </div>
     </div>
   </div>
-  <div class="col-xl-6">
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.event_context") }}</h2>
+        {% if event_context %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("field.event_context_type") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("event_context.type." ~ event_context.primary_context_type, event_context.primary_context_type or t("common.none")) }}
+          </dd>
+          {% if event_linked_decision %}
+          <dt class="col-sm-4">{{ t("field.event_linked_decision") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("event_context.decision." ~ event_linked_decision, event_linked_decision) }}
+          </dd>
+          {% endif %}
+          <dt class="col-sm-4">{{ t("field.correlation_reason") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("event_context.reason." ~ event_context.correlation_reason, event_context.correlation_reason or t("common.none")) }}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.matched_event_codes") }}</dt>
+          <dd class="col-sm-8">{{ event_context.matched_event_codes|join(", ") if event_context.matched_event_codes else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.matched_event_times") }}</dt>
+          <dd class="col-sm-8">{{ event_context.matched_event_times|join(", ") if event_context.matched_event_times else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.matched_event_severities") }}</dt>
+          <dd class="col-sm-8">{{ event_context.matched_event_severities|join(", ") if event_context.matched_event_severities else t("common.none") }}</dd>
+        </dl>
+        {% else %}
+        <div class="text-secondary">{{ t("page.vee_exception_detail.no_event_context") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.final_context") }}</h2>

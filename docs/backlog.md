@@ -164,6 +164,14 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Outage and tamper context matching
 - Event-aware VEE extension
 - Event-linked exceptions
+- first event-linked slice enriches existing VEE rules before adding new
+  decision tables
+- first event-linked slice starts with outage and tamper context only
+- deferred: zero-value suppression by outage context
+- deferred: duration-aware event correlation windows
+- deferred: master-data-driven event code catalog
+- deferred: event-aware estimation policy
+- deferred: event-aware manual edit policy
 
 ## Phase 3. Product Version
 

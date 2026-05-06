@@ -14,6 +14,7 @@ from app.models import (
     VeeException,
     VeeExecutionLog,
 )
+from app.services.event_context import has_event_context_type, lookup_event_context_snapshot
 from app.services.operational_events import (
     acknowledge_operational_alerts,
     close_operational_alerts,
@@ -85,15 +86,27 @@ def _build_required_field_hit(initial_row: InitialMeasurement) -> VeeRuleHit | N
     )
 
 
-def _build_negative_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+def _build_negative_value_hit(
+    initial_row: InitialMeasurement,
+    *,
+    event_context_snapshot: dict[str, object] | None = None,
+) -> VeeRuleHit | None:
     if initial_row.value is None or initial_row.value >= 0:
         return None
 
+    severity = "error"
+    blocking_finalization = True
+    details: dict[str, object] = {"value": str(initial_row.value)}
+    if has_event_context_type(event_context_snapshot, "tamper"):
+        severity = "critical"
+        details["event_context_snapshot"] = event_context_snapshot
+        details["event_linked_decision"] = "tamper_correlated_value_anomaly"
+
     return VeeRuleHit(
         exception_code="vee_negative_value_detected",
-        severity="error",
-        blocking_finalization=True,
-        details={"value": str(initial_row.value)},
+        severity=severity,
+        blocking_finalization=blocking_finalization,
+        details=details,
     )
 
 
@@ -141,7 +154,11 @@ def _build_duplicate_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
     )
 
 
-def _build_high_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+def _build_high_value_hit(
+    initial_row: InitialMeasurement,
+    *,
+    event_context_snapshot: dict[str, object] | None = None,
+) -> VeeRuleHit | None:
     if initial_row.value is None:
         return None
     unit_of_measure = (initial_row.unit_of_measure or "").strip().lower()
@@ -155,22 +172,33 @@ def _build_high_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
     if threshold is None or initial_row.value <= threshold:
         return None
 
+    severity = "warning"
+    blocking_finalization = False
+    details: dict[str, object] = {
+        "value": str(initial_row.value),
+        "threshold_value": str(threshold),
+        "unit_of_measure": initial_row.unit_of_measure,
+        "interval_size_minutes": interval_size_minutes,
+    }
+    if has_event_context_type(event_context_snapshot, "tamper"):
+        severity = "error"
+        blocking_finalization = True
+        details["event_context_snapshot"] = event_context_snapshot
+        details["event_linked_decision"] = "tamper_correlated_value_anomaly"
+
     return VeeRuleHit(
         exception_code="vee_high_value_detected",
-        severity="warning",
-        blocking_finalization=False,
-        details={
-            "value": str(initial_row.value),
-            "threshold_value": str(threshold),
-            "unit_of_measure": initial_row.unit_of_measure,
-            "interval_size_minutes": interval_size_minutes,
-        },
+        severity=severity,
+        blocking_finalization=blocking_finalization,
+        details=details,
     )
 
 
 def _build_missing_interval_hit(
     session: Session,
     initial_row: InitialMeasurement,
+    *,
+    event_context_snapshot: dict[str, object] | None = None,
 ) -> VeeRuleHit | None:
     canonical_row = initial_row.canonical_measurement
     raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
@@ -202,35 +230,48 @@ def _build_missing_interval_hit(
     if state.received_slot_count >= state.expected_slot_count:
         return None
 
+    details: dict[str, object] = {
+        "window_start_at": state.window_start_at.isoformat(),
+        "window_size_minutes": state.window_size_minutes,
+        "interval_size_minutes": state.interval_size_minutes,
+        "expected_slot_count": state.expected_slot_count,
+        "received_slot_count": state.received_slot_count,
+        "completion_status": state.completion_status,
+        "state_id": state.id,
+    }
+    if has_event_context_type(event_context_snapshot, "outage"):
+        details["event_context_snapshot"] = event_context_snapshot
+        details["event_linked_decision"] = "outage_correlated_missing_interval"
+
     return VeeRuleHit(
         exception_code="vee_missing_interval_detected",
         severity="error",
         blocking_finalization=True,
-        details={
-            "window_start_at": state.window_start_at.isoformat(),
-            "window_size_minutes": state.window_size_minutes,
-            "interval_size_minutes": state.interval_size_minutes,
-            "expected_slot_count": state.expected_slot_count,
-            "received_slot_count": state.received_slot_count,
-            "completion_status": state.completion_status,
-            "state_id": state.id,
-        },
+        details=details,
     )
 
 
 def evaluate_initial_measurement_rule_hits(
     session: Session,
     initial_row: InitialMeasurement,
+    *,
+    event_context_snapshot: dict[str, object] | None = None,
 ) -> list[VeeRuleHit]:
+    if event_context_snapshot is None:
+        event_context_snapshot = lookup_event_context_snapshot(session, initial_row)
     hits: list[VeeRuleHit] = []
     for hit in (
         _build_required_field_hit(initial_row),
-        _build_negative_value_hit(initial_row),
+        _build_negative_value_hit(initial_row, event_context_snapshot=event_context_snapshot),
         _build_zero_value_hit(initial_row),
         _build_interval_size_hit(initial_row),
         _build_duplicate_hit(initial_row),
-        _build_missing_interval_hit(session, initial_row),
-        _build_high_value_hit(initial_row),
+        _build_missing_interval_hit(
+            session,
+            initial_row,
+            event_context_snapshot=event_context_snapshot,
+        ),
+        _build_high_value_hit(initial_row, event_context_snapshot=event_context_snapshot),
     ):
         if hit is not None:
             hits.append(hit)
@@ -255,6 +296,8 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
     if first_code == "vee_missing_interval_detected":
         return "vee_failed_missing_interval"
     if first_code == "vee_high_value_detected":
+        if rule_hits[0].blocking_finalization:
+            return "vee_failed_high_value"
         return "vee_completed_with_high_value"
     return "vee_completed_with_exception"
 
@@ -295,9 +338,11 @@ def create_or_get_vee_exception(
         .limit(1)
     )
     if existing is not None:
-        if existing.vee_execution_log_id is None:
-            existing.vee_execution_log = execution
-            session.flush()
+        existing.vee_execution_log = execution
+        existing.severity = hit.severity
+        existing.blocking_finalization = hit.blocking_finalization
+        existing.details = hit.details
+        session.flush()
         return existing, False
 
     exception = VeeException(
@@ -338,7 +383,12 @@ def evaluate_or_get_vee_baseline(
                 initial_row.initial_status = "accepted"
             return existing, False
 
-    rule_hits = evaluate_initial_measurement_rule_hits(session, initial_row)
+    event_context_snapshot = lookup_event_context_snapshot(session, initial_row)
+    rule_hits = evaluate_initial_measurement_rule_hits(
+        session,
+        initial_row,
+        event_context_snapshot=event_context_snapshot,
+    )
     now = datetime.now(timezone.utc)
     summary_code = _build_summary_code(rule_hits)
     execution = VeeExecutionLog(
@@ -365,6 +415,7 @@ def evaluate_or_get_vee_baseline(
                 "high_value_detected",
             ],
             "rule_hits": [hit.exception_code for hit in rule_hits],
+            "event_context_snapshot": event_context_snapshot,
         },
     )
     session.add(execution)
