@@ -165,6 +165,10 @@ Recommended first rollout policy:
 
 Current implementation note:
 
+- `uom_mismatch_detected` is active as a blocking error against the canonical
+  `measuring_component.unit_of_measure`
+- `multiplier_invalid_detected` may start as a blocking unity-only guardrail
+  before a richer source-versus-expected multiplier comparison exists
 - `zero_value_detected` is active as a non-blocking warning
 - `interval_size_invalid` is active as a blocking error
 - `missing_interval_detected` is active as a blocking error when a matching

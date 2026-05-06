@@ -152,6 +152,37 @@ def test_evaluate_or_get_vee_baseline_normalizes_uom_and_allows_component_fallba
     assert exception_count == 0
 
 
+def test_evaluate_or_get_vee_baseline_marks_non_unity_multiplier_as_exception(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial is not None
+    assert initial.measuring_component is not None
+    _reset_vee_baseline(session, initial)
+    initial.measuring_component.multiplier = Decimal("2.0")
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "exception"
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_failed_multiplier"
+    assert exception is not None
+    assert exception.exception_code == "vee_multiplier_invalid_detected"
+    assert exception.blocking_finalization is True
+    assert exception.details["component_multiplier"] == "2.0"
+    assert exception.details["supported_multiplier_mode"] == "unity_only"
+    assert exception.details["validation_reason"] == "unsupported_non_unity_multiplier"
+
+
 def test_evaluate_or_get_vee_baseline_marks_duplicate_source_as_exception(session):
     seed_demo_environment(session)
     session.commit()

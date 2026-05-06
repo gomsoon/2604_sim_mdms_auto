@@ -117,6 +117,36 @@ def _build_uom_mismatch_hit(initial_row: InitialMeasurement) -> VeeRuleHit | Non
     )
 
 
+def _build_multiplier_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+    component = initial_row.measuring_component
+    if component is None:
+        return None
+
+    multiplier = component.multiplier
+    validation_reason: str | None = None
+    if multiplier is None:
+        validation_reason = "missing_component_multiplier"
+    elif multiplier <= 0:
+        validation_reason = "invalid_component_multiplier"
+    elif multiplier != Decimal("1"):
+        validation_reason = "unsupported_non_unity_multiplier"
+
+    if validation_reason is None:
+        return None
+
+    return VeeRuleHit(
+        exception_code="vee_multiplier_invalid_detected",
+        severity="error",
+        blocking_finalization=True,
+        details={
+            "component_multiplier": str(multiplier) if multiplier is not None else None,
+            "supported_multiplier_mode": "unity_only",
+            "validation_reason": validation_reason,
+            "measuring_component_id": component.id,
+        },
+    )
+
+
 def _build_negative_value_hit(
     initial_row: InitialMeasurement,
     *,
@@ -294,6 +324,7 @@ def evaluate_initial_measurement_rule_hits(
     for hit in (
         _build_required_field_hit(initial_row),
         _build_uom_mismatch_hit(initial_row),
+        _build_multiplier_hit(initial_row),
         _build_negative_value_hit(initial_row, event_context_snapshot=event_context_snapshot),
         _build_zero_value_hit(initial_row),
         _build_interval_size_hit(initial_row),
@@ -319,6 +350,8 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
         return "vee_failed_required_field"
     if first_code == "vee_uom_mismatch_detected":
         return "vee_failed_uom"
+    if first_code == "vee_multiplier_invalid_detected":
+        return "vee_failed_multiplier"
     if first_code == "vee_negative_value_detected":
         return "vee_failed_negative_value"
     if first_code == "vee_zero_value_detected":
@@ -442,6 +475,7 @@ def evaluate_or_get_vee_baseline(
             "active_rules": [
                 "required_field_missing",
                 "uom_mismatch_detected",
+                "multiplier_invalid_detected",
                 "negative_value_detected",
                 "zero_value_detected",
                 "interval_size_invalid",

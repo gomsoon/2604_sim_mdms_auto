@@ -101,6 +101,12 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Zero check
 - High and low check
 - Missing interval detection
+- first multiplier-validation slice may start as a unity-only guardrail because
+  source-side multiplier lineage is not yet ingested into processing-core tables
+- deferred: source multiplier ingest and snapshot persistence
+- deferred: multiplier-aware canonical conversion
+- deferred: actual-versus-expected multiplier mismatch validation once source
+  multiplier lineage exists
 
 ### V3. Basic estimation
 
