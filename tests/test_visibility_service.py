@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
 
-from app.models import HesSystem
+from app.models import HesSystem, InitialMeasurement, VeeException
 from app.services.bill_charges import calculate_bill_charges
 from app.services.bill_determinants import calculate_bill_determinants
 from app.services.tariff_assignments import create_tariff_assignment
+from app.services.manual_edits import apply_manual_edit_from_vee_exception
 from app.services.seeds import seed_demo_environment
 from app.services.visibility import (
     build_bill_charge_filters,
+    build_manual_edit_audit_filters,
     build_bill_determinant_filters,
     VisibilityFilterError,
     build_canonical_filters,
@@ -19,9 +22,11 @@ from app.services.visibility import (
     build_ingest_batch_filters,
     build_operational_event_filters,
     build_usage_transaction_filters,
+    get_manual_edit_audit_detail_context,
     get_bill_charge_detail_context,
     get_bill_determinant_detail_context,
     get_usage_transaction_detail_context,
+    list_manual_edit_audits,
     list_bill_charges,
     list_bill_determinants,
     list_canonical_measurements,
@@ -33,6 +38,7 @@ from app.services.visibility import (
 from app.services.finalization import finalize_canonical_measurements
 from app.services.operational_events import close_operational_alert
 from app.services.usage import calculate_usage_transactions
+from app.services.vee import evaluate_or_get_vee_baseline
 
 
 def _prepare_bill_charge_visibility(session) -> None:
@@ -63,6 +69,75 @@ def _prepare_bill_charge_visibility(session) -> None:
         unit_rate_value="120.00000000",
     )
     session.commit()
+
+
+def _prepare_manual_edit_visibility(session) -> int:
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:manual-edit-visibility",
+    )
+    session.commit()
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="120.00000000",
+    )
+    session.commit()
+
+    initial_row = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.service_point_id == 1)
+        .order_by(InitialMeasurement.measured_at.asc(), InitialMeasurement.id.asc())
+        .limit(1)
+    )
+    assert initial_row is not None
+    initial_row.value = Decimal("-1.0000")
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_row.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        edited_quality_code="MANUAL",
+        edited_status_code="OVERRIDDEN",
+        reason_code="operator_meter_correction",
+        edited_by="operator_ui",
+        operator_memo="visibility-test",
+    )
+    session.commit()
+    return summary.manual_edit_audit_id
 
 
 def test_build_ingest_batch_filters_rejects_invalid_date_format():
@@ -500,6 +575,54 @@ def test_get_bill_determinant_detail_context_loads_bill_charge_rows(session):
     assert detail is not None
     assert len(detail.bill_charge_rows) == 1
     assert detail.bill_charge_rows[0].bill_determinant_id == detail.bill_determinant.id
+
+
+def test_list_manual_edit_audits_filters_by_service_point_reason_and_status(session):
+    manual_edit_audit_id = _prepare_manual_edit_visibility(session)
+
+    matched_rows = list_manual_edit_audits(
+        session,
+        build_manual_edit_audit_filters(
+            {
+                "service_point": "SP-1001",
+                "external_channel_id": "CH-01",
+                "edit_status": "applied",
+                "reason_code": "operator_meter_correction",
+            }
+        ),
+    )
+    unmatched_rows = list_manual_edit_audits(
+        session,
+        build_manual_edit_audit_filters(
+            {
+                "reason_code": "operator_business_override",
+            }
+        ),
+    )
+
+    assert len(matched_rows) == 1
+    assert matched_rows[0].id == manual_edit_audit_id
+    assert matched_rows[0].service_point.external_id == "SP-1001"
+    assert matched_rows[0].measuring_component.external_channel_id == "CH-01"
+    assert matched_rows[0].edit_status == "applied"
+    assert matched_rows[0].reason_code == "operator_meter_correction"
+    assert unmatched_rows == []
+
+
+def test_get_manual_edit_audit_detail_context_loads_lineage_and_result_final(session):
+    manual_edit_audit_id = _prepare_manual_edit_visibility(session)
+
+    detail = get_manual_edit_audit_detail_context(session, manual_edit_audit_id)
+
+    assert detail is not None
+    assert detail.manual_edit_audit.id == manual_edit_audit_id
+    assert detail.pipeline_run is not None
+    assert detail.related_vee_exception is not None
+    assert detail.target_initial_measurement is not None
+    assert detail.superseded_final_measurement is not None
+    assert detail.result_final_measurement is not None
+    assert detail.manual_edit_audit.details["original_initial_measurement_snapshot"]["value"] == "-1.0000"
+    assert detail.manual_edit_audit.details["applied_initial_measurement_snapshot"]["value"] == "12.5000"
 
 
 def test_build_operational_event_filters_rejects_invalid_stream_type():

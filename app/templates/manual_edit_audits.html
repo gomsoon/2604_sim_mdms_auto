@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.manual_edit_audits.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.manual_edit_audits.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.service_point") }}</label>
+        <input class="form-control" name="service_point" value="{{ filters.service_point or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.external_channel_id") }}</label>
+        <input class="form-control" name="external_channel_id" value="{{ filters.external_channel_id or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.edit_status") }}</label>
+        <select class="form-select" name="edit_status">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="applied" {% if filters.edit_status == "applied" %}selected{% endif %}>
+            {{ t("manual_edit.status.applied") }}
+          </option>
+          <option value="blocked" {% if filters.edit_status == "blocked" %}selected{% endif %}>
+            {{ t("manual_edit.status.blocked") }}
+          </option>
+          <option value="failed" {% if filters.edit_status == "failed" %}selected{% endif %}>
+            {{ t("manual_edit.status.failed") }}
+          </option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("field.reason_code") }}</label>
+        <select class="form-select" name="reason_code">
+          <option value="">{{ t("button.reset") }}</option>
+          {% for reason_code in manual_edit_reason_codes %}
+          <option value="{{ reason_code }}" {% if filters.reason_code == reason_code %}selected{% endif %}>
+            {{ t_or("manual_edit.reason_code." ~ reason_code, reason_code) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.manual_edit_audits', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.service_point") }}</th>
+            <th>{{ t("field.external_meter_id") }}</th>
+            <th>{{ t("field.external_channel_id") }}</th>
+            <th>{{ t("field.target_measured_at") }}</th>
+            <th>{{ t("field.edited_value") }}</th>
+            <th>{{ t("field.edited_by") }}</th>
+            <th>{{ t("field.reason_code") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("field.result_final") }}</th>
+            <th>{{ t("table.created_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              <a
+                class="link-primary text-decoration-none"
+                href="{{ url_for('web.manual_edit_audit_detail', manual_edit_audit_id=row.id, lang=current_locale) }}"
+              >
+                {{ row.id }}
+              </a>
+            </td>
+            <td>{{ row.service_point.external_id }}</td>
+            <td>{{ row.device.external_meter_id if row.device else t("common.none") }}</td>
+            <td>{{ row.measuring_component.external_channel_id if row.measuring_component else t("common.none") }}</td>
+            <td>{{ row.target_measured_at|dt }}</td>
+            <td>{{ row.edited_value if row.edited_value is not none else t("common.none") }}</td>
+            <td>{{ row.edited_by }}</td>
+            <td>{{ t_or("manual_edit.reason_code." ~ row.reason_code, row.reason_code) }}</td>
+            <td>{{ t_or("manual_edit.status." ~ row.edit_status, row.edit_status) }}</td>
+            <td>{{ row.result_final_measurement_id or t("common.none") }}</td>
+            <td>{{ row.created_at|dt }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-secondary">{{ t("page.manual_edit_audits.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -498,6 +498,7 @@ def test_vee_exception_manual_edit_via_web_applies_edit_and_shows_result(session
     assert current_charge.id != old_charge.id
     assert current_charge.charge_amount == Decimal("4250.0000")
     assert audit_row is not None
+    assert f"/manual-edit-audits/{audit_row.id}?lang=ko" in text
     assert updated_exception is not None
     assert updated_exception.exception_status == "resolved"
     assert updated_exception.resolution_type == "manually_corrected"

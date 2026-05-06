@@ -117,6 +117,7 @@ from app.services.vee_replay_requests import (
 )
 from app.services.visibility import (
     build_bill_charge_filters,
+    build_manual_edit_audit_filters,
     VisibilityFilterError,
     build_bill_determinant_filters,
     build_canonical_filters,
@@ -127,12 +128,14 @@ from app.services.visibility import (
     build_vee_exception_filters,
     build_vee_replay_request_filters,
     get_bill_charge_detail_context,
+    get_manual_edit_audit_detail_context,
     get_bill_determinant_detail_context,
     get_usage_transaction_detail_context,
     get_vee_exception_detail_context,
     get_vee_replay_request_detail_context,
     get_operational_event_detail_context,
     list_bill_charges,
+    list_manual_edit_audits,
     list_bill_determinants,
     list_canonical_measurements,
     list_final_measurements,
@@ -845,6 +848,34 @@ def bill_charge_detail(bill_charge_id: int):
         abort(404)
 
     return render_template("bill_charge_detail.html", detail=detail)
+
+
+@bp.get("/manual-edit-audits")
+def manual_edit_audits():
+    session = get_session()
+    try:
+        filters = build_manual_edit_audit_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_manual_edit_audit_filters({})
+
+    rows = list_manual_edit_audits(session, filters)
+    return render_template(
+        "manual_edit_audits.html",
+        rows=rows,
+        filters=filters,
+        manual_edit_reason_codes=sorted(SUPPORTED_MANUAL_EDIT_REASON_CODES),
+    )
+
+
+@bp.get("/manual-edit-audits/<int:manual_edit_audit_id>")
+def manual_edit_audit_detail(manual_edit_audit_id: int):
+    session = get_session()
+    detail = get_manual_edit_audit_detail_context(session, manual_edit_audit_id)
+    if detail is None:
+        abort(404)
+
+    return render_template("manual_edit_audit_detail.html", detail=detail)
 
 
 @bp.get("/operational-events")

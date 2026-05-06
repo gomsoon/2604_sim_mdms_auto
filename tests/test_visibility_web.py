@@ -1,16 +1,28 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from sqlalchemy import func, select
 
 from app.services.bill_charges import calculate_bill_charges
 from app.services.bill_determinants import calculate_bill_determinants
-from app.models import FinalMeasurement, IngestBatch, OperationalEvent, UsageTransaction
+from app.models import (
+    FinalMeasurement,
+    IngestBatch,
+    InitialMeasurement,
+    ManualEditAudit,
+    OperationalEvent,
+    UsageTransaction,
+    VeeException,
+)
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
+from app.services.manual_edits import apply_manual_edit_from_vee_exception
 from app.services.operational_events import close_operational_alert
 from app.services.seeds import seed_demo_environment
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.usage import calculate_usage_transactions
+from app.services.vee import evaluate_or_get_vee_baseline
 
 
 def _prepare_bill_charge_rows(session) -> None:
@@ -41,6 +53,75 @@ def _prepare_bill_charge_rows(session) -> None:
         unit_rate_value="120.00000000",
     )
     session.commit()
+
+
+def _prepare_manual_edit_audit_rows(session) -> int:
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:manual-edit-web",
+    )
+    session.commit()
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="120.00000000",
+    )
+    session.commit()
+
+    initial_row = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.service_point_id == 1)
+        .order_by(InitialMeasurement.measured_at.asc(), InitialMeasurement.id.asc())
+        .limit(1)
+    )
+    assert initial_row is not None
+    initial_row.value = Decimal("-1.0000")
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_row.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        edited_quality_code="MANUAL",
+        edited_status_code="OVERRIDDEN",
+        reason_code="operator_meter_correction",
+        edited_by="operator_ui",
+        operator_memo="manual-edit-web",
+    )
+    session.commit()
+    return summary.manual_edit_audit_id
 
 
 def test_ingest_batches_page_renders_filtered_results_in_korean(client, session):
@@ -434,6 +515,43 @@ def test_usage_transaction_detail_page_links_to_related_bill_charges(client, ses
     assert response.status_code == 200
     assert "관련 청구 금액" in text
     assert "/bill-charges/1?lang=ko" in text
+
+
+def test_manual_edit_audits_page_renders_filtered_rows(client, session):
+    manual_edit_audit_id = _prepare_manual_edit_audit_rows(session)
+
+    response = client.get(
+        "/manual-edit-audits?lang=ko&service_point=SP-1001&external_channel_id=CH-01&edit_status=applied&reason_code=operator_meter_correction"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "수동 보정 감사 이력" in text
+    assert "SP-1001" in text
+    assert "MTR-1001" in text
+    assert "CH-01" in text
+    assert "운영자 계량기 보정" in text
+    assert f"/manual-edit-audits/{manual_edit_audit_id}?lang=ko" in text
+
+
+def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, session):
+    manual_edit_audit_id = _prepare_manual_edit_audit_rows(session)
+    audit_row = session.get(ManualEditAudit, manual_edit_audit_id)
+    assert audit_row is not None
+
+    response = client.get(f"/manual-edit-audits/{manual_edit_audit_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "수동 보정 감사 상세" in text
+    assert "원본 initial 스냅샷" in text
+    assert "적용된 initial 스냅샷" in text
+    assert "관련 VEE 예외" in text
+    assert "downstream 재계산" in text
+    assert "운영자 계량기 보정" in text
+    assert "operator_ui" in text
+    assert "12.5000" in text
+    assert f"/vee-exceptions/{audit_row.related_vee_exception_id}?lang=ko" in text
 
 
 def test_master_data_page_billing_context_rows_link_to_bill_determinants(client, session):

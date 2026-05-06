@@ -19,6 +19,7 @@ from app.models import (
     InitialMeasurement,
     IngestBatch,
     IngestErrorLog,
+    ManualEditAudit,
     MeasuringComponent,
     OperationalEvent,
     PipelineRun,
@@ -131,6 +132,20 @@ class BillChargeFilters:
 
 
 @dataclass(frozen=True, slots=True)
+class ManualEditAuditFilters:
+    manual_edit_audit_id: int | None = None
+    related_vee_exception_id: int | None = None
+    service_point_id: int | None = None
+    measuring_component_id: int | None = None
+    service_point: str | None = None
+    external_channel_id: str | None = None
+    edit_status: str | None = None
+    reason_code: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class VeeExceptionFilters:
     hes_system_id: int | None = None
     exception_status: str | None = None
@@ -211,6 +226,16 @@ class BillChargeDetailContext:
     pipeline_run: PipelineRun | None = None
     bill_determinant: BillDeterminant | None = None
     revision_rows: list[BillCharge] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ManualEditAuditDetailContext:
+    manual_edit_audit: ManualEditAudit
+    pipeline_run: PipelineRun | None = None
+    related_vee_exception: VeeException | None = None
+    target_initial_measurement: InitialMeasurement | None = None
+    superseded_final_measurement: FinalMeasurement | None = None
+    result_final_measurement: FinalMeasurement | None = None
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -497,6 +522,51 @@ def build_bill_charge_filters(args) -> BillChargeFilters:
         date_from=date_from,
         date_to=date_to,
         include_history=_parse_optional_bool(args.get("include_history"), default=False),
+    )
+
+
+def build_manual_edit_audit_filters(args) -> ManualEditAuditFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    edit_status = _normalize_text(args.get("edit_status"))
+    if edit_status not in {None, "applied", "blocked", "failed"}:
+        raise VisibilityFilterError(
+            "invalid_manual_edit_status_filter",
+            "Manual edit status must be applied, blocked, or failed when provided.",
+        )
+
+    return ManualEditAuditFilters(
+        manual_edit_audit_id=_parse_optional_int(
+            args.get("manual_edit_audit_id"),
+            error_code="invalid_manual_edit_audit_filter",
+            fallback_message="Manual edit audit filter must be a positive integer.",
+        ),
+        related_vee_exception_id=_parse_optional_int(
+            args.get("related_vee_exception_id"),
+            error_code="invalid_vee_exception_filter",
+            fallback_message="VEE exception filter must be a positive integer.",
+        ),
+        service_point_id=_parse_optional_int(
+            args.get("service_point_id"),
+            error_code="invalid_service_point_filter",
+            fallback_message="Service point filter must be a positive integer.",
+        ),
+        measuring_component_id=_parse_optional_int(
+            args.get("measuring_component_id"),
+            error_code="invalid_measuring_component_filter",
+            fallback_message="Measuring component filter must be a positive integer.",
+        ),
+        service_point=_normalize_text(args.get("service_point")),
+        external_channel_id=_normalize_text(args.get("external_channel_id")),
+        edit_status=edit_status,
+        reason_code=_normalize_text(args.get("reason_code")),
+        date_from=date_from,
+        date_to=date_to,
     )
 
 
@@ -872,6 +942,63 @@ def list_bill_charges(
     return session.execute(statement).scalars().unique().all()
 
 
+def list_manual_edit_audits(
+    session: Session,
+    filters: ManualEditAuditFilters,
+    *,
+    limit: int = 200,
+) -> list[ManualEditAudit]:
+    statement: Select[tuple[ManualEditAudit]] = (
+        select(ManualEditAudit)
+        .join(ManualEditAudit.service_point)
+        .join(ManualEditAudit.measuring_component)
+        .outerjoin(ManualEditAudit.device)
+        .options(
+            selectinload(ManualEditAudit.pipeline_run),
+            selectinload(ManualEditAudit.service_point),
+            selectinload(ManualEditAudit.measuring_component),
+            selectinload(ManualEditAudit.device),
+            selectinload(ManualEditAudit.related_vee_exception),
+            selectinload(ManualEditAudit.target_initial_measurement),
+            selectinload(ManualEditAudit.superseded_final_measurement),
+            selectinload(ManualEditAudit.result_final_measurement),
+        )
+    )
+
+    if filters.manual_edit_audit_id is not None:
+        statement = statement.where(ManualEditAudit.id == filters.manual_edit_audit_id)
+    if filters.related_vee_exception_id is not None:
+        statement = statement.where(
+            ManualEditAudit.related_vee_exception_id == filters.related_vee_exception_id
+        )
+    if filters.service_point_id is not None:
+        statement = statement.where(ManualEditAudit.service_point_id == filters.service_point_id)
+    if filters.measuring_component_id is not None:
+        statement = statement.where(
+            ManualEditAudit.measuring_component_id == filters.measuring_component_id
+        )
+    if filters.service_point:
+        statement = statement.where(ServicePoint.external_id == filters.service_point)
+    if filters.external_channel_id:
+        statement = statement.where(
+            MeasuringComponent.external_channel_id == filters.external_channel_id
+        )
+    if filters.edit_status:
+        statement = statement.where(ManualEditAudit.edit_status == filters.edit_status)
+    if filters.reason_code:
+        statement = statement.where(ManualEditAudit.reason_code == filters.reason_code)
+    if filters.date_from:
+        statement = statement.where(ManualEditAudit.target_measured_at >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(ManualEditAudit.target_measured_at <= filters.date_to)
+
+    statement = statement.order_by(
+        ManualEditAudit.created_at.desc(),
+        ManualEditAudit.id.desc(),
+    ).limit(limit)
+    return session.execute(statement).scalars().unique().all()
+
+
 def _bill_determinant_matches_hes_clause(hes_system_id: int):
     return (
         select(UsageTransaction.id)
@@ -1127,6 +1254,38 @@ def get_bill_charge_detail_context(
         pipeline_run=bill_charge.pipeline_run,
         bill_determinant=bill_charge.bill_determinant,
         revision_rows=revision_rows,
+    )
+
+
+def get_manual_edit_audit_detail_context(
+    session: Session,
+    manual_edit_audit_id: int,
+) -> ManualEditAuditDetailContext | None:
+    manual_edit_audit = session.scalar(
+        select(ManualEditAudit)
+        .where(ManualEditAudit.id == manual_edit_audit_id)
+        .options(
+            joinedload(ManualEditAudit.pipeline_run),
+            joinedload(ManualEditAudit.service_point),
+            joinedload(ManualEditAudit.device),
+            joinedload(ManualEditAudit.measuring_component),
+            joinedload(ManualEditAudit.target_initial_measurement),
+            joinedload(ManualEditAudit.related_vee_exception),
+            joinedload(ManualEditAudit.superseded_final_measurement),
+            joinedload(ManualEditAudit.result_final_measurement),
+        )
+        .limit(1)
+    )
+    if manual_edit_audit is None:
+        return None
+
+    return ManualEditAuditDetailContext(
+        manual_edit_audit=manual_edit_audit,
+        pipeline_run=manual_edit_audit.pipeline_run,
+        related_vee_exception=manual_edit_audit.related_vee_exception,
+        target_initial_measurement=manual_edit_audit.target_initial_measurement,
+        superseded_final_measurement=manual_edit_audit.superseded_final_measurement,
+        result_final_measurement=manual_edit_audit.result_final_measurement,
     )
 
 

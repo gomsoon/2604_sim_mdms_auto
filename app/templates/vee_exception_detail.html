@@ -223,8 +223,16 @@
         <h2 class="h5 mb-1">{{ t("page.vee_exception_detail.manual_edit_result") }}</h2>
         <p class="text-secondary mb-0">{{ t("page.vee_exception_detail.manual_edit_result_description") }}</p>
       </div>
-      <div class="small text-secondary">
-        {{ t("table.id") }} / Audit: {{ manual_edit_summary.manual_edit_audit_id }}
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="small text-secondary">
+          {{ t("table.id") }} / Audit: {{ manual_edit_summary.manual_edit_audit_id }}
+        </div>
+        <a
+          class="btn btn-sm btn-outline-secondary"
+          href="{{ url_for('web.manual_edit_audit_detail', manual_edit_audit_id=manual_edit_summary.manual_edit_audit_id, lang=current_locale) }}"
+        >
+          {{ t("button.view") }}
+        </a>
       </div>
     </div>
     <div class="row g-3 mt-1">

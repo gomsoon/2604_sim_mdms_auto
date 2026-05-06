@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set audit_details = detail.manual_edit_audit.details or {} %}
+{% set exception_snapshot = audit_details.get("target_vee_exception_snapshot") %}
+{% set original_initial_snapshot = audit_details.get("original_initial_measurement_snapshot") %}
+{% set applied_initial_snapshot = audit_details.get("applied_initial_measurement_snapshot") %}
+{% set result_final_snapshot = audit_details.get("result_final_measurement_snapshot") %}
+{% set downstream_summary = audit_details.get("downstream_recalculation_summary") or {} %}
+{% set usage_results = downstream_summary.get("usage_recalculation_results") or [] %}
+{% set bill_determinant_summary = downstream_summary.get("bill_determinant") %}
+{% set bill_charge_summary = downstream_summary.get("bill_charge") %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.manual_edit_audit_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.manual_edit_audit_detail.description") }}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a
+      class="btn btn-outline-secondary"
+      href="{{ url_for('web.manual_edit_audits', lang=current_locale, manual_edit_audit_id=detail.manual_edit_audit.id) }}"
+    >
+      {{ t("button.back_to_manual_edit_audits") }}
+    </a>
+    {% if detail.related_vee_exception %}
+    <a
+      class="btn btn-outline-primary"
+      href="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.related_vee_exception.id, lang=current_locale) }}"
+    >
+      {{ t("button.back_to_vee_exceptions") }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.id }}</dd>
+          <dt class="col-sm-4">{{ t("field.target_measured_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.target_measured_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.edited_value") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.edited_value if detail.manual_edit_audit.edited_value is not none else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.edited_quality_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.edited_quality_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.edited_status_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.edited_status_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.edited_by") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.edited_by }}</dd>
+          <dt class="col-sm-4">{{ t("field.reason_code") }}</dt>
+          <dd class="col-sm-8">{{ t_or("manual_edit.reason_code." ~ detail.manual_edit_audit.reason_code, detail.manual_edit_audit.reason_code) }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("manual_edit.status." ~ detail.manual_edit_audit.edit_status, detail.manual_edit_audit.edit_status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.created_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.created_at|dt }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.lineage") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.pipeline_run_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.pipeline_run.id if detail.pipeline_run else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.service_point.external_id }}</dd>
+          <dt class="col-sm-4">{{ t("field.device") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.device.external_meter_id if detail.manual_edit_audit.device else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.external_channel_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.measuring_component.external_channel_id if detail.manual_edit_audit.measuring_component else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.target_initial_measurement") }}</dt>
+          <dd class="col-sm-8">{{ detail.target_initial_measurement.id if detail.target_initial_measurement else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.related_vee_exception") }}</dt>
+          <dd class="col-sm-8">
+            {% if detail.related_vee_exception %}
+            <a
+              class="link-primary text-decoration-none"
+              href="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.related_vee_exception.id, lang=current_locale) }}"
+            >
+              {{ detail.related_vee_exception.id }}
+            </a>
+            {% else %}
+              {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.superseded_final") }}</dt>
+          <dd class="col-sm-8">{{ detail.superseded_final_measurement.id if detail.superseded_final_measurement else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.result_final") }}</dt>
+          <dd class="col-sm-8">{{ detail.result_final_measurement.id if detail.result_final_measurement else t("common.none") }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.original_snapshot") }}</h2>
+        {% if original_initial_snapshot %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ original_initial_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.applied_snapshot") }}</h2>
+        {% if applied_initial_snapshot %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ applied_initial_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.related_exception_snapshot") }}</h2>
+        {% if exception_snapshot %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ exception_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.result_final_snapshot") }}</h2>
+        {% if result_final_snapshot %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ result_final_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.downstream_recalculation") }}</h2>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.daily_usage_recalculation") }}</div>
+          <div class="fw-semibold">{{ downstream_summary.get("daily_usage_groups_updated", 0) }}</div>
+          <div class="small text-secondary mt-1">
+            {{ t("field.rows_deleted") }}: {{ downstream_summary.get("daily_usage_rows_deleted", 0) }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.monthly_usage_recalculation") }}</div>
+          <div class="fw-semibold">{{ downstream_summary.get("monthly_usage_groups_updated", 0) }}</div>
+          <div class="small text-secondary mt-1">
+            {{ t("field.rows_deleted") }}: {{ downstream_summary.get("monthly_usage_rows_deleted", 0) }}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.bill_determinant_recalculation") }}</div>
+          <div class="small">
+            {% if bill_determinant_summary %}
+            <div>{{ t("table.total") }}: {{ bill_determinant_summary.groups }}</div>
+            <div>{{ t("table.created") }}: {{ bill_determinant_summary.created }}</div>
+            <div>{{ t("field.superseded") }}: {{ bill_determinant_summary.superseded }}</div>
+            <div>{{ t("table.reused") }}: {{ bill_determinant_summary.reused }}</div>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="small text-secondary mb-1">{{ t("field.bill_charge_recalculation") }}</div>
+          <div class="small">
+            {% if bill_charge_summary %}
+            <div>{{ t("table.total") }}: {{ bill_charge_summary.groups }}</div>
+            <div>{{ t("table.created") }}: {{ bill_charge_summary.created }}</div>
+            <div>{{ t("field.superseded") }}: {{ bill_charge_summary.superseded }}</div>
+            <div>{{ t("table.reused") }}: {{ bill_charge_summary.reused }}</div>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if usage_results %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>{{ t("table.usage_type") }}</th>
+            <th>{{ t("table.period") }}</th>
+            <th>{{ t("table.action") }}</th>
+            <th>{{ t("field.previous") }}</th>
+            <th>{{ t("field.current") }}</th>
+            <th>{{ t("table.actions") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in usage_results %}
+          <tr>
+            <td>{{ t_or("usage.type." ~ row.usage_type, row.usage_type) }}</td>
+            <td class="small">
+              <div>{{ row.period_start_at|dt }}</div>
+              <div class="text-secondary">{{ row.period_end_at|dt }}</div>
+            </td>
+            <td>
+              <span class="badge text-bg-light">
+                {{ t_or("usage.recalculation_action." ~ row.action, row.action) }}
+              </span>
+            </td>
+            <td class="small">
+              <div>{{ t("table.value") }}: {{ row.previous_usage_value or t("common.none") }}</div>
+              <div>{{ t("table.status") }}: {{ t_or("usage.calculation_status." ~ row.previous_calculation_status, row.previous_calculation_status or t("common.none")) }}</div>
+            </td>
+            <td class="small">
+              <div>{{ t("table.value") }}: {{ row.current_usage_value or t("common.none") }}</div>
+              <div>{{ t("table.status") }}: {{ t_or("usage.calculation_status." ~ row.current_calculation_status, row.current_calculation_status or t("common.none")) }}</div>
+            </td>
+            <td>
+              {% if row.current_usage_transaction_id %}
+              <a
+                class="btn btn-sm btn-outline-secondary"
+                href="{{ url_for('web.usage_transaction_detail', usage_transaction_id=row.current_usage_transaction_id, lang=current_locale) }}"
+              >
+                {{ t("button.view") }}
+              </a>
+              {% else %}
+              <span class="text-secondary small">{{ t("common.none") }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
