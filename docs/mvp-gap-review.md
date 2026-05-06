@@ -29,6 +29,9 @@ Current repository baseline now includes:
 - `bill_charge`
 - synchronous single-object `re-VEE`
 - async bulk `re-VEE` request and worker baseline
+- operator-triggered estimation
+- operator-triggered manual edit
+- event-linked VEE baseline for outage and tamper context
 - broad operator visibility across dashboard, HES detail, usage, determinant,
   charge, and replay flows
 
@@ -72,34 +75,38 @@ Current state:
   - zero value warning
   - interval size validation
   - missing interval detection
-  - basic high-value warning
+  - high-value validation
+  - first outage/tamper event-linked behavior
 
 Remaining MVP gap:
 
 - `UOM validation` is not yet a real first-class rule path
 - `multiplier validation` is not yet present as a real rule path
+- `low value` is not yet a real first-class rule path
 - high/low logic remains intentionally shallow and code-backed
-- event-aware rule effects are not yet part of the baseline
 
 ### V3. Basic estimation
 
-Status: largely not started
+Status: partially implemented
 
 Current state:
 
-- documents repeatedly preserve room for estimation
-- revision-capable `final_measurement` now makes later estimated outcomes
-  structurally possible
+- substitution-only estimation exists
+- `linear_interpolation` exists
+- `previous_value_based` exists
+- explicit `estimation_audit` persistence exists
+- operator-visible estimation handling exists
+- update flow into current `final_measurement` exists
 
 What is still missing:
 
-- linear interpolation flow
-- previous-value-based estimation flow
-- explicit estimation audit persistence
-- operator-visible estimated outcome handling
-- update flow from estimated result into current `final_measurement`
+- synthetic missing-interval estimation
+- bulk estimation
+- preview and approval workflow
+- broader exception-code coverage
+- event-aware estimation policy
 
-This is the clearest unimplemented MVP feature area.
+This is no longer untouched, but it is still intentionally narrow.
 
 ### V4. Exception management
 
@@ -120,23 +127,24 @@ Remaining notes:
 
 ### V5. Manual edits and audit
 
-Status: largely not started
+Status: partially implemented
 
 Current state:
 
-- there is strong revision lineage for `final_measurement`,
-  `bill_determinant`, and `bill_charge`
-- operator actions are auditable through events and pipeline runs
+- substitution-only manual edit exists
+- explicit `manual_edit_audit` persistence exists
+- operator-visible manual edit handling exists
+- final regeneration and downstream recalculation exist
 
 What is still missing:
 
-- manual edit API or UI
-- reason-code-driven manual correction flow
-- approver/editor identity model
-- explicit manual edit audit table or equivalent persistent record
-- manual-edit-triggered final regeneration flow
+- approval workflow
+- bulk manual edit
+- broader correction coverage
+- event-aware correction policy
+- preview-and-compare correction workspace
 
-This is the second major untouched MVP area after estimation.
+This is no longer untouched, but it is still intentionally narrow.
 
 ### V6. Usage calculation
 
@@ -158,24 +166,31 @@ Remaining notes:
 
 ### V7. Event-linked decisioning
 
-Status: lightly addressed, but not implemented as a real MVP capability
+Status: partially implemented
 
 Current state:
 
 - `operational_event` and alert visibility are strong
-- VEE exceptions, replay, finalization, and usage recalculation all emit and
-  consume operational visibility
+- outage and tamper context matching now exist
+- event-aware VEE behavior now exists for:
+  - `missing_interval`
+  - `negative_value`
+  - `high_value`
+- `vee_exception` detail now shows matched event context
 
 What is still missing:
 
-- outage and tamper context matching
-- event-aware VEE rule behavior
-- event-linked exception generation beyond general event visibility
+- richer event-duration modeling
+- zero-value event-linked policy
+- event-aware estimation policy
+- event-aware manual edit policy
+- broader event-linked operational spotlight
 
 Important distinction:
 
-- the repository already *shows* events well
-- it does not yet *use* events deeply in VEE or estimation decisions
+- the repository now both *shows* and *uses* events in selected VEE decisions
+- it still does not yet use event context broadly across all correction and
+  estimation policies
 
 ## Cross-cutting MVP observations
 
@@ -199,61 +214,58 @@ They do not remove the remaining MVP gaps above.
 The repository already has strong downstream visibility and billing-lite
 structure.
 
-The more important remaining MVP gaps are now:
+The more important remaining MVP gaps are now concentrated in:
 
-1. estimation
-2. manual edit and audit
-3. event-linked decisioning
+1. remaining first-class VEE rule completeness
+2. service-point-facing usage API boundary clarity
+3. deeper policy layers around estimation, manual edit, and event context
 
-That means the next MVP work should probably move back upstream into the core
-processing loop rather than going deeper into billing first.
+That means the next MVP work should probably focus on closure and refinement in
+the core processing loop rather than going deeper into billing first.
 
 ## Recommended next priorities
 
-### Priority 1. Estimation baseline
+### Priority 1. Basic VEE closure
 
 Recommended first next step:
 
-- define a minimal estimation boundary
-- pick one or two strategies only
-  - linear interpolation
-  - previous-value-based estimation
-- persist explicit estimation audit
-- update `final_measurement` through revision rather than overwrite
+- close the remaining first-class rule gaps:
+  - `UOM validation`
+  - `multiplier validation`
+  - `low value`
 
 Why first:
 
-- it closes the largest untouched MVP gap
-- it fits the current revision-capable processing structure well
-- it improves end-to-end MDM realism more than another billing-lite extension
+- this is now the shortest path to closing V2 cleanly
+- it increases confidence in every downstream layer already built on top of VEE
 
-### Priority 2. Manual edit and audit baseline
+### Priority 2. Usage API boundary review
 
 Recommended second next step:
 
-- manual edit request model or direct operator action baseline
-- reason codes
-- operator identity capture
-- audit persistence
-- final regeneration through current-plus-history revision
+- review whether current `usage_transaction` visibility already satisfies the
+  MVP `service-point usage API` expectation
+- if not, add a thin service-facing usage API slice
 
 Why second:
 
-- it is a natural companion to estimation
-- it gives operators a practical resolution path beyond VEE acknowledge/resolve
+- V6 is mostly complete already
+- boundary review is cheaper than another new subsystem
 
-### Priority 3. Event-linked decisioning baseline
+### Priority 3. Policy-depth review for correction flows
 
 Recommended third next step:
 
-- define one or two event-aware rules only
-- start with outage or tamper context matching
-- keep the first integration narrow and auditable
+- choose the next deeper slice intentionally:
+  - broader estimation coverage
+  - broader manual edit coverage
+  - event-aware correction policy
 
 Why third:
 
-- event visibility is already strong
-- the next improvement is to make that event context affect actual decisions
+- the first baseline now exists for all three areas
+- the next increment should be chosen deliberately instead of growing all three
+  at once
 
 ## Explicit non-priorities for the next MVP pass
 
@@ -275,13 +287,13 @@ The repository is no longer missing "basic downstream billing-shaped outputs."
 
 Instead, the most important remaining MVP gaps are now:
 
-1. `Basic estimation`
-2. `Manual edits and audit`
-3. `Event-linked decisioning`
+1. `Basic VEE engine closure`
+2. `Usage API and service-boundary polish`
+3. `Policy-depth expansion for estimation, manual edit, and event-linked correction`
 
 The recommended next direction is therefore:
 
 - return to the processing core
-- close estimation first
-- then add manual correction and audit
-- then connect operational events more directly into business decisioning
+- close the remaining VEE baseline rule gaps first
+- then review whether usage needs a thinner service-facing API closure
+- then choose the next deeper correction-policy slice intentionally
