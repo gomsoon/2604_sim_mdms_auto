@@ -28,6 +28,11 @@ HIGH_VALUE_THRESHOLDS: dict[tuple[str, int], Decimal] = {
     ("kwh", 30): Decimal("500.0000"),
     ("kwh", 60): Decimal("1000.0000"),
 }
+LOW_VALUE_THRESHOLDS: dict[tuple[str, int], Decimal] = {
+    ("kwh", 15): Decimal("0.0005"),
+    ("kwh", 30): Decimal("0.0010"),
+    ("kwh", 60): Decimal("0.0020"),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +188,35 @@ def _build_zero_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
     )
 
 
+def _build_low_value_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+    if initial_row.value is None or initial_row.value <= 0:
+        return None
+
+    unit_of_measure = (initial_row.unit_of_measure or "").strip().lower()
+    canonical_row = initial_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    interval_size_minutes = raw_row.interval_size_minutes if raw_row is not None else None
+    if interval_size_minutes is None:
+        return None
+
+    threshold = LOW_VALUE_THRESHOLDS.get((unit_of_measure, interval_size_minutes))
+    if threshold is None or initial_row.value >= threshold:
+        return None
+
+    return VeeRuleHit(
+        exception_code="vee_low_value_detected",
+        severity="warning",
+        blocking_finalization=False,
+        details={
+            "value": str(initial_row.value),
+            "threshold_value": str(threshold),
+            "unit_of_measure": initial_row.unit_of_measure,
+            "interval_size_minutes": interval_size_minutes,
+            "supported_low_value_mode": "micro_value_warning",
+        },
+    )
+
+
 def _build_interval_size_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
     canonical_row = initial_row.canonical_measurement
     raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
@@ -327,6 +361,7 @@ def evaluate_initial_measurement_rule_hits(
         _build_multiplier_hit(initial_row),
         _build_negative_value_hit(initial_row, event_context_snapshot=event_context_snapshot),
         _build_zero_value_hit(initial_row),
+        _build_low_value_hit(initial_row),
         _build_interval_size_hit(initial_row),
         _build_duplicate_hit(initial_row),
         _build_missing_interval_hit(
@@ -356,6 +391,8 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
         return "vee_failed_negative_value"
     if first_code == "vee_zero_value_detected":
         return "vee_completed_with_zero_value"
+    if first_code == "vee_low_value_detected":
+        return "vee_completed_with_low_value"
     if first_code == "vee_interval_size_invalid":
         return "vee_failed_interval_size"
     if first_code == "vee_duplicate_detected":
@@ -478,6 +515,7 @@ def evaluate_or_get_vee_baseline(
                 "multiplier_invalid_detected",
                 "negative_value_detected",
                 "zero_value_detected",
+                "low_value_detected",
                 "interval_size_invalid",
                 "duplicate_detected",
                 "missing_interval_detected",

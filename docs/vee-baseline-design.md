@@ -175,8 +175,10 @@ Current implementation note:
   `raw_interval_window_state` exists with `open` or `partial` completeness
 - `high_value_detected` is active as a non-blocking warning through a
   code-backed baseline threshold registry
-- `low_value_detected` remains deferred until a more reliable canonical or
-  source-side threshold basis is available
+- `low_value_detected` is active only as a narrow non-blocking
+  `micro_value_warning` for tiny positive `kWh` intervals
+- richer low-value policy remains deferred until a more reliable canonical,
+  contract, tariff, or source-side threshold basis is available
 
 Notes:
 

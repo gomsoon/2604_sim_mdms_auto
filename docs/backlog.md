@@ -100,6 +100,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Negative check
 - Zero check
 - High and low check
+- first low-value slice may start as a narrow non-blocking `micro_value_warning`
+  for tiny positive `kWh` interval values
 - Missing interval detection
 - first multiplier-validation slice may start as a unity-only guardrail because
   source-side multiplier lineage is not yet ingested into processing-core tables
@@ -107,6 +109,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: multiplier-aware canonical conversion
 - deferred: actual-versus-expected multiplier mismatch validation once source
   multiplier lineage exists
+- deferred: contract-aware, tariff-aware, and customer-class-aware low-value
+  policy beyond the first micro-value warning slice
 
 ### V3. Basic estimation
 
