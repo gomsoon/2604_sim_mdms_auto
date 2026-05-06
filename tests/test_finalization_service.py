@@ -166,6 +166,33 @@ def test_finalize_canonical_measurements_skips_rows_with_open_blocking_vee_excep
     assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 0
 
 
+def test_finalize_canonical_measurements_skips_rows_with_uom_mismatch_vee_exception(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial_row is not None
+    assert initial_row.measuring_component is not None
+    initial_row.unit_of_measure = "MWh"
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row)
+    session.commit()
+
+    summary = finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    assert summary.candidates == 1
+    assert summary.finalized == 0
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 1
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 0
+
+
 def test_finalize_canonical_measurements_allows_non_blocking_vee_warning(session):
     seed_demo_environment(session)
     session.commit()

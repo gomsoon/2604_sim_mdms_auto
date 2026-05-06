@@ -86,6 +86,37 @@ def _build_required_field_hit(initial_row: InitialMeasurement) -> VeeRuleHit | N
     )
 
 
+def _normalize_uom(value: str | None) -> str | None:
+    normalized = str(value or "").strip().lower()
+    return normalized or None
+
+
+def _build_uom_mismatch_hit(initial_row: InitialMeasurement) -> VeeRuleHit | None:
+    component = initial_row.measuring_component
+    if component is None:
+        return None
+
+    actual_uom = _normalize_uom(initial_row.unit_of_measure)
+    expected_uom = _normalize_uom(component.unit_of_measure)
+    if actual_uom is None or expected_uom is None or actual_uom == expected_uom:
+        return None
+
+    canonical_row = initial_row.canonical_measurement
+    raw_row = canonical_row.hes_read_raw if canonical_row is not None else None
+    return VeeRuleHit(
+        exception_code="vee_uom_mismatch_detected",
+        severity="error",
+        blocking_finalization=True,
+        details={
+            "initial_unit_of_measure": initial_row.unit_of_measure,
+            "expected_unit_of_measure": component.unit_of_measure,
+            "canonical_unit_of_measure": canonical_row.unit_of_measure if canonical_row else None,
+            "raw_unit_of_measure": raw_row.unit_of_measure if raw_row is not None else None,
+            "measuring_component_id": component.id,
+        },
+    )
+
+
 def _build_negative_value_hit(
     initial_row: InitialMeasurement,
     *,
@@ -262,6 +293,7 @@ def evaluate_initial_measurement_rule_hits(
     hits: list[VeeRuleHit] = []
     for hit in (
         _build_required_field_hit(initial_row),
+        _build_uom_mismatch_hit(initial_row),
         _build_negative_value_hit(initial_row, event_context_snapshot=event_context_snapshot),
         _build_zero_value_hit(initial_row),
         _build_interval_size_hit(initial_row),
@@ -285,6 +317,8 @@ def _build_summary_code(rule_hits: list[VeeRuleHit]) -> str:
     first_code = rule_hits[0].exception_code
     if first_code == "vee_required_field_missing":
         return "vee_failed_required_field"
+    if first_code == "vee_uom_mismatch_detected":
+        return "vee_failed_uom"
     if first_code == "vee_negative_value_detected":
         return "vee_failed_negative_value"
     if first_code == "vee_zero_value_detected":
@@ -407,6 +441,7 @@ def evaluate_or_get_vee_baseline(
             "mode": "baseline_rule_evaluation",
             "active_rules": [
                 "required_field_missing",
+                "uom_mismatch_detected",
                 "negative_value_detected",
                 "zero_value_detected",
                 "interval_size_invalid",

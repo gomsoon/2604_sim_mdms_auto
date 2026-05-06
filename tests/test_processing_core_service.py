@@ -91,6 +91,67 @@ def test_evaluate_or_get_vee_baseline_marks_missing_unit_as_exception(session):
     assert exception.exception_code == "vee_required_field_missing"
 
 
+def test_evaluate_or_get_vee_baseline_marks_uom_mismatch_as_exception(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial is not None
+    assert initial.measuring_component is not None
+    _reset_vee_baseline(session, initial)
+    initial.unit_of_measure = "MWh"
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+        .limit(1)
+    )
+
+    assert created is True
+    assert initial.initial_status == "exception"
+    assert execution.execution_status == "completed_with_exception"
+    assert execution.summary_code == "vee_failed_uom"
+    assert exception is not None
+    assert exception.exception_code == "vee_uom_mismatch_detected"
+    assert exception.blocking_finalization is True
+    assert exception.details["initial_unit_of_measure"] == "MWh"
+    assert exception.details["expected_unit_of_measure"] == initial.measuring_component.unit_of_measure
+
+
+def test_evaluate_or_get_vee_baseline_normalizes_uom_and_allows_component_fallback(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    canonical = session.scalar(select(CanonicalMeasurement).limit(1))
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert canonical is not None
+    assert initial is not None
+    assert initial.measuring_component is not None
+    assert canonical.hes_read_raw is not None
+    _reset_vee_baseline(session, initial)
+    canonical.hes_read_raw.unit_of_measure = None
+    canonical.unit_of_measure = initial.measuring_component.unit_of_measure
+    initial.unit_of_measure = " KWH "
+
+    execution, created = evaluate_or_get_vee_baseline(session, initial)
+    session.commit()
+
+    exception_count = session.scalar(
+        select(func.count())
+        .select_from(VeeException)
+        .where(VeeException.initial_measurement_id == initial.id)
+    )
+
+    assert created is True
+    assert initial.initial_status == "accepted"
+    assert execution.execution_status == "passed"
+    assert execution.summary_code == "vee_passed"
+    assert exception_count == 0
+
+
 def test_evaluate_or_get_vee_baseline_marks_duplicate_source_as_exception(session):
     seed_demo_environment(session)
     session.commit()
