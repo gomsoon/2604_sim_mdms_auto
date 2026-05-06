@@ -62,7 +62,7 @@ Remaining notes:
 
 ### V2. Basic VEE engine
 
-Status: partially implemented, but still incomplete against backlog
+Status: substantially implemented
 
 Current state:
 
@@ -70,9 +70,12 @@ Current state:
 - operator visibility and replay flows exist
 - active rules already include:
   - required-field checks
+  - unit-of-measure validation
+  - multiplier unity-only guardrail validation
   - duplicate detection
   - negative value detection
   - zero value warning
+  - low-value micro warning
   - interval size validation
   - missing interval detection
   - high-value validation
@@ -80,10 +83,10 @@ Current state:
 
 Remaining MVP gap:
 
-- `UOM validation` is not yet a real first-class rule path
-- `multiplier validation` is not yet present as a real rule path
-- `low value` is not yet a real first-class rule path
 - high/low logic remains intentionally shallow and code-backed
+- multiplier handling remains intentionally guardrail-first rather than
+  source-aware
+- duplicate severity policy may still need later review
 
 ### V3. Basic estimation
 
@@ -157,12 +160,13 @@ Current state:
 - timezone-aware local windowing exists
 - quality summary and missing-interval visibility exist
 - usage list/detail and replay-driven recalculation visibility exist
+- a first read-only `service_point` usage API slice now exists
 
 Remaining notes:
 
-- the MVP backlog says `Service-point usage API`
-- the repository already has strong operator visibility, but the usage layer can
-  still be made more explicitly service-oriented in API shape if needed
+- the repository now has both operator visibility and a first service-facing
+  usage API slice
+- later work here is refinement, not baseline existence
 
 ### V7. Event-linked decisioning
 
@@ -216,56 +220,62 @@ structure.
 
 The more important remaining MVP gaps are now concentrated in:
 
-1. remaining first-class VEE rule completeness
-2. service-point-facing usage API boundary clarity
-3. deeper policy layers around estimation, manual edit, and event context
+1. deeper policy layers around estimation, manual edit, and event context
+2. richer source-aware VEE policy beyond the first closure baseline
+3. later service-facing refinement beyond the first usage API slice
 
 That means the next MVP work should probably focus on closure and refinement in
 the core processing loop rather than going deeper into billing first.
 
 ## Recommended next priorities
 
-### Priority 1. Basic VEE closure
+### Priority 1. Policy-depth review for correction flows
 
 Recommended first next step:
-
-- close the remaining first-class rule gaps:
-  - `UOM validation`
-  - `multiplier validation`
-  - `low value`
-
-Why first:
-
-- this is now the shortest path to closing V2 cleanly
-- it increases confidence in every downstream layer already built on top of VEE
-
-### Priority 2. Usage API boundary review
-
-Recommended second next step:
-
-- review whether current `usage_transaction` visibility already satisfies the
-  MVP `service-point usage API` expectation
-- if not, add a thin service-facing usage API slice
-
-Why second:
-
-- V6 is mostly complete already
-- boundary review is cheaper than another new subsystem
-
-### Priority 3. Policy-depth review for correction flows
-
-Recommended third next step:
 
 - choose the next deeper slice intentionally:
   - broader estimation coverage
   - broader manual edit coverage
   - event-aware correction policy
 
+Why first:
+
+- first baselines now exist for VEE, estimation, manual edit, event-linked
+  decisioning, and service-facing usage access
+- the next increment should be chosen deliberately instead of widening all
+  policy areas at once
+
+### Priority 2. Richer source-aware VEE policy later
+
+Recommended second next step:
+
+- revisit VEE only when new source-aware or business-aware context exists
+- examples:
+  - source multiplier lineage
+  - richer low-value policy basis
+  - duplicate severity policy review
+
+Why second:
+
+- the first VEE closure sprint is now complete enough for MVP baseline
+- the remaining VEE work is more about policy depth than first-class rule
+  presence
+
+### Priority 3. Usage API refinement only if consumers need more
+
+Recommended third next step:
+
+- keep the new `service_point` usage API thin unless a real caller needs more
+- examples:
+  - summary endpoint
+  - determinant or charge linkage in API shape
+  - business-facing export contract
+
 Why third:
 
-- the first baseline now exists for all three areas
-- the next increment should be chosen deliberately instead of growing all three
-  at once
+- a first read-only usage API slice already exists
+- the next step should respond to actual caller needs, not speculative surface
+  growth
 
 ## Explicit non-priorities for the next MVP pass
 

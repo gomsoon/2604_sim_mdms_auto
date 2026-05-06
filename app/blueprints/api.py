@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.db import check_database_connection, get_session
 from app.i18n import get_locale, translate, translate_visibility_error
-from app.models import HesEventRaw, HesReadRaw
+from app.models import HesEventRaw, HesReadRaw, ServicePoint
 from app.services.exception_queue import (
     build_exception_filters,
     get_exception_batch_id,
@@ -23,10 +23,12 @@ from app.services.visibility import (
     build_final_filters,
     build_ingest_batch_filters,
     build_operational_event_filters,
+    build_usage_transaction_filters,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
     list_operational_events,
+    list_usage_transactions,
 )
 
 
@@ -56,6 +58,25 @@ def error_response(
         payload["details"] = details
 
     return jsonify(payload), status_code
+
+
+def _parse_api_limit(
+    value: str | None,
+    *,
+    default: int = 200,
+    maximum: int = 500,
+) -> int:
+    if value in {None, ""}:
+        return default
+
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid_limit") from exc
+
+    if parsed <= 0 or parsed > maximum:
+        raise ValueError("invalid_limit")
+    return parsed
 
 
 @bp.get("/health")
@@ -367,6 +388,61 @@ def list_final_measurements_endpoint():
                 "finalized_at": row.finalized_at.isoformat(),
                 "service_point_id": row.service_point_id,
                 "device_id": row.device_id,
+            }
+            for row in rows
+        ]
+    )
+
+
+@bp.get("/service-points/<int:service_point_id>/usage")
+def list_service_point_usage_endpoint(service_point_id: int):
+    session = get_session()
+    service_point = session.get(ServicePoint, service_point_id)
+    if service_point is None:
+        return error_response("service_point_not_found", 404)
+
+    try:
+        limit = _parse_api_limit(request.args.get("limit"))
+        filter_args = request.args.to_dict(flat=True)
+        filter_args["service_point_id"] = str(service_point_id)
+        filters = build_usage_transaction_filters(filter_args)
+    except ValueError:
+        return error_response("invalid_limit", 400)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_usage_transactions(session, filters, limit=limit)
+    return jsonify(
+        [
+            {
+                "id": row.id,
+                "service_point_id": row.service_point_id,
+                "service_point_external_id": row.service_point.external_id,
+                "device_id": row.device_id,
+                "measuring_component_id": row.measuring_component_id,
+                "external_channel_id": row.measuring_component.external_channel_id,
+                "usage_type": row.usage_type,
+                "period_start_at": row.period_start_at.isoformat(),
+                "period_end_at": row.period_end_at.isoformat(),
+                "window_timezone_name": row.window_timezone_name,
+                "interval_size_minutes": row.interval_size_minutes,
+                "unit_of_measure": row.unit_of_measure,
+                "usage_value": _json_numeric(row.usage_value),
+                "source_final_count": row.source_final_count,
+                "missing_interval_count": row.missing_interval_count,
+                "quality_summary": row.quality_summary,
+                "calculation_status": row.calculation_status,
+                "calculated_at": row.calculated_at.isoformat(),
+                "pipeline_run_id": row.pipeline_run_id,
             }
             for row in rows
         ]

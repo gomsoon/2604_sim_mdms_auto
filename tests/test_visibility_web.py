@@ -240,6 +240,62 @@ def test_final_measurements_api_returns_filtered_measurement(client, session):
     assert row["final_status"] == "finalized"
 
 
+def test_service_point_usage_api_returns_filtered_rows(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+
+    response = client.get(
+        "/api/v1/service-points/1/usage"
+        "?usage_type=daily_consumption"
+        "&external_channel_id=CH-01"
+        "&limit=10"
+    )
+
+    assert response.status_code == 200
+    assert len(response.get_json()) == 1
+
+    row = response.get_json()[0]
+
+    assert row["service_point_id"] == 1
+    assert row["service_point_external_id"] == "SP-1001"
+    assert row["external_channel_id"] == "CH-01"
+    assert row["usage_type"] == "daily_consumption"
+    assert row["unit_of_measure"] == "kWh"
+    assert row["calculation_status"] == "partial"
+    assert row["quality_summary"] == "missing_intervals"
+    assert row["pipeline_run_id"] is not None
+
+
+def test_service_point_usage_api_rejects_invalid_limit_in_korean(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/api/v1/service-points/1/usage?lang=ko&limit=0")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_limit",
+        "message": "limit 값은 1 이상 500 이하의 정수여야 합니다.",
+        "locale": "ko",
+    }
+
+
+def test_service_point_usage_api_returns_404_for_missing_service_point(client):
+    response = client.get("/api/v1/service-points/999999/usage")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "service_point_not_found",
+        "message": "The selected service point does not exist.",
+        "locale": "en",
+    }
+
+
 def test_usage_transactions_page_filters_by_service_point_and_channel(client, session):
     seed_demo_environment(session)
     session.commit()

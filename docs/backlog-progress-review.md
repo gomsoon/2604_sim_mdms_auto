@@ -189,7 +189,7 @@ Remaining notes:
 
 ### V2. Basic VEE engine
 
-- Status: `partially implemented`
+- Status: `substantially implemented`
 - Importance: `high`
 - Impact: `high`
 
@@ -200,23 +200,28 @@ Current baseline:
 - event-linked baseline now exists
 - active rules include:
   - required-field
+  - unit-of-measure
+  - multiplier unity-only guardrail
   - duplicate
   - negative
   - zero
+  - low-value micro warning
   - interval size
   - missing interval
   - high value
 
 Main remaining work:
 
-- `UOM validation` as a real first-class rule
-- `multiplier validation` as a real first-class rule
-- `low value` baseline
 - review whether duplicate should remain blocking or warning by policy
+- add richer source-aware multiplier handling when source lineage exists
+- expand low-value policy beyond the first micro-warning slice if business
+  context becomes available
 
 Recommendation:
 
-- this is now one of the strongest candidates for a short closure sprint
+- first MVP closure baseline is now strong
+- do not expand this area further until a clearer source-aware or business-aware
+  rule basis exists
 
 ### V3. Basic estimation
 
@@ -302,16 +307,18 @@ Current baseline:
 - timezone-aware windowing exists
 - quality summary exists
 - replay-driven recalculation visibility exists
+- a first read-only `service_point` usage API slice now exists
 
 Main remaining work:
 
-- clearer service-point usage API contract
-- broader downstream business-facing service boundary
+- summary or export-oriented service-facing refinement if real callers need it
+- broader downstream business-facing service boundary only when required
 
 Recommendation:
 
-- baseline is strong enough for now
-- next work here should be API-facing refinement, not core algorithm work
+- baseline is strong enough for MVP
+- next work here should respond to real consumer needs, not speculative API
+  expansion
 
 ### V7. Event-linked decisioning
 
@@ -479,7 +486,7 @@ Recommendation:
 
 ## Cross-cutting observations
 
-### The repository is ahead downstream and still slightly behind in basic VEE closure
+### The repository is ahead downstream and now mostly closed on first-pass VEE baseline
 
 The repository is now ahead of the original MVP wording in:
 
@@ -493,39 +500,46 @@ The repository is now ahead of the original MVP wording in:
 At the same time, the remaining “small but important” upstream processing gaps
 are concentrated in:
 
-- first-class VEE rule completeness
-- usage API/service boundary polish
 - policy depth around operator correction and event context
+- richer source-aware VEE policy only after stronger business context exists
+- later service-facing refinement beyond the first usage API slice
 
 ### The next best work is probably not a brand-new subsystem
 
-At this point, the highest-leverage next step is likely a short
-`VEE closure mini-sprint`, not another new downstream module.
+At this point, the highest-leverage next step is likely not another new
+downstream module, but a tighter review of service-facing boundaries and the
+next policy-depth slice.
 
 Recommended order:
 
-1. `UOM validation`
-2. `multiplier validation`
-3. `low value` baseline
-4. short review of whether `usage_transaction` needs an explicit service-point
-   API closure for MVP wording
+1. choose the next policy-depth slice across estimation, manual edit, and
+   event-linked decisioning
+2. revisit richer VEE policy only where source-aware context exists
+3. refine service-facing usage or billing-lite APIs only when real consumers
+   need more
 
 ## Recommended near-term sequence
 
-### Priority 1. Backlog review refresh
+### Priority 1. Policy-depth review across correction flows
 
-- keep this review aligned with actual repository state
-- use it as the next-planning reference instead of the older MVP-only view
+- choose the next intentional increment across:
+  - broader estimation coverage
+  - broader manual edit coverage
+  - event-aware correction policy
 
-### Priority 2. VEE closure mini-sprint
+### Priority 2. Richer source-aware VEE policy only when context is ready
 
-- close the remaining first-class VEE baseline rule gaps
-- define explicit closure criteria for V2
+- revisit VEE only when new source-aware or business-aware context exists
+- examples:
+  - source multiplier lineage
+  - richer low-value policy basis
+  - duplicate severity policy review
 
-### Priority 3. Usage API and service boundary review
+### Priority 3. Usage and billing-lite API refinement only if consumers need more
 
-- confirm whether `usage_transaction` already satisfies the MVP expectation
-- if not, add a thin service-point-facing usage API slice
+- summary endpoint
+- determinant or charge linkage in API shape
+- business-facing export contract
 
 ### Priority 4. Billing-lite actionability only if testing pressure requires it
 
@@ -541,6 +555,6 @@ The repository is no longer missing broad end-to-end capability.
 
 Instead, it is now in a refinement stage where the biggest value comes from:
 
-1. closing the remaining small but meaningful VEE gaps
-2. tightening service-facing boundaries around usage and billing-lite outputs
+1. choosing the next policy-depth increment intentionally
+2. refining service-facing boundaries only where real consumers need them
 3. resisting the urge to open too many new product-phase subsystems too early
