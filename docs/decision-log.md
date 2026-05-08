@@ -283,6 +283,17 @@ This document records current architectural and process decisions so that the te
   - [estimation-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/estimation-baseline-design.md)
   - [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md)
 
+### D-030. The first event-aware correction slice should start with guidance and guardrails, not automatic correction
+
+- Status: locked
+- Summary: The first event-aware correction policy should reuse existing outage and tamper context to guide or constrain estimation and manual-edit actions, while blocking unsafe system-derived corrections before introducing broader automation or approval logic
+- Why: Current correction flows are intentionally narrow and auditable, so the highest-value next step is to connect event meaning into operator choices and service guardrails without pretending the repository already supports synthetic interval repair, automatic correction selection, or event-governed approval workflows
+- Related docs:
+  - [event-aware-correction-policy-design.md](/home/tprover/2604_sim_mdms_auto/docs/event-aware-correction-policy-design.md)
+  - [event-linked-decisioning-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/event-linked-decisioning-baseline-design.md)
+  - [estimation-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/estimation-baseline-design.md)
+  - [manual-edit-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/manual-edit-baseline-design.md)
+
 ### O-011. What is the minimum billing context needed before determinant results can be treated as truly billing-ready
 
 - Status: open

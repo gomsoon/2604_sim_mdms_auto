@@ -520,12 +520,11 @@ Recommended order:
 
 ## Recommended near-term sequence
 
-### Priority 1. Policy-depth review across correction flows
+### Priority 1. Event-aware correction policy
 
-- choose the next intentional increment across:
-  - broader estimation coverage
-  - broader manual edit coverage
-  - event-aware correction policy
+- add a small policy layer that reuses outage and tamper context to guide or
+  constrain estimation and manual-edit actions
+- prefer guidance plus guardrails before broader correction automation
 
 ### Priority 2. Richer source-aware VEE policy only when context is ready
 

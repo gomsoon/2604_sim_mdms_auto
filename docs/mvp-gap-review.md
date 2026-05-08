@@ -229,21 +229,20 @@ the core processing loop rather than going deeper into billing first.
 
 ## Recommended next priorities
 
-### Priority 1. Policy-depth review for correction flows
+### Priority 1. Event-aware correction policy
 
 Recommended first next step:
 
-- choose the next deeper slice intentionally:
-  - broader estimation coverage
-  - broader manual edit coverage
-  - event-aware correction policy
+- introduce a small correction-policy layer that reuses outage and tamper
+  context to guide or constrain estimation and manual-edit actions
+- start with guidance plus guardrails before broader correction automation
 
 Why first:
 
 - first baselines now exist for VEE, estimation, manual edit, event-linked
   decisioning, and service-facing usage access
-- the next increment should be chosen deliberately instead of widening all
-  policy areas at once
+- connecting event meaning into correction choice is now the highest-leverage
+  next policy step
 
 ### Priority 2. Richer source-aware VEE policy later
 

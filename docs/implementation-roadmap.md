@@ -21,6 +21,22 @@ Key rule:
 - `bill_charge` is charge-ready
 - invoice and CIS handoff remain later steps
 
+## Current policy-depth direction
+
+After the first VEE closure baseline, the near-term policy-depth sequence
+should now be read as:
+
+1. `event-aware correction policy`
+2. `estimation` and `manual edit` coverage expansion only where policy remains
+   safe
+3. broader source-aware VEE refinement when richer upstream context exists
+
+Key rule:
+
+- prefer guidance and guardrails before automation
+- do not imply a correction path that current persistence and lineage do not yet
+  support
+
 ## Guiding principles
 
 - Structural alignment comes before feature expansion

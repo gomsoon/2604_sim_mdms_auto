@@ -127,7 +127,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: estimation for `interval_size_invalid`
 - deferred: bulk estimation
 - deferred: estimation preview or approval workflow
-- deferred: event-aware estimation policy
+- deferred: broader event-aware estimation policy beyond the first
+  event-aware correction guardrail slice
 
 ### V4. Exception management
 
@@ -156,7 +157,9 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: bulk manual edit
 - deferred: approval workflow
 - deferred: preview-and-compare correction workspace
-- deferred: event-aware correction policy
+- first event-aware correction policy slice should reuse outage and tamper
+  context to guide or constrain estimation and manual edit actions
+- deferred: broader event-aware correction policy
 
 ### V6. Usage calculation
 
@@ -177,11 +180,17 @@ This document captures the staged backlog derived from the reference PDF backlog
 - first event-linked slice enriches existing VEE rules before adding new
   decision tables
 - first event-linked slice starts with outage and tamper context only
+- first event-aware correction policy slice should:
+  - block estimation for tamper-correlated negative and high-value anomalies
+  - surface outage-correlated missing-interval guidance without pretending a
+    first-slice correction path exists
 - deferred: zero-value suppression by outage context
 - deferred: duration-aware event correlation windows
 - deferred: master-data-driven event code catalog
-- deferred: event-aware estimation policy
-- deferred: event-aware manual edit policy
+- deferred: automatic event-aware correction selection
+- deferred: event-aware approval workflow
+- deferred: broader event-aware estimation policy
+- deferred: broader event-aware manual edit policy
 
 ## Phase 3. Product Version
 
