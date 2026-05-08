@@ -31,7 +31,7 @@ from app.services.estimation import (
     apply_estimation_from_vee_exception,
 )
 from app.services.finalization import finalize_canonical_measurements
-from app.services.ingestion import ingest_reads
+from app.services.ingestion import ingest_events, ingest_reads
 from app.services.seeds import seed_demo_environment
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.usage import calculate_usage_transactions
@@ -147,6 +147,58 @@ def _open_negative_vee_exception(session, *, initial_measurement_id: int) -> Vee
     )
     assert vee_exception is not None
     assert vee_exception.exception_code == "vee_negative_value_detected"
+    return vee_exception
+
+
+def _open_high_value_vee_exception_with_tamper(
+    session,
+    *,
+    initial_measurement_id: int,
+) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    raw_row = initial_row.canonical_measurement.hes_read_raw
+    assert raw_row is not None
+    assert raw_row.hes_system_id is not None
+    assert raw_row.meter_identifier is not None
+
+    ingest_events(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "tamper-high-estimation-batch",
+            "received_at": "2026-04-18T09:07:00+09:00",
+            "events": [
+                {
+                    "meter_id": raw_row.meter_identifier,
+                    "event_time": "2026-04-18T00:15:00+09:00",
+                    "event_code": "METER_TAMPER",
+                    "severity": "high",
+                }
+            ],
+        },
+        hes_system_id=raw_row.hes_system_id,
+    )
+    session.commit()
+
+    initial_row.value = Decimal("1500.0000")
+    initial_row.unit_of_measure = "kWh"
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_high_value_detected"
     return vee_exception
 
 
@@ -352,3 +404,52 @@ def test_apply_estimation_blocks_for_unsupported_exception_code(session):
     assert current_final.id == old_final.id
     assert audit_row.estimation_status == "blocked"
     assert audit_row.result_final_measurement_id is None
+
+
+def test_apply_estimation_blocks_when_tamper_policy_requires_manual_review(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    old_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_final is not None
+
+    vee_exception = _open_high_value_vee_exception_with_tamper(
+        session,
+        initial_measurement_id=target_initial_id,
+    )
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+        operator_memo="try estimation despite tamper",
+    )
+    session.commit()
+
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert current_final is not None
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert (
+        summary.result_code
+        == "blocked_event_policy_tamper_correlated_value_anomaly"
+    )
+    assert current_final.id == old_final.id
+    assert audit_row.estimation_status == "blocked"
+    assert (
+        audit_row.details["correction_policy_snapshot"]["policy_reason_code"]
+        == "tamper_correlated_value_anomaly"
+    )

@@ -24,7 +24,7 @@ from app.services.bill_determinants import (
     calculate_bill_determinants,
 )
 from app.services.finalization import finalize_canonical_measurements
-from app.services.ingestion import ingest_reads
+from app.services.ingestion import ingest_events, ingest_reads
 from app.services.manual_edits import (
     MANUAL_EDIT_REVISION_REASON_CODE,
     apply_manual_edit_from_vee_exception,
@@ -144,6 +144,58 @@ def _open_negative_vee_exception(session, *, initial_measurement_id: int) -> Vee
     )
     assert vee_exception is not None
     assert vee_exception.exception_code == "vee_negative_value_detected"
+    return vee_exception
+
+
+def _open_high_value_vee_exception_with_tamper(
+    session,
+    *,
+    initial_measurement_id: int,
+) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    raw_row = initial_row.canonical_measurement.hes_read_raw
+    assert raw_row is not None
+    assert raw_row.hes_system_id is not None
+    assert raw_row.meter_identifier is not None
+
+    ingest_events(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "tamper-high-manual-edit-batch",
+            "received_at": "2026-04-18T09:07:00+09:00",
+            "events": [
+                {
+                    "meter_id": raw_row.meter_identifier,
+                    "event_time": "2026-04-18T00:15:00+09:00",
+                    "event_code": "METER_TAMPER",
+                    "severity": "high",
+                }
+            ],
+        },
+        hes_system_id=raw_row.hes_system_id,
+    )
+    session.commit()
+
+    initial_row.value = Decimal("1500.0000")
+    initial_row.unit_of_measure = "kWh"
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_high_value_detected"
     return vee_exception
 
 
@@ -337,3 +389,36 @@ def test_apply_manual_edit_blocks_when_no_effective_change(session):
     assert refreshed_initial.value == Decimal("-1.0000")
     assert refreshed_exception.exception_status == "open"
     assert audit_row.edit_status == "blocked"
+
+
+def test_apply_manual_edit_records_tamper_correction_policy_snapshot(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    vee_exception = _open_high_value_vee_exception_with_tamper(
+        session,
+        initial_measurement_id=target_initial_id,
+    )
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        reason_code="operator_meter_correction",
+        edited_by="operator_ui",
+        operator_memo="tamper review complete",
+    )
+    session.commit()
+
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+
+    assert audit_row is not None
+    assert summary.edit_status == "applied"
+    assert (
+        audit_row.details["correction_policy_snapshot"]["policy_reason_code"]
+        == "tamper_correlated_value_anomaly"
+    )
+    assert (
+        audit_row.details["correction_policy_snapshot"]["recommended_action"]
+        == "operator_investigation_then_manual_edit"
+    )

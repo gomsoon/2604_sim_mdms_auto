@@ -336,7 +336,7 @@
               <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_result_description") }}</div>
             </div>
           </div>
-          {% if detail.vee_exception.exception_code in estimation_supported_exception_codes %}
+          {% if estimation_available %}
           <form method="post" action="{{ url_for('web.estimate_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-column gap-2">
             <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
             <div class="row g-2">
@@ -362,6 +362,11 @@
               <button type="submit" class="btn btn-outline-warning btn-sm">{{ t("button.estimate") }}</button>
             </div>
           </form>
+          {% elif correction_policy.estimation_policy == "blocked" %}
+          <div class="small text-secondary mb-1">{{ t("page.vee_exception_detail.estimation_blocked_by_policy") }}</div>
+          <div class="small text-warning-emphasis">
+            {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
+          </div>
           {% else %}
           <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_not_supported_for_exception") }}</div>
           {% endif %}
@@ -375,7 +380,7 @@
               <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_result_description") }}</div>
             </div>
           </div>
-          {% if detail.vee_exception.exception_code in manual_edit_supported_exception_codes %}
+          {% if manual_edit_available %}
           <form method="post" action="{{ url_for('web.manual_edit_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-column gap-2">
             <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
             <div class="row g-2">
@@ -426,6 +431,11 @@
               <button type="submit" class="btn btn-outline-success btn-sm">{{ t("button.manual_edit") }}</button>
             </div>
           </form>
+          {% elif correction_policy.manual_edit_policy == "blocked" %}
+          <div class="small text-secondary mb-1">{{ t("page.vee_exception_detail.manual_edit_blocked_by_policy") }}</div>
+          <div class="small text-warning-emphasis">
+            {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
+          </div>
           {% else %}
           <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_not_supported_for_exception") }}</div>
           {% endif %}
@@ -571,6 +581,35 @@
         {% else %}
         <div class="text-secondary">{{ t("page.vee_exception_detail.no_event_context") }}</div>
         {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.correction_policy") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("field.recommended_action") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("correction_policy.action." ~ correction_policy.recommended_action, correction_policy.recommended_action) }}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.estimation_policy") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("correction_policy.policy." ~ correction_policy.estimation_policy, correction_policy.estimation_policy) }}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.manual_edit_policy") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("correction_policy.policy." ~ correction_policy.manual_edit_policy, correction_policy.manual_edit_policy) }}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.re_evaluate_policy") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("correction_policy.policy." ~ correction_policy.re_evaluate_policy, correction_policy.re_evaluate_policy) }}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.policy_reason") }}</dt>
+          <dd class="col-sm-8">
+            {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
+          </dd>
+        </dl>
       </div>
     </div>
   </div>

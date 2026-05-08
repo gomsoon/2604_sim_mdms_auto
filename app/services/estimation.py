@@ -13,6 +13,11 @@ from app.models import (
     InitialMeasurement,
     VeeException,
 )
+from app.services.correction_policy import (
+    CORRECTION_POLICY_BLOCKED,
+    CorrectionPolicyDecision,
+    build_correction_policy_decision,
+)
 from app.services.bill_charges import BillChargeCalculationSummary
 from app.services.bill_determinants import (
     BillDeterminantCalculationSummary,
@@ -212,9 +217,24 @@ def _build_estimation_result(
     initial_row: InitialMeasurement,
     target_exception: VeeException,
     strategy_code: str,
+    correction_policy: CorrectionPolicyDecision,
 ) -> EstimationComputationResult:
     previous_final = _find_supporting_previous_final(session, initial_row=initial_row)
     next_final = _find_supporting_next_final(session, initial_row=initial_row)
+
+    if correction_policy.estimation_policy == CORRECTION_POLICY_BLOCKED:
+        return EstimationComputationResult(
+            estimation_status="blocked",
+            result_code=f"blocked_event_policy_{correction_policy.policy_reason_code}",
+            estimated_value=None,
+            source_previous_final=previous_final,
+            source_next_final=next_final,
+            details={
+                "blocked_reason": "event_policy_blocked",
+                "correction_policy_reason_code": correction_policy.policy_reason_code,
+                "recommended_action": correction_policy.recommended_action,
+            },
+        )
 
     if target_exception.exception_code not in ESTIMATION_ALLOWED_EXCEPTION_CODES:
         return EstimationComputationResult(
@@ -355,6 +375,11 @@ def apply_estimation_from_vee_exception(
         session,
         initial_measurement_id=initial_row.id,
     )
+    correction_policy = build_correction_policy_decision(
+        session,
+        target_exception,
+        initial_row=initial_row,
+    )
     pipeline_run = start_pipeline_run(
         session,
         pipeline_name="estimation",
@@ -365,6 +390,8 @@ def apply_estimation_from_vee_exception(
             "strategy_code": strategy_code,
             "estimated_by": estimated_by,
             "operator_memo": operator_memo,
+            "correction_policy_reason_code": correction_policy.policy_reason_code,
+            "recommended_action": correction_policy.recommended_action,
         },
     )
 
@@ -374,6 +401,7 @@ def apply_estimation_from_vee_exception(
             initial_row=initial_row,
             target_exception=target_exception,
             strategy_code=strategy_code,
+            correction_policy=correction_policy,
         )
         audit_row = EstimationAudit(
             pipeline_run_id=pipeline_run.id,
@@ -413,6 +441,7 @@ def apply_estimation_from_vee_exception(
                 "source_next_final_snapshot": _snapshot_final_measurement(
                     computation_result.source_next_final
                 ),
+                "correction_policy_snapshot": correction_policy.to_snapshot(),
                 "estimation_result": computation_result.details,
             },
         )

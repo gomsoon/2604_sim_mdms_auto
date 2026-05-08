@@ -13,6 +13,11 @@ from app.models import (
     ManualEditAudit,
     VeeException,
 )
+from app.services.correction_policy import (
+    CORRECTION_POLICY_BLOCKED,
+    CorrectionPolicyDecision,
+    build_correction_policy_decision,
+)
 from app.services.bill_charges import BillChargeCalculationSummary
 from app.services.bill_determinants import BillDeterminantCalculationSummary
 from app.services.downstream_recalculation import recalculate_downstream_artifacts
@@ -176,11 +181,26 @@ def _build_manual_edit_result(
     *,
     initial_row: InitialMeasurement,
     target_exception: VeeException,
+    correction_policy: CorrectionPolicyDecision,
     reason_code: str | None,
     edited_value: Decimal | None,
     edited_quality_code: str | None,
     edited_status_code: str | None,
 ) -> ManualEditComputationResult:
+    if correction_policy.manual_edit_policy == CORRECTION_POLICY_BLOCKED:
+        return ManualEditComputationResult(
+            edit_status="blocked",
+            result_code=f"blocked_event_policy_{correction_policy.policy_reason_code}",
+            edited_value=edited_value,
+            edited_quality_code=edited_quality_code,
+            edited_status_code=edited_status_code,
+            details={
+                "blocked_reason": "event_policy_blocked",
+                "correction_policy_reason_code": correction_policy.policy_reason_code,
+                "recommended_action": correction_policy.recommended_action,
+            },
+        )
+
     if target_exception.exception_code not in MANUAL_EDIT_ALLOWED_EXCEPTION_CODES:
         return ManualEditComputationResult(
             edit_status="blocked",
@@ -278,6 +298,11 @@ def apply_manual_edit_from_vee_exception(
     normalized_edited_value = _normalize_value(edited_value)
     normalized_edited_quality_code = _normalize_optional_text(edited_quality_code)
     normalized_edited_status_code = _normalize_optional_text(edited_status_code)
+    correction_policy = build_correction_policy_decision(
+        session,
+        target_exception,
+        initial_row=initial_row,
+    )
 
     pipeline_run = start_pipeline_run(
         session,
@@ -292,6 +317,8 @@ def apply_manual_edit_from_vee_exception(
             "edited_quality_code": normalized_edited_quality_code,
             "edited_status_code": normalized_edited_status_code,
             "operator_memo": operator_memo,
+            "correction_policy_reason_code": correction_policy.policy_reason_code,
+            "recommended_action": correction_policy.recommended_action,
         },
     )
 
@@ -299,6 +326,7 @@ def apply_manual_edit_from_vee_exception(
         computation_result = _build_manual_edit_result(
             initial_row=initial_row,
             target_exception=target_exception,
+            correction_policy=correction_policy,
             reason_code=normalized_reason_code,
             edited_value=normalized_edited_value,
             edited_quality_code=normalized_edited_quality_code,
@@ -329,6 +357,7 @@ def apply_manual_edit_from_vee_exception(
                     "blocking_finalization": target_exception.blocking_finalization,
                 },
                 "original_initial_measurement_snapshot": _snapshot_initial_measurement(initial_row),
+                "correction_policy_snapshot": correction_policy.to_snapshot(),
                 "manual_edit_result": computation_result.details,
             },
         )

@@ -269,6 +269,20 @@ def test_vee_exception_detail_page_shows_event_context_for_tamper_linked_rule(cl
     assert "METER_TAMPER" in text
 
 
+def test_vee_exception_detail_page_shows_correction_policy_for_tamper_value_anomaly(client, session):
+    vee_exception = _open_high_value_vee_exception_with_tamper(session)
+
+    response = client.get(f"/vee-exceptions/{vee_exception.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "보정 정책" in text
+    assert "운영자 확인 후 필요한 경우 수동 보정을 적용합니다" in text
+    assert "이벤트 연계 보정 정책에 따라 현재 추정 적용이 차단됩니다." in text
+    assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" not in text
+    assert f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko" in text
+
+
 def test_vee_exception_detail_page_shows_estimation_form_for_supported_exception(client, session):
     _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
         session

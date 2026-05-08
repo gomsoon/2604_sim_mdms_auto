@@ -48,6 +48,10 @@ from app.services.adapters import (
     update_adapter_admin_state,
 )
 from app.services.billing_contexts import create_billing_context, update_billing_context
+from app.services.correction_policy import (
+    CORRECTION_POLICY_BLOCKED,
+    build_correction_policy_decision,
+)
 from app.services.dashboard import build_dashboard_snapshot
 from app.services.estimation import (
     ESTIMATION_ALLOWED_EXCEPTION_CODES,
@@ -581,6 +585,19 @@ def vee_exception_detail(vee_exception_id: int):
     detail = get_vee_exception_detail_context(session, vee_exception_id)
     if detail is None:
         abort(404)
+    correction_policy = build_correction_policy_decision(
+        session,
+        detail.vee_exception,
+        initial_row=detail.initial_measurement,
+    )
+    estimation_available = (
+        detail.vee_exception.exception_code in ESTIMATION_ALLOWED_EXCEPTION_CODES
+        and correction_policy.estimation_policy != CORRECTION_POLICY_BLOCKED
+    )
+    manual_edit_available = (
+        detail.vee_exception.exception_code in MANUAL_EDIT_ALLOWED_EXCEPTION_CODES
+        and correction_policy.manual_edit_policy != CORRECTION_POLICY_BLOCKED
+    )
 
     return render_template(
         "vee_exception_detail.html",
@@ -588,6 +605,9 @@ def vee_exception_detail(vee_exception_id: int):
         replay_summary=_pop_vee_replay_summary(vee_exception_id),
         estimation_summary=_pop_estimation_summary(vee_exception_id),
         manual_edit_summary=_pop_manual_edit_summary(vee_exception_id),
+        correction_policy=correction_policy,
+        estimation_available=estimation_available,
+        manual_edit_available=manual_edit_available,
         estimation_strategies=sorted(SUPPORTED_ESTIMATION_STRATEGIES),
         estimation_supported_exception_codes=ESTIMATION_ALLOWED_EXCEPTION_CODES,
         manual_edit_reason_codes=sorted(SUPPORTED_MANUAL_EDIT_REASON_CODES),
