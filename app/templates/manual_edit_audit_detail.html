@@ -6,6 +6,7 @@
 {% set original_initial_snapshot = audit_details.get("original_initial_measurement_snapshot") %}
 {% set applied_initial_snapshot = audit_details.get("applied_initial_measurement_snapshot") %}
 {% set result_final_snapshot = audit_details.get("result_final_measurement_snapshot") %}
+{% set correction_policy_snapshot = audit_details.get("correction_policy_snapshot") %}
 {% set downstream_summary = audit_details.get("downstream_recalculation_summary") or {} %}
 {% set usage_results = downstream_summary.get("usage_recalculation_results") or [] %}
 {% set bill_determinant_summary = downstream_summary.get("bill_determinant") %}
@@ -127,7 +128,7 @@
 </div>
 
 <div class="row g-4 mb-4">
-  <div class="col-xl-6">
+  <div class="col-xl-4">
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.related_exception_snapshot") }}</h2>
@@ -139,7 +140,48 @@
       </div>
     </div>
   </div>
-  <div class="col-xl-6">
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.vee_exception_detail.correction_policy") }}</h2>
+        {% if correction_policy_snapshot %}
+        <dl class="row mb-0">
+          <dt class="col-sm-5">{{ t("field.recommended_action") }}</dt>
+          <dd class="col-sm-7">
+            {{ t_or("correction_policy.action." ~ correction_policy_snapshot.recommended_action, correction_policy_snapshot.recommended_action or t("common.none")) }}
+          </dd>
+          <dt class="col-sm-5">{{ t("field.estimation_policy") }}</dt>
+          <dd class="col-sm-7">
+            {{ t_or("correction_policy.policy." ~ correction_policy_snapshot.estimation_policy, correction_policy_snapshot.estimation_policy or t("common.none")) }}
+          </dd>
+          <dt class="col-sm-5">{{ t("field.manual_edit_policy") }}</dt>
+          <dd class="col-sm-7">
+            {{ t_or("correction_policy.policy." ~ correction_policy_snapshot.manual_edit_policy, correction_policy_snapshot.manual_edit_policy or t("common.none")) }}
+          </dd>
+          <dt class="col-sm-5">{{ t("field.re_evaluate_policy") }}</dt>
+          <dd class="col-sm-7">
+            {{ t_or("correction_policy.policy." ~ correction_policy_snapshot.re_evaluate_policy, correction_policy_snapshot.re_evaluate_policy or t("common.none")) }}
+          </dd>
+          <dt class="col-sm-5">{{ t("field.policy_reason") }}</dt>
+          <dd class="col-sm-7">
+            {{ t_or("correction_policy.reason." ~ correction_policy_snapshot.policy_reason_code, correction_policy_snapshot.policy_reason_code or t("common.none")) }}
+          </dd>
+          <dt class="col-sm-5">{{ t("field.event_context_type") }}</dt>
+          <dd class="col-sm-7">
+            {% if correction_policy_snapshot.event_context_type %}
+            {{ t_or("event_context.type." ~ correction_policy_snapshot.event_context_type, correction_policy_snapshot.event_context_type) }}
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+        </dl>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.result_final_snapshot") }}</h2>

@@ -603,6 +603,9 @@ def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, sessi
     assert "원본 initial 스냅샷" in text
     assert "적용된 initial 스냅샷" in text
     assert "관련 VEE 예외" in text
+    assert "보정 정책" in text
+    assert "현재 기본 보정 흐름을 그대로 따릅니다" in text
+    assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
     assert "downstream 재계산" in text
     assert "운영자 계량기 보정" in text
     assert "operator_ui" in text

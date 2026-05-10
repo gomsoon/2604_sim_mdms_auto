@@ -159,6 +159,10 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: preview-and-compare correction workspace
 - first event-aware correction policy slice should reuse outage and tamper
   context to guide or constrain estimation and manual edit actions
+- deferred: dedicated `estimation_audit` visibility baseline with policy snapshot
+  drill-down
+- deferred: correction-policy-focused audit list filters and dashboard spotlight
+- deferred: correction-policy-focused API or export surface for operator follow-up
 - deferred: broader event-aware correction policy
 
 ### V6. Usage calculation
