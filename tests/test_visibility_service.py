@@ -9,11 +9,16 @@ from sqlalchemy import select
 from app.models import HesSystem, InitialMeasurement, VeeException
 from app.services.bill_charges import calculate_bill_charges
 from app.services.bill_determinants import calculate_bill_determinants
+from app.services.estimation import (
+    ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+    apply_estimation_from_vee_exception,
+)
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.manual_edits import apply_manual_edit_from_vee_exception
 from app.services.seeds import seed_demo_environment
 from app.services.visibility import (
     build_bill_charge_filters,
+    build_estimation_audit_filters,
     build_manual_edit_audit_filters,
     build_bill_determinant_filters,
     VisibilityFilterError,
@@ -22,10 +27,12 @@ from app.services.visibility import (
     build_ingest_batch_filters,
     build_operational_event_filters,
     build_usage_transaction_filters,
+    get_estimation_audit_detail_context,
     get_manual_edit_audit_detail_context,
     get_bill_charge_detail_context,
     get_bill_determinant_detail_context,
     get_usage_transaction_detail_context,
+    list_estimation_audits,
     list_manual_edit_audits,
     list_bill_charges,
     list_bill_determinants,
@@ -36,6 +43,7 @@ from app.services.visibility import (
     list_usage_transactions,
 )
 from app.services.finalization import finalize_canonical_measurements
+from app.services.ingestion import ingest_reads
 from app.services.operational_events import close_operational_alert
 from app.services.usage import calculate_usage_transactions
 from app.services.vee import evaluate_or_get_vee_baseline
@@ -44,6 +52,7 @@ from app.services.vee import evaluate_or_get_vee_baseline
 def _prepare_bill_charge_visibility(session) -> None:
     seed_demo_environment(session)
     session.commit()
+    finalize_canonical_measurements(session, batch_id="estimation-visibility-neighbor")
     finalize_canonical_measurements(session, batch_id="demo-read-batch")
     session.commit()
     calculate_usage_transactions(session, usage_type="monthly_consumption")
@@ -138,6 +147,100 @@ def _prepare_manual_edit_visibility(session) -> int:
     )
     session.commit()
     return summary.manual_edit_audit_id
+
+
+def _prepare_estimation_visibility(session) -> int:
+    seed_demo_environment(session)
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "estimation-visibility-neighbor",
+            "received_at": "2026-04-18T09:05:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T00:00:00+09:00",
+                    "value": 18.4,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T00:30:00+09:00",
+                    "value": 21.7,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+    finalize_canonical_measurements(session, limit=50)
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:estimation-visibility",
+    )
+    session.commit()
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="120.00000000",
+    )
+    session.commit()
+
+    initial_rows = session.scalars(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.service_point_id == 1)
+        .order_by(InitialMeasurement.measured_at.asc(), InitialMeasurement.id.asc())
+    ).all()
+    initial_row = initial_rows[1] if len(initial_rows) > 1 else None
+    assert initial_row is not None
+    initial_row.value = Decimal("-1.0000")
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_row.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="visibility-tester",
+        operator_memo="visibility-test",
+    )
+    session.commit()
+    return summary.estimation_audit_id
 
 
 def test_build_ingest_batch_filters_rejects_invalid_date_format():
@@ -623,6 +726,58 @@ def test_get_manual_edit_audit_detail_context_loads_lineage_and_result_final(ses
     assert detail.result_final_measurement is not None
     assert detail.manual_edit_audit.details["original_initial_measurement_snapshot"]["value"] == "-1.0000"
     assert detail.manual_edit_audit.details["applied_initial_measurement_snapshot"]["value"] == "12.5000"
+
+
+def test_list_estimation_audits_filters_by_service_point_strategy_status_and_policy(session):
+    estimation_audit_id = _prepare_estimation_visibility(session)
+
+    matched_rows = list_estimation_audits(
+        session,
+        build_estimation_audit_filters(
+            {
+                "service_point": "SP-1001",
+                "external_channel_id": "CH-01",
+                "estimation_status": "applied",
+                "strategy_code": "previous_value_based",
+                "policy_reason_code": "no_event_specific_override",
+            }
+        ),
+    )
+    unmatched_rows = list_estimation_audits(
+        session,
+        build_estimation_audit_filters(
+            {
+                "policy_reason_code": "tamper_correlated_value_anomaly",
+            }
+        ),
+    )
+
+    assert len(matched_rows) == 1
+    assert matched_rows[0].id == estimation_audit_id
+    assert matched_rows[0].service_point.external_id == "SP-1001"
+    assert matched_rows[0].measuring_component.external_channel_id == "CH-01"
+    assert unmatched_rows == []
+
+
+def test_get_estimation_audit_detail_context_loads_lineage_and_source_finals(session):
+    estimation_audit_id = _prepare_estimation_visibility(session)
+
+    detail = get_estimation_audit_detail_context(session, estimation_audit_id)
+
+    assert detail is not None
+    assert detail.estimation_audit.id == estimation_audit_id
+    assert detail.pipeline_run is not None
+    assert detail.related_vee_exception is not None
+    assert detail.target_initial_measurement is not None
+    assert detail.source_previous_final_measurement is not None
+    assert detail.source_next_final_measurement is not None
+    assert detail.result_final_measurement is not None
+    assert detail.estimation_audit.details["original_initial_measurement_snapshot"]["value"] == "-1.0000"
+    assert detail.estimation_audit.details["applied_initial_measurement_snapshot"]["value"] == "18.4000"
+    assert (
+        detail.estimation_audit.details["correction_policy_snapshot"]["policy_reason_code"]
+        == "no_event_specific_override"
+    )
 
 
 def test_build_operational_event_filters_rejects_invalid_stream_type():

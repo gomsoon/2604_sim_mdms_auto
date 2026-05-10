@@ -29,6 +29,7 @@ from app.i18n import (
 from app.models import (
     AdapterInstance,
     Device,
+    EstimationAudit,
     HesEventRaw,
     HesReadRaw,
     HesSystem,
@@ -121,6 +122,7 @@ from app.services.vee_replay_requests import (
 )
 from app.services.visibility import (
     build_bill_charge_filters,
+    build_estimation_audit_filters,
     build_manual_edit_audit_filters,
     VisibilityFilterError,
     build_bill_determinant_filters,
@@ -132,6 +134,7 @@ from app.services.visibility import (
     build_vee_exception_filters,
     build_vee_replay_request_filters,
     get_bill_charge_detail_context,
+    get_estimation_audit_detail_context,
     get_manual_edit_audit_detail_context,
     get_bill_determinant_detail_context,
     get_usage_transaction_detail_context,
@@ -139,6 +142,7 @@ from app.services.visibility import (
     get_vee_replay_request_detail_context,
     get_operational_event_detail_context,
     list_bill_charges,
+    list_estimation_audits,
     list_manual_edit_audits,
     list_bill_determinants,
     list_canonical_measurements,
@@ -562,6 +566,28 @@ def _pop_estimation_summary(vee_exception_id: int) -> dict | None:
     return None
 
 
+def _get_latest_estimation_audit_id_for_vee_exception(
+    session,
+    *,
+    vee_exception_id: int,
+    initial_measurement_id: int,
+) -> int | None:
+    rows = session.scalars(
+        select(EstimationAudit)
+        .where(EstimationAudit.target_initial_measurement_id == initial_measurement_id)
+        .order_by(EstimationAudit.created_at.desc(), EstimationAudit.id.desc())
+        .limit(10)
+    ).all()
+    fallback_id: int | None = None
+    for row in rows:
+        if fallback_id is None:
+            fallback_id = row.id
+        snapshot = (row.details or {}).get("target_vee_exception_snapshot") or {}
+        if snapshot.get("vee_exception_id") == vee_exception_id:
+            return row.id
+    return fallback_id
+
+
 def _store_manual_edit_summary(summary) -> None:
     payload = asdict(summary)
     if payload.get("edited_value") is not None:
@@ -598,12 +624,19 @@ def vee_exception_detail(vee_exception_id: int):
         detail.vee_exception.exception_code in MANUAL_EDIT_ALLOWED_EXCEPTION_CODES
         and correction_policy.manual_edit_policy != CORRECTION_POLICY_BLOCKED
     )
+    estimation_summary = _pop_estimation_summary(vee_exception_id)
+    latest_estimation_audit_id = _get_latest_estimation_audit_id_for_vee_exception(
+        session,
+        vee_exception_id=vee_exception_id,
+        initial_measurement_id=detail.initial_measurement.id,
+    )
 
     return render_template(
         "vee_exception_detail.html",
         detail=detail,
         replay_summary=_pop_vee_replay_summary(vee_exception_id),
-        estimation_summary=_pop_estimation_summary(vee_exception_id),
+        estimation_summary=estimation_summary,
+        latest_estimation_audit_id=latest_estimation_audit_id,
         manual_edit_summary=_pop_manual_edit_summary(vee_exception_id),
         correction_policy=correction_policy,
         estimation_available=estimation_available,
@@ -886,6 +919,34 @@ def manual_edit_audits():
         filters=filters,
         manual_edit_reason_codes=sorted(SUPPORTED_MANUAL_EDIT_REASON_CODES),
     )
+
+
+@bp.get("/estimation-audits")
+def estimation_audits():
+    session = get_session()
+    try:
+        filters = build_estimation_audit_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_estimation_audit_filters({})
+
+    rows = list_estimation_audits(session, filters)
+    return render_template(
+        "estimation_audits.html",
+        rows=rows,
+        filters=filters,
+        estimation_strategies=sorted(SUPPORTED_ESTIMATION_STRATEGIES),
+    )
+
+
+@bp.get("/estimation-audits/<int:estimation_audit_id>")
+def estimation_audit_detail(estimation_audit_id: int):
+    session = get_session()
+    detail = get_estimation_audit_detail_context(session, estimation_audit_id)
+    if detail is None:
+        abort(404)
+
+    return render_template("estimation_audit_detail.html", detail=detail)
 
 
 @bp.get("/manual-edit-audits/<int:manual_edit_audit_id>")

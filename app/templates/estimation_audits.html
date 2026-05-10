@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.estimation_audits.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.estimation_audits.description") }}</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <input type="hidden" name="lang" value="{{ current_locale }}">
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.service_point") }}</label>
+        <input class="form-control" name="service_point" value="{{ filters.service_point or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.external_channel_id") }}</label>
+        <input class="form-control" name="external_channel_id" value="{{ filters.external_channel_id or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.estimation_status") }}</label>
+        <select class="form-select" name="estimation_status">
+          <option value="">{{ t("button.reset") }}</option>
+          <option value="applied" {% if filters.estimation_status == "applied" %}selected{% endif %}>{{ t("estimation.status.applied") }}</option>
+          <option value="blocked" {% if filters.estimation_status == "blocked" %}selected{% endif %}>{{ t("estimation.status.blocked") }}</option>
+          <option value="failed" {% if filters.estimation_status == "failed" %}selected{% endif %}>{{ t("estimation.status.failed") }}</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.strategy_code") }}</label>
+        <select class="form-select" name="strategy_code">
+          <option value="">{{ t("button.reset") }}</option>
+          {% for strategy_code in estimation_strategies %}
+          <option value="{{ strategy_code }}" {% if filters.strategy_code == strategy_code %}selected{% endif %}>
+            {{ t_or("estimation.strategy." ~ strategy_code, strategy_code) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.policy_reason") }}</label>
+        <input class="form-control" name="policy_reason_code" value="{{ filters.policy_reason_code or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.event_context_type") }}</label>
+        <input class="form-control" name="event_context_type" value="{{ filters.event_context_type or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_from") }}</label>
+        <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.date_to") }}</label>
+        <input class="form-control" name="date_to" type="date" value="{{ filters.date_to.date().isoformat() if filters.date_to else '' }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ t("button.filter") }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('web.estimation_audits', lang=current_locale) }}">{{ t("button.reset") }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>{{ t("table.id") }}</th>
+            <th>{{ t("table.service_point") }}</th>
+            <th>{{ t("field.external_meter_id") }}</th>
+            <th>{{ t("field.external_channel_id") }}</th>
+            <th>{{ t("field.target_measured_at") }}</th>
+            <th>{{ t("field.estimation_strategy") }}</th>
+            <th>{{ t("field.estimated_value") }}</th>
+            <th>{{ t("table.status") }}</th>
+            <th>{{ t("field.policy_reason") }}</th>
+            <th>{{ t("field.result_final") }}</th>
+            <th>{{ t("table.created_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          {% set correction_policy = (row.details or {}).get("correction_policy_snapshot") or {} %}
+          <tr>
+            <td>
+              <a
+                class="link-primary text-decoration-none"
+                href="{{ url_for('web.estimation_audit_detail', estimation_audit_id=row.id, lang=current_locale) }}"
+              >
+                {{ row.id }}
+              </a>
+            </td>
+            <td>{{ row.service_point.external_id }}</td>
+            <td>{{ row.device.external_meter_id if row.device else t("common.none") }}</td>
+            <td>{{ row.measuring_component.external_channel_id if row.measuring_component else t("common.none") }}</td>
+            <td>{{ row.target_measured_at|dt }}</td>
+            <td>{{ t_or("estimation.strategy." ~ row.strategy_code, row.strategy_code) }}</td>
+            <td>{{ row.estimated_value if row.estimated_value is not none else t("common.none") }}</td>
+            <td>{{ t_or("estimation.status." ~ row.estimation_status, row.estimation_status) }}</td>
+            <td>
+              {% if correction_policy.policy_reason_code %}
+              {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>{{ row.result_final_measurement_id or t("common.none") }}</td>
+            <td>{{ row.created_at|dt }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-secondary">{{ t("page.estimation_audits.empty") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

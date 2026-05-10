@@ -156,8 +156,16 @@
         <h2 class="h5 mb-1">{{ t("page.vee_exception_detail.estimation_result") }}</h2>
         <p class="text-secondary mb-0">{{ t("page.vee_exception_detail.estimation_result_description") }}</p>
       </div>
-      <div class="small text-secondary">
-        {{ t("table.id") }} / Audit: {{ estimation_summary.estimation_audit_id }}
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="small text-secondary">
+          {{ t("table.id") }} / Audit: {{ estimation_summary.estimation_audit_id }}
+        </div>
+        <a
+          class="btn btn-sm btn-outline-secondary"
+          href="{{ url_for('web.estimation_audit_detail', estimation_audit_id=estimation_summary.estimation_audit_id, lang=current_locale) }}"
+        >
+          {{ t("button.view") }}
+        </a>
       </div>
     </div>
     <div class="row g-3 mt-1">
@@ -211,6 +219,23 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+{% endif %}
+
+{% if not estimation_summary and latest_estimation_audit_id %}
+<div class="card border-light shadow-sm mb-4">
+  <div class="card-body d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2">
+    <div>
+      <div class="fw-semibold">{{ t("field.latest_estimation_audit") }}</div>
+      <div class="small text-secondary">{{ t("table.id") }} / Audit: {{ latest_estimation_audit_id }}</div>
+    </div>
+    <a
+      class="btn btn-sm btn-outline-secondary"
+      href="{{ url_for('web.estimation_audit_detail', estimation_audit_id=latest_estimation_audit_id, lang=current_locale) }}"
+    >
+      {{ t("button.view") }}
+    </a>
   </div>
 </div>
 {% endif %}

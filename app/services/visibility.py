@@ -14,6 +14,7 @@ from app.models import (
     BillCharge,
     BillDeterminant,
     CanonicalMeasurement,
+    EstimationAudit,
     FinalMeasurement,
     HesReadRaw,
     InitialMeasurement,
@@ -146,6 +147,21 @@ class ManualEditAuditFilters:
 
 
 @dataclass(frozen=True, slots=True)
+class EstimationAuditFilters:
+    estimation_audit_id: int | None = None
+    service_point_id: int | None = None
+    measuring_component_id: int | None = None
+    service_point: str | None = None
+    external_channel_id: str | None = None
+    estimation_status: str | None = None
+    strategy_code: str | None = None
+    policy_reason_code: str | None = None
+    event_context_type: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class VeeExceptionFilters:
     hes_system_id: int | None = None
     exception_status: str | None = None
@@ -234,6 +250,18 @@ class ManualEditAuditDetailContext:
     pipeline_run: PipelineRun | None = None
     related_vee_exception: VeeException | None = None
     target_initial_measurement: InitialMeasurement | None = None
+    superseded_final_measurement: FinalMeasurement | None = None
+    result_final_measurement: FinalMeasurement | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EstimationAuditDetailContext:
+    estimation_audit: EstimationAudit
+    pipeline_run: PipelineRun | None = None
+    related_vee_exception: VeeException | None = None
+    target_initial_measurement: InitialMeasurement | None = None
+    source_previous_final_measurement: FinalMeasurement | None = None
+    source_next_final_measurement: FinalMeasurement | None = None
     superseded_final_measurement: FinalMeasurement | None = None
     result_final_measurement: FinalMeasurement | None = None
 
@@ -565,6 +593,48 @@ def build_manual_edit_audit_filters(args) -> ManualEditAuditFilters:
         external_channel_id=_normalize_text(args.get("external_channel_id")),
         edit_status=edit_status,
         reason_code=_normalize_text(args.get("reason_code")),
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+def build_estimation_audit_filters(args) -> EstimationAuditFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    estimation_status = _normalize_text(args.get("estimation_status"))
+    if estimation_status not in {None, "applied", "blocked", "failed"}:
+        raise VisibilityFilterError(
+            "invalid_estimation_status_filter",
+            "Estimation status must be applied, blocked, or failed when provided.",
+        )
+
+    return EstimationAuditFilters(
+        estimation_audit_id=_parse_optional_int(
+            args.get("estimation_audit_id"),
+            error_code="invalid_estimation_audit_filter",
+            fallback_message="Estimation audit filter must be a positive integer.",
+        ),
+        service_point_id=_parse_optional_int(
+            args.get("service_point_id"),
+            error_code="invalid_service_point_filter",
+            fallback_message="Service point filter must be a positive integer.",
+        ),
+        measuring_component_id=_parse_optional_int(
+            args.get("measuring_component_id"),
+            error_code="invalid_measuring_component_filter",
+            fallback_message="Measuring component filter must be a positive integer.",
+        ),
+        service_point=_normalize_text(args.get("service_point")),
+        external_channel_id=_normalize_text(args.get("external_channel_id")),
+        estimation_status=estimation_status,
+        strategy_code=_normalize_text(args.get("strategy_code")),
+        policy_reason_code=_normalize_text(args.get("policy_reason_code")),
+        event_context_type=_normalize_text(args.get("event_context_type")),
         date_from=date_from,
         date_to=date_to,
     )
@@ -999,6 +1069,91 @@ def list_manual_edit_audits(
     return session.execute(statement).scalars().unique().all()
 
 
+def _snapshot_value(snapshot: dict | None, key: str) -> str | None:
+    if not isinstance(snapshot, dict):
+        return None
+    value = snapshot.get(key)
+    if isinstance(value, str):
+        normalized = value.strip()
+        return normalized or None
+    return None
+
+
+def list_estimation_audits(
+    session: Session,
+    filters: EstimationAuditFilters,
+    *,
+    limit: int = 200,
+) -> list[EstimationAudit]:
+    statement: Select[tuple[EstimationAudit]] = (
+        select(EstimationAudit)
+        .join(EstimationAudit.service_point)
+        .join(EstimationAudit.measuring_component)
+        .outerjoin(EstimationAudit.device)
+        .options(
+            selectinload(EstimationAudit.pipeline_run),
+            selectinload(EstimationAudit.service_point),
+            selectinload(EstimationAudit.measuring_component),
+            selectinload(EstimationAudit.device),
+            selectinload(EstimationAudit.target_initial_measurement),
+            selectinload(EstimationAudit.source_previous_final_measurement),
+            selectinload(EstimationAudit.source_next_final_measurement),
+            selectinload(EstimationAudit.superseded_final_measurement),
+            selectinload(EstimationAudit.result_final_measurement),
+        )
+    )
+
+    if filters.estimation_audit_id is not None:
+        statement = statement.where(EstimationAudit.id == filters.estimation_audit_id)
+    if filters.service_point_id is not None:
+        statement = statement.where(EstimationAudit.service_point_id == filters.service_point_id)
+    if filters.measuring_component_id is not None:
+        statement = statement.where(
+            EstimationAudit.measuring_component_id == filters.measuring_component_id
+        )
+    if filters.service_point:
+        statement = statement.where(ServicePoint.external_id == filters.service_point)
+    if filters.external_channel_id:
+        statement = statement.where(
+            MeasuringComponent.external_channel_id == filters.external_channel_id
+        )
+    if filters.estimation_status:
+        statement = statement.where(EstimationAudit.estimation_status == filters.estimation_status)
+    if filters.strategy_code:
+        statement = statement.where(EstimationAudit.strategy_code == filters.strategy_code)
+    if filters.date_from:
+        statement = statement.where(EstimationAudit.target_measured_at >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(EstimationAudit.target_measured_at <= filters.date_to)
+
+    rows = session.execute(
+        statement.order_by(EstimationAudit.created_at.desc(), EstimationAudit.id.desc())
+    ).scalars().unique().all()
+
+    if filters.policy_reason_code:
+        rows = [
+            row
+            for row in rows
+            if _snapshot_value(
+                (row.details or {}).get("correction_policy_snapshot"),
+                "policy_reason_code",
+            )
+            == filters.policy_reason_code
+        ]
+    if filters.event_context_type:
+        rows = [
+            row
+            for row in rows
+            if _snapshot_value(
+                (row.details or {}).get("correction_policy_snapshot"),
+                "event_context_type",
+            )
+            == filters.event_context_type
+        ]
+
+    return rows[:limit]
+
+
 def _bill_determinant_matches_hes_clause(hes_system_id: int):
     return (
         select(UsageTransaction.id)
@@ -1286,6 +1441,49 @@ def get_manual_edit_audit_detail_context(
         target_initial_measurement=manual_edit_audit.target_initial_measurement,
         superseded_final_measurement=manual_edit_audit.superseded_final_measurement,
         result_final_measurement=manual_edit_audit.result_final_measurement,
+    )
+
+
+def get_estimation_audit_detail_context(
+    session: Session,
+    estimation_audit_id: int,
+) -> EstimationAuditDetailContext | None:
+    estimation_audit = session.scalar(
+        select(EstimationAudit)
+        .where(EstimationAudit.id == estimation_audit_id)
+        .options(
+            joinedload(EstimationAudit.pipeline_run),
+            joinedload(EstimationAudit.service_point),
+            joinedload(EstimationAudit.device),
+            joinedload(EstimationAudit.measuring_component),
+            joinedload(EstimationAudit.target_initial_measurement),
+            joinedload(EstimationAudit.source_previous_final_measurement),
+            joinedload(EstimationAudit.source_next_final_measurement),
+            joinedload(EstimationAudit.superseded_final_measurement),
+            joinedload(EstimationAudit.result_final_measurement),
+        )
+        .limit(1)
+    )
+    if estimation_audit is None:
+        return None
+
+    related_vee_exception = None
+    exception_snapshot = (estimation_audit.details or {}).get("target_vee_exception_snapshot") or {}
+    vee_exception_id = exception_snapshot.get("vee_exception_id")
+    if isinstance(vee_exception_id, int):
+        related_vee_exception = session.scalar(
+            select(VeeException).where(VeeException.id == vee_exception_id).limit(1)
+        )
+
+    return EstimationAuditDetailContext(
+        estimation_audit=estimation_audit,
+        pipeline_run=estimation_audit.pipeline_run,
+        related_vee_exception=related_vee_exception,
+        target_initial_measurement=estimation_audit.target_initial_measurement,
+        source_previous_final_measurement=estimation_audit.source_previous_final_measurement,
+        source_next_final_measurement=estimation_audit.source_next_final_measurement,
+        superseded_final_measurement=estimation_audit.superseded_final_measurement,
+        result_final_measurement=estimation_audit.result_final_measurement,
     )
 
 

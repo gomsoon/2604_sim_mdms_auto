@@ -6,7 +6,12 @@ from sqlalchemy import func, select
 
 from app.services.bill_charges import calculate_bill_charges
 from app.services.bill_determinants import calculate_bill_determinants
+from app.services.estimation import (
+    ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+    apply_estimation_from_vee_exception,
+)
 from app.models import (
+    EstimationAudit,
     FinalMeasurement,
     IngestBatch,
     InitialMeasurement,
@@ -28,6 +33,7 @@ from app.services.vee import evaluate_or_get_vee_baseline
 def _prepare_bill_charge_rows(session) -> None:
     seed_demo_environment(session)
     session.commit()
+    finalize_canonical_measurements(session, batch_id="estimation-web-neighbor")
     finalize_canonical_measurements(session, batch_id="demo-read-batch")
     session.commit()
     calculate_usage_transactions(session, usage_type="monthly_consumption")
@@ -122,6 +128,100 @@ def _prepare_manual_edit_audit_rows(session) -> int:
     )
     session.commit()
     return summary.manual_edit_audit_id
+
+
+def _prepare_estimation_audit_rows(session) -> int:
+    seed_demo_environment(session)
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "estimation-web-neighbor",
+            "received_at": "2026-04-18T09:05:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T00:00:00+09:00",
+                    "value": 18.4,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-18T00:30:00+09:00",
+                    "value": 21.7,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+    finalize_canonical_measurements(session, limit=50)
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=1,
+        tariff_plan_code="RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-04-01T00:00:00+09:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="test:estimation-web",
+    )
+    session.commit()
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="120.00000000",
+    )
+    session.commit()
+
+    initial_rows = session.scalars(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.service_point_id == 1)
+        .order_by(InitialMeasurement.measured_at.asc(), InitialMeasurement.id.asc())
+    ).all()
+    initial_row = initial_rows[1] if len(initial_rows) > 1 else None
+    assert initial_row is not None
+    initial_row.value = Decimal("-1.0000")
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_row.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="web-tester",
+        operator_memo="web-test",
+    )
+    session.commit()
+    return summary.estimation_audit_id
 
 
 def test_ingest_batches_page_renders_filtered_results_in_korean(client, session):
@@ -590,6 +690,48 @@ def test_manual_edit_audits_page_renders_filtered_rows(client, session):
     assert f"/manual-edit-audits/{manual_edit_audit_id}?lang=ko" in text
 
 
+def test_estimation_audits_page_renders_filtered_rows(client, session):
+    estimation_audit_id = _prepare_estimation_audit_rows(session)
+
+    response = client.get(
+        "/estimation-audits?lang=ko&service_point=SP-1001&external_channel_id=CH-01&estimation_status=applied&strategy_code=previous_value_based&policy_reason_code=no_event_specific_override"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "추정 감사 이력" in text
+    assert "SP-1001" in text
+    assert "MTR-1001" in text
+    assert "CH-01" in text
+    assert "이전 값 기반" in text
+    assert "적용됨" in text
+    assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
+    assert f"/estimation-audits/{estimation_audit_id}?lang=ko" in text
+
+
+def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, session):
+    estimation_audit_id = _prepare_estimation_audit_rows(session)
+    audit_row = session.get(EstimationAudit, estimation_audit_id)
+    assert audit_row is not None
+
+    response = client.get(f"/estimation-audits/{estimation_audit_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "추정 감사 상세" in text
+    assert "보정 정책" in text
+    assert "관련 VEE 예외 스냅샷" in text
+    assert "이전 source final 스냅샷" in text
+    assert "결과 final 스냅샷" in text
+    assert "현재 기본 보정 흐름을 그대로 따릅니다" in text
+    assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
+    assert "18.4000" in text
+    assert (
+        f"/vee-exceptions/{audit_row.details['target_vee_exception_snapshot']['vee_exception_id']}?lang=ko"
+        in text
+    )
+
+
 def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, session):
     manual_edit_audit_id = _prepare_manual_edit_audit_rows(session)
     audit_row = session.get(ManualEditAudit, manual_edit_audit_id)
@@ -611,6 +753,19 @@ def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, sessi
     assert "operator_ui" in text
     assert "12.5000" in text
     assert f"/vee-exceptions/{audit_row.related_vee_exception_id}?lang=ko" in text
+
+
+def test_vee_exception_page_links_to_estimation_audit_detail(client, session):
+    estimation_audit_id = _prepare_estimation_audit_rows(session)
+    audit_row = session.get(EstimationAudit, estimation_audit_id)
+    assert audit_row is not None
+    vee_exception_id = audit_row.details["target_vee_exception_snapshot"]["vee_exception_id"]
+
+    response = client.get(f"/vee-exceptions/{vee_exception_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert f"/estimation-audits/{estimation_audit_id}?lang=ko" in text
 
 
 def test_master_data_page_billing_context_rows_link_to_bill_determinants(client, session):
