@@ -577,6 +577,74 @@ def test_service_point_bill_determinants_api_returns_404_for_missing_service_poi
     }
 
 
+def test_service_point_bill_charges_api_returns_filtered_rows(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get(
+        "/api/v1/service-points/1/bill-charges"
+        "?charge_type=flat_energy_charge"
+        "&external_channel_id=CH-01"
+        "&limit=10"
+    )
+
+    assert response.status_code == 200
+    rows = response.get_json()
+    assert len(rows) == 1
+
+    row = rows[0]
+    assert row["service_point_id"] == 1
+    assert row["service_point_external_id"] == "SP-1001"
+    assert row["external_channel_id"] == "CH-01"
+    assert row["charge_type"] == "flat_energy_charge"
+    assert row["currency_code"] == "KRW"
+    assert row["tariff_plan_code"] == "RES-A"
+    assert row["calculation_status"] == "partial"
+    assert row["quality_summary"] == "missing_intervals"
+    assert row["pipeline_run_id"] is not None
+
+
+def test_service_point_bill_charges_api_filters_by_date_and_status(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get(
+        "/api/v1/service-points/1/bill-charges"
+        "?date_from=2026-03-31T00:00:00Z"
+        "&date_to=2026-04-01T00:00:00Z"
+        "&calculation_status=partial"
+    )
+
+    assert response.status_code == 200
+    rows = response.get_json()
+    assert len(rows) == 1
+    assert rows[0]["charge_type"] == "flat_energy_charge"
+    assert rows[0]["calculation_status"] == "partial"
+
+
+def test_service_point_bill_charges_api_rejects_invalid_limit(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/api/v1/service-points/1/bill-charges?limit=0")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_limit",
+        "message": "Limit must be a positive integer and no greater than 500.",
+        "locale": "en",
+    }
+
+
+def test_service_point_bill_charges_api_returns_404_for_missing_service_point(client):
+    response = client.get("/api/v1/service-points/999999/bill-charges")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "service_point_not_found",
+        "message": "The selected service point does not exist.",
+        "locale": "en",
+    }
+
+
 def test_usage_transactions_page_filters_by_service_point_and_channel(client, session):
     seed_demo_environment(session)
     session.commit()

@@ -18,6 +18,7 @@ from app.services.ingest_contract import IngestContractError, validate_ingest_en
 from app.services.ingestion import ingest_events, ingest_reads
 from app.services.receive_adapters import ReceiveAdapterError, receive_adapter_payload
 from app.services.visibility import (
+    build_bill_charge_filters,
     VisibilityFilterError,
     build_bill_determinant_filters,
     build_canonical_filters,
@@ -25,6 +26,7 @@ from app.services.visibility import (
     build_ingest_batch_filters,
     build_operational_event_filters,
     build_usage_transaction_filters,
+    list_bill_charges,
     list_bill_determinants,
     list_canonical_measurements,
     list_final_measurements,
@@ -178,6 +180,35 @@ def _serialize_bill_determinant_row(row) -> dict[str, object]:
         "unit_of_measure": row.unit_of_measure,
         "determinant_value": _json_numeric(row.determinant_value),
         "source_usage_count": row.source_usage_count,
+        "quality_summary": row.quality_summary,
+        "calculation_status": row.calculation_status,
+        "revision_number": row.revision_number,
+        "is_current": row.is_current,
+        "calculated_at": row.calculated_at.isoformat(),
+        "pipeline_run_id": row.pipeline_run_id,
+    }
+
+
+def _serialize_bill_charge_row(row) -> dict[str, object]:
+    return {
+        "id": row.id,
+        "service_point_id": row.service_point_id,
+        "service_point_external_id": row.service_point.external_id,
+        "device_id": row.device_id,
+        "measuring_component_id": row.measuring_component_id,
+        "external_channel_id": (
+            row.measuring_component.external_channel_id if row.measuring_component is not None else None
+        ),
+        "bill_determinant_id": row.bill_determinant_id,
+        "charge_type": row.charge_type,
+        "billing_period_start_at": row.billing_period_start_at.isoformat(),
+        "billing_period_end_at": row.billing_period_end_at.isoformat(),
+        "currency_code": row.currency_code,
+        "tariff_plan_code": row.tariff_plan_code,
+        "tariff_version_code": row.tariff_version_code,
+        "quantity_value": _json_numeric(row.quantity_value),
+        "unit_rate_value": _json_numeric(row.unit_rate_value),
+        "charge_amount": _json_numeric(row.charge_amount),
         "quality_summary": row.quality_summary,
         "calculation_status": row.calculation_status,
         "revision_number": row.revision_number,
@@ -599,6 +630,36 @@ def list_service_point_bill_determinants_endpoint(service_point_id: int):
 
     rows = list_bill_determinants(session, filters, limit=limit)
     return jsonify([_serialize_bill_determinant_row(row) for row in rows])
+
+
+@bp.get("/service-points/<int:service_point_id>/bill-charges")
+def list_service_point_bill_charges_endpoint(service_point_id: int):
+    session = get_session()
+    service_point = session.get(ServicePoint, service_point_id)
+    if service_point is None:
+        return error_response("service_point_not_found", 404)
+
+    try:
+        limit = _parse_api_limit(request.args.get("limit"))
+        filter_args = request.args.to_dict(flat=True)
+        filter_args["service_point_id"] = str(service_point_id)
+        filters = build_bill_charge_filters(filter_args)
+    except ValueError:
+        return error_response("invalid_limit", 400)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_bill_charges(session, filters, limit=limit)
+    return jsonify([_serialize_bill_charge_row(row) for row in rows])
 
 
 @bp.get("/operational-events")
