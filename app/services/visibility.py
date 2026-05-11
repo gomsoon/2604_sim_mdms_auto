@@ -33,6 +33,11 @@ from app.models import (
     VeeReplayRequest,
     VeeReplayRequestItem,
 )
+from app.services.correction_policy import (
+    SUPPORTED_CORRECTION_POLICY_EVENT_CONTEXT_TYPES,
+    SUPPORTED_CORRECTION_POLICY_REASON_CODES,
+    build_correction_policy_decision,
+)
 
 
 @dataclass(slots=True)
@@ -170,6 +175,8 @@ class VeeExceptionFilters:
     exception_code: str | None = None
     severity: str | None = None
     meter_id: str | None = None
+    policy_reason_code: str | None = None
+    event_context_type: str | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
 
@@ -705,10 +712,10 @@ def build_vee_exception_filters(args) -> VeeExceptionFilters:
         )
 
     exception_status = _normalize_text(args.get("exception_status"))
-    if exception_status not in {None, "open", "acknowledged", "resolved"}:
+    if exception_status not in {None, "open", "acknowledged", "resolved", "active"}:
         raise VisibilityFilterError(
             "invalid_vee_exception_status",
-            "VEE exception status must be open, acknowledged, or resolved when provided.",
+            "VEE exception status must be active, open, acknowledged, or resolved when provided.",
         )
 
     severity = _normalize_text(args.get("severity"))
@@ -716,6 +723,20 @@ def build_vee_exception_filters(args) -> VeeExceptionFilters:
         raise VisibilityFilterError(
             "invalid_vee_exception_severity",
             "VEE exception severity must be info, warning, error, or critical when provided.",
+        )
+
+    policy_reason_code = _normalize_text(args.get("policy_reason_code"))
+    if policy_reason_code not in {None, *SUPPORTED_CORRECTION_POLICY_REASON_CODES}:
+        raise VisibilityFilterError(
+            "invalid_correction_policy_reason_filter",
+            "Correction policy reason must be a supported option when provided.",
+        )
+
+    event_context_type = _normalize_text(args.get("event_context_type"))
+    if event_context_type not in {None, *SUPPORTED_CORRECTION_POLICY_EVENT_CONTEXT_TYPES}:
+        raise VisibilityFilterError(
+            "invalid_event_context_type_filter",
+            "Event context type must be a supported option when provided.",
         )
 
     return VeeExceptionFilters(
@@ -728,6 +749,8 @@ def build_vee_exception_filters(args) -> VeeExceptionFilters:
         exception_code=_normalize_text(args.get("exception_code")),
         severity=severity,
         meter_id=_normalize_text(args.get("meter_id")),
+        policy_reason_code=policy_reason_code,
+        event_context_type=event_context_type,
         date_from=date_from,
         date_to=date_to,
     )
@@ -1695,7 +1718,9 @@ def list_vee_exceptions(
 
     if filters.hes_system_id is not None:
         statement = statement.where(HesReadRaw.hes_system_id == filters.hes_system_id)
-    if filters.exception_status:
+    if filters.exception_status == "active":
+        statement = statement.where(VeeException.exception_status.in_(("open", "acknowledged")))
+    elif filters.exception_status:
         statement = statement.where(VeeException.exception_status == filters.exception_status)
     if filters.exception_code:
         statement = statement.where(VeeException.exception_code == filters.exception_code)
@@ -1708,8 +1733,24 @@ def list_vee_exceptions(
     if filters.date_to:
         statement = statement.where(VeeException.detected_at <= filters.date_to)
 
-    statement = statement.order_by(VeeException.detected_at.desc(), VeeException.id.desc()).limit(limit)
-    return session.execute(statement).scalars().unique().all()
+    rows = session.execute(
+        statement.order_by(VeeException.detected_at.desc(), VeeException.id.desc())
+    ).scalars().unique().all()
+
+    if filters.policy_reason_code or filters.event_context_type:
+        filtered_rows: list[VeeException] = []
+        for row in rows:
+            decision = build_correction_policy_decision(session, row)
+            if filters.policy_reason_code and decision.policy_reason_code != filters.policy_reason_code:
+                continue
+            if filters.event_context_type:
+                actual_event_context_type = decision.event_context_type or "none"
+                if actual_event_context_type != filters.event_context_type:
+                    continue
+            filtered_rows.append(row)
+        rows = filtered_rows
+
+    return rows[:limit]
 
 
 def get_operational_event_detail_context(

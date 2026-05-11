@@ -332,6 +332,7 @@ def test_dashboard_page_shows_correction_policy_spotlight_and_recent_audits(clie
     assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
     assert "변조 연계 값 이상은 시스템 추정보다 운영자 확인이 우선입니다" in text
     assert "정전 연계 구간 누락은 아직 1차 보정 경로가 지원되지 않습니다" in text
+    assert "/vee-exceptions?lang=ko&amp;exception_status=active&amp;policy_reason_code=tamper_correlated_value_anomaly" in text
     assert "최근 보정 감사" in text
     assert f"/manual-edit-audits/{manual_audit.id}?lang=ko" in text
     assert f"/estimation-audits/{estimation_audit.id}?lang=ko" in text

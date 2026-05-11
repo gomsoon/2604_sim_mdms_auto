@@ -39,6 +39,7 @@
         <label class="form-label">{{ t("filter.exception_status") }}</label>
         <select class="form-select" name="exception_status">
           <option value="">{{ t("common.none") }}</option>
+          <option value="active" {% if filters.exception_status == "active" %}selected{% endif %}>{{ t("common.status.active") }}</option>
           {% for value in ["open", "acknowledged", "resolved"] %}
           <option value="{{ value }}" {% if filters.exception_status == value %}selected{% endif %}>{{ t_or("common.status." ~ value, value) }}</option>
           {% endfor %}
@@ -60,6 +61,32 @@
       <div class="col-md-3">
         <label class="form-label">{{ t("filter.exception_code") }}</label>
         <input class="form-control" name="exception_code" value="{{ filters.exception_code or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("field.policy_reason") }}</label>
+        <select class="form-select" name="policy_reason_code">
+          <option value="">{{ t("common.none") }}</option>
+          {% for policy_reason_code in correction_policy_reason_codes %}
+          <option value="{{ policy_reason_code }}" {% if filters.policy_reason_code == policy_reason_code %}selected{% endif %}>
+            {{ t_or("correction_policy.reason." ~ policy_reason_code, policy_reason_code) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("field.event_context_type") }}</label>
+        <select class="form-select" name="event_context_type">
+          <option value="">{{ t("common.none") }}</option>
+          {% for event_context_type in correction_policy_event_context_types %}
+          <option value="{{ event_context_type }}" {% if filters.event_context_type == event_context_type %}selected{% endif %}>
+            {% if event_context_type == "none" %}
+            {{ t("common.none") }}
+            {% else %}
+            {{ t_or("event_context.type." ~ event_context_type, event_context_type) }}
+            {% endif %}
+          </option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-md-2">
         <label class="form-label">{{ t("filter.date_from") }}</label>
@@ -91,6 +118,8 @@
             <th>{{ t("table.measured_at") }}</th>
             <th>{{ t("table.status") }}</th>
             <th>{{ t("table.blocking_finalization") }}</th>
+            <th>{{ t("field.policy_reason") }}</th>
+            <th>{{ t("field.recommended_action") }}</th>
             <th>{{ t("table.actions") }}</th>
           </tr>
         </thead>
@@ -101,6 +130,7 @@
           {% set raw = canonical.hes_read_raw if canonical else none %}
           {% set ingest_batch = raw.ingest_batch if raw else none %}
           {% set hes_system = raw.hes_system if raw else none %}
+          {% set correction_policy = correction_policies.get(row.id) %}
           <tr>
             <td>{{ row.detected_at|dt }}</td>
             <td>
@@ -131,6 +161,27 @@
             </td>
             <td>{{ t("common.yes") if row.blocking_finalization else t("common.no") }}</td>
             <td>
+              {% if correction_policy %}
+              <div>{{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}</div>
+              <div class="small text-secondary">
+                {% if correction_policy.event_context_type %}
+                {{ t_or("event_context.type." ~ correction_policy.event_context_type, correction_policy.event_context_type) }}
+                {% else %}
+                {{ t("common.none") }}
+                {% endif %}
+              </div>
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>
+              {% if correction_policy %}
+              {{ t_or("correction_policy.action." ~ correction_policy.recommended_action, correction_policy.recommended_action) }}
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
+            <td>
               <div class="d-flex flex-column gap-2">
                 <a class="btn btn-sm btn-outline-secondary w-100" href="{{ url_for('web.vee_exception_detail', vee_exception_id=row.id, lang=current_locale) }}">{{ t("button.view") }}</a>
                 {% if row.exception_status == "open" %}
@@ -152,7 +203,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="9" class="text-secondary">{{ t("page.vee_exceptions.no_rows") }}</td>
+            <td colspan="11" class="text-secondary">{{ t("page.vee_exceptions.no_rows") }}</td>
           </tr>
           {% endfor %}
         </tbody>

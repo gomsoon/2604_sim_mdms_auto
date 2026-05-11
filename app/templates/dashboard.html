@@ -259,7 +259,7 @@
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="h5 mb-0">{{ t("dashboard.correction_policy_spotlight") }}</h2>
-        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.exceptions', lang=current_locale) }}">{{ t("dashboard.view_queue") }}</a>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.vee_exceptions', lang=current_locale, exception_status='active') }}">{{ t("dashboard.view_queue") }}</a>
       </div>
       <div class="row g-3 mb-4">
         {% for row in correction_policy_spotlight %}
@@ -272,6 +272,11 @@
               {{ t_or("correction_policy.action." ~ row.recommended_action, row.recommended_action) }}
             </div>
             <div class="display-6 fw-semibold">{{ row.count }}</div>
+            <div class="mt-3">
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('web.vee_exceptions', lang=current_locale, exception_status='active', policy_reason_code=row.policy_reason_code) }}">
+                {{ t("dashboard.view_queue") }}
+              </a>
+            </div>
           </div>
         </div>
         {% endfor %}

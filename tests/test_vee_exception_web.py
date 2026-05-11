@@ -242,6 +242,23 @@ def test_vee_exceptions_page_exposes_filtered_replay_request_link(client, sessio
     assert "measured_at_to=2026-04-18T23:59" in text
 
 
+def test_vee_exceptions_page_shows_correction_policy_columns_and_filters(client, session):
+    vee_exception = _open_high_value_vee_exception_with_tamper(session)
+
+    response = client.get(
+        "/vee-exceptions?lang=ko&exception_status=active&policy_reason_code=tamper_correlated_value_anomaly&event_context_type=tamper"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "정책 사유" in text
+    assert "권장 조치" in text
+    assert "변조 연계 값 이상은 시스템 추정보다 운영자 확인이 우선입니다" in text
+    assert "운영자 확인 후 필요한 경우 수동 보정을 적용합니다" in text
+    assert "변조" in text
+    assert f"/vee-exceptions/{vee_exception.id}?lang=ko" in text
+
+
 def test_vee_exception_detail_page_shows_lineage(client, session):
     vee_exception = _create_open_vee_exception(session)
 

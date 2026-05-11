@@ -335,12 +335,18 @@ def vee_exceptions():
         "measured_at_from": _format_datetime_local(filters.date_from, selected_timezone),
         "measured_at_to": _format_datetime_local(filters.date_to, selected_timezone),
     }
+    correction_policies = {
+        row.id: build_correction_policy_decision(session, row) for row in rows
+    }
     return render_template(
         "vee_exceptions.html",
         rows=rows,
         filters=filters,
         hes_system_options=hes_system_options,
         replay_prefill=replay_prefill,
+        correction_policies=correction_policies,
+        correction_policy_reason_codes=SUPPORTED_CORRECTION_POLICY_REASON_CODES,
+        correction_policy_event_context_types=SUPPORTED_CORRECTION_POLICY_EVENT_CONTEXT_TYPES,
     )
 
 
