@@ -51,6 +51,8 @@ from app.services.adapters import (
 from app.services.billing_contexts import create_billing_context, update_billing_context
 from app.services.correction_policy import (
     CORRECTION_POLICY_BLOCKED,
+    SUPPORTED_CORRECTION_POLICY_EVENT_CONTEXT_TYPES,
+    SUPPORTED_CORRECTION_POLICY_REASON_CODES,
     build_correction_policy_decision,
 )
 from app.services.dashboard import build_dashboard_snapshot
@@ -918,6 +920,8 @@ def manual_edit_audits():
         rows=rows,
         filters=filters,
         manual_edit_reason_codes=sorted(SUPPORTED_MANUAL_EDIT_REASON_CODES),
+        correction_policy_reason_codes=SUPPORTED_CORRECTION_POLICY_REASON_CODES,
+        correction_policy_event_context_types=SUPPORTED_CORRECTION_POLICY_EVENT_CONTEXT_TYPES,
     )
 
 
@@ -936,6 +940,8 @@ def estimation_audits():
         rows=rows,
         filters=filters,
         estimation_strategies=sorted(SUPPORTED_ESTIMATION_STRATEGIES),
+        correction_policy_reason_codes=SUPPORTED_CORRECTION_POLICY_REASON_CODES,
+        correction_policy_event_context_types=SUPPORTED_CORRECTION_POLICY_EVENT_CONTEXT_TYPES,
     )
 
 

@@ -42,11 +42,29 @@
       </div>
       <div class="col-md-3">
         <label class="form-label">{{ t("filter.policy_reason") }}</label>
-        <input class="form-control" name="policy_reason_code" value="{{ filters.policy_reason_code or '' }}">
+        <select class="form-select" name="policy_reason_code">
+          <option value="">{{ t("button.reset") }}</option>
+          {% for policy_reason_code in correction_policy_reason_codes %}
+          <option value="{{ policy_reason_code }}" {% if filters.policy_reason_code == policy_reason_code %}selected{% endif %}>
+            {{ t_or("correction_policy.reason." ~ policy_reason_code, policy_reason_code) }}
+          </option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-md-2">
         <label class="form-label">{{ t("filter.event_context_type") }}</label>
-        <input class="form-control" name="event_context_type" value="{{ filters.event_context_type or '' }}">
+        <select class="form-select" name="event_context_type">
+          <option value="">{{ t("button.reset") }}</option>
+          {% for event_context_type in correction_policy_event_context_types %}
+          <option value="{{ event_context_type }}" {% if filters.event_context_type == event_context_type %}selected{% endif %}>
+            {% if event_context_type == "none" %}
+            {{ t("common.none") }}
+            {% else %}
+            {{ t_or("event_context.type." ~ event_context_type, event_context_type) }}
+            {% endif %}
+          </option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-md-2">
         <label class="form-label">{{ t("filter.date_from") }}</label>

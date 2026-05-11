@@ -46,6 +46,32 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t("filter.policy_reason") }}</label>
+        <select class="form-select" name="policy_reason_code">
+          <option value="">{{ t("button.reset") }}</option>
+          {% for policy_reason_code in correction_policy_reason_codes %}
+          <option value="{{ policy_reason_code }}" {% if filters.policy_reason_code == policy_reason_code %}selected{% endif %}>
+            {{ t_or("correction_policy.reason." ~ policy_reason_code, policy_reason_code) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ t("filter.event_context_type") }}</label>
+        <select class="form-select" name="event_context_type">
+          <option value="">{{ t("button.reset") }}</option>
+          {% for event_context_type in correction_policy_event_context_types %}
+          <option value="{{ event_context_type }}" {% if filters.event_context_type == event_context_type %}selected{% endif %}>
+            {% if event_context_type == "none" %}
+            {{ t("common.none") }}
+            {% else %}
+            {{ t_or("event_context.type." ~ event_context_type, event_context_type) }}
+            {% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="col-md-2">
         <label class="form-label">{{ t("filter.date_from") }}</label>
         <input class="form-control" name="date_from" type="date" value="{{ filters.date_from.date().isoformat() if filters.date_from else '' }}">
@@ -77,12 +103,14 @@
             <th>{{ t("field.edited_by") }}</th>
             <th>{{ t("field.reason_code") }}</th>
             <th>{{ t("table.status") }}</th>
+            <th>{{ t("field.policy_reason") }}</th>
             <th>{{ t("field.result_final") }}</th>
             <th>{{ t("table.created_at") }}</th>
           </tr>
         </thead>
         <tbody>
           {% for row in rows %}
+          {% set correction_policy = (row.details or {}).get("correction_policy_snapshot") or {} %}
           <tr>
             <td>
               <a
@@ -100,12 +128,19 @@
             <td>{{ row.edited_by }}</td>
             <td>{{ t_or("manual_edit.reason_code." ~ row.reason_code, row.reason_code) }}</td>
             <td>{{ t_or("manual_edit.status." ~ row.edit_status, row.edit_status) }}</td>
+            <td>
+              {% if correction_policy.policy_reason_code %}
+              {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
+              {% else %}
+              {{ t("common.none") }}
+              {% endif %}
+            </td>
             <td>{{ row.result_final_measurement_id or t("common.none") }}</td>
             <td>{{ row.created_at|dt }}</td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="11" class="text-secondary">{{ t("page.manual_edit_audits.empty") }}</td>
+            <td colspan="12" class="text-secondary">{{ t("page.manual_edit_audits.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

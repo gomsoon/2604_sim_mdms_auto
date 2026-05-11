@@ -142,6 +142,8 @@ class ManualEditAuditFilters:
     external_channel_id: str | None = None
     edit_status: str | None = None
     reason_code: str | None = None
+    policy_reason_code: str | None = None
+    event_context_type: str | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
 
@@ -593,6 +595,8 @@ def build_manual_edit_audit_filters(args) -> ManualEditAuditFilters:
         external_channel_id=_normalize_text(args.get("external_channel_id")),
         edit_status=edit_status,
         reason_code=_normalize_text(args.get("reason_code")),
+        policy_reason_code=_normalize_text(args.get("policy_reason_code")),
+        event_context_type=_normalize_text(args.get("event_context_type")),
         date_from=date_from,
         date_to=date_to,
     )
@@ -1062,11 +1066,35 @@ def list_manual_edit_audits(
     if filters.date_to:
         statement = statement.where(ManualEditAudit.target_measured_at <= filters.date_to)
 
-    statement = statement.order_by(
-        ManualEditAudit.created_at.desc(),
-        ManualEditAudit.id.desc(),
-    ).limit(limit)
-    return session.execute(statement).scalars().unique().all()
+    rows = session.execute(
+        statement.order_by(
+            ManualEditAudit.created_at.desc(),
+            ManualEditAudit.id.desc(),
+        )
+    ).scalars().unique().all()
+
+    if filters.policy_reason_code:
+        rows = [
+            row
+            for row in rows
+            if _matches_snapshot_filter(
+                (row.details or {}).get("correction_policy_snapshot"),
+                key="policy_reason_code",
+                expected=filters.policy_reason_code,
+            )
+        ]
+    if filters.event_context_type:
+        rows = [
+            row
+            for row in rows
+            if _matches_snapshot_filter(
+                (row.details or {}).get("correction_policy_snapshot"),
+                key="event_context_type",
+                expected=filters.event_context_type,
+            )
+        ]
+
+    return rows[:limit]
 
 
 def _snapshot_value(snapshot: dict | None, key: str) -> str | None:
@@ -1077,6 +1105,20 @@ def _snapshot_value(snapshot: dict | None, key: str) -> str | None:
         normalized = value.strip()
         return normalized or None
     return None
+
+
+def _matches_snapshot_filter(
+    snapshot: dict | None,
+    *,
+    key: str,
+    expected: str | None,
+) -> bool:
+    if expected is None:
+        return True
+    actual = _snapshot_value(snapshot, key)
+    if expected == "none":
+        return actual is None
+    return actual == expected
 
 
 def list_estimation_audits(
@@ -1134,21 +1176,21 @@ def list_estimation_audits(
         rows = [
             row
             for row in rows
-            if _snapshot_value(
+            if _matches_snapshot_filter(
                 (row.details or {}).get("correction_policy_snapshot"),
-                "policy_reason_code",
+                key="policy_reason_code",
+                expected=filters.policy_reason_code,
             )
-            == filters.policy_reason_code
         ]
     if filters.event_context_type:
         rows = [
             row
             for row in rows
-            if _snapshot_value(
+            if _matches_snapshot_filter(
                 (row.details or {}).get("correction_policy_snapshot"),
-                "event_context_type",
+                key="event_context_type",
+                expected=filters.event_context_type,
             )
-            == filters.event_context_type
         ]
 
     return rows[:limit]

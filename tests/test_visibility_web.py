@@ -677,7 +677,7 @@ def test_manual_edit_audits_page_renders_filtered_rows(client, session):
     manual_edit_audit_id = _prepare_manual_edit_audit_rows(session)
 
     response = client.get(
-        "/manual-edit-audits?lang=ko&service_point=SP-1001&external_channel_id=CH-01&edit_status=applied&reason_code=operator_meter_correction"
+        "/manual-edit-audits?lang=ko&service_point=SP-1001&external_channel_id=CH-01&edit_status=applied&reason_code=operator_meter_correction&policy_reason_code=no_event_specific_override&event_context_type=outage"
     )
     text = response.get_data(as_text=True)
 
@@ -687,6 +687,7 @@ def test_manual_edit_audits_page_renders_filtered_rows(client, session):
     assert "MTR-1001" in text
     assert "CH-01" in text
     assert "운영자 계량기 보정" in text
+    assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
     assert f"/manual-edit-audits/{manual_edit_audit_id}?lang=ko" in text
 
 
@@ -694,7 +695,7 @@ def test_estimation_audits_page_renders_filtered_rows(client, session):
     estimation_audit_id = _prepare_estimation_audit_rows(session)
 
     response = client.get(
-        "/estimation-audits?lang=ko&service_point=SP-1001&external_channel_id=CH-01&estimation_status=applied&strategy_code=previous_value_based&policy_reason_code=no_event_specific_override"
+        "/estimation-audits?lang=ko&service_point=SP-1001&external_channel_id=CH-01&estimation_status=applied&strategy_code=previous_value_based&policy_reason_code=no_event_specific_override&event_context_type=outage"
     )
     text = response.get_data(as_text=True)
 

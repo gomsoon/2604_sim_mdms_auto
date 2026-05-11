@@ -691,6 +691,8 @@ def test_list_manual_edit_audits_filters_by_service_point_reason_and_status(sess
                 "external_channel_id": "CH-01",
                 "edit_status": "applied",
                 "reason_code": "operator_meter_correction",
+                "policy_reason_code": "no_event_specific_override",
+                "event_context_type": "outage",
             }
         ),
     )
@@ -698,7 +700,7 @@ def test_list_manual_edit_audits_filters_by_service_point_reason_and_status(sess
         session,
         build_manual_edit_audit_filters(
             {
-                "reason_code": "operator_business_override",
+                "event_context_type": "tamper",
             }
         ),
     )
@@ -740,6 +742,7 @@ def test_list_estimation_audits_filters_by_service_point_strategy_status_and_pol
                 "estimation_status": "applied",
                 "strategy_code": "previous_value_based",
                 "policy_reason_code": "no_event_specific_override",
+                "event_context_type": "outage",
             }
         ),
     )
