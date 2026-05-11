@@ -79,6 +79,81 @@ def _parse_api_limit(
     return parsed
 
 
+def _serialize_usage_transaction_row(row) -> dict[str, object]:
+    return {
+        "id": row.id,
+        "service_point_id": row.service_point_id,
+        "service_point_external_id": row.service_point.external_id,
+        "device_id": row.device_id,
+        "measuring_component_id": row.measuring_component_id,
+        "external_channel_id": row.measuring_component.external_channel_id,
+        "usage_type": row.usage_type,
+        "period_start_at": row.period_start_at.isoformat(),
+        "period_end_at": row.period_end_at.isoformat(),
+        "window_timezone_name": row.window_timezone_name,
+        "interval_size_minutes": row.interval_size_minutes,
+        "unit_of_measure": row.unit_of_measure,
+        "usage_value": _json_numeric(row.usage_value),
+        "source_final_count": row.source_final_count,
+        "missing_interval_count": row.missing_interval_count,
+        "quality_summary": row.quality_summary,
+        "calculation_status": row.calculation_status,
+        "calculated_at": row.calculated_at.isoformat(),
+        "pipeline_run_id": row.pipeline_run_id,
+    }
+
+
+def _serialize_usage_summary_filters(
+    service_point: ServicePoint,
+    filter_args: dict[str, str],
+    *,
+    limit: int,
+) -> dict[str, object]:
+    return {
+        "service_point_id": service_point.id,
+        "service_point_external_id": service_point.external_id,
+        "usage_type": filter_args.get("usage_type"),
+        "external_channel_id": filter_args.get("external_channel_id"),
+        "date_from": filter_args.get("date_from"),
+        "date_to": filter_args.get("date_to"),
+        "calculation_status": filter_args.get("calculation_status"),
+        "limit": limit,
+    }
+
+
+def _build_usage_summary(rows) -> dict[str, object]:
+    quality_summaries: dict[str, int] = {}
+    latest_calculated_at = None
+    complete_count = 0
+    partial_count = 0
+    blocked_count = 0
+
+    for row in rows:
+        if row.calculation_status == "complete":
+            complete_count += 1
+        elif row.calculation_status == "partial":
+            partial_count += 1
+        elif row.calculation_status == "blocked":
+            blocked_count += 1
+
+        quality_key = row.quality_summary or "none"
+        quality_summaries[quality_key] = quality_summaries.get(quality_key, 0) + 1
+
+        if latest_calculated_at is None or row.calculated_at > latest_calculated_at:
+            latest_calculated_at = row.calculated_at
+
+    return {
+        "window_count": len(rows),
+        "complete_count": complete_count,
+        "partial_count": partial_count,
+        "blocked_count": blocked_count,
+        "latest_calculated_at": latest_calculated_at.isoformat()
+        if latest_calculated_at is not None
+        else None,
+        "quality_summaries": quality_summaries,
+    }
+
+
 @bp.get("/health")
 def health_check():
     try:
@@ -421,31 +496,45 @@ def list_service_point_usage_endpoint(service_point_id: int):
         )
 
     rows = list_usage_transactions(session, filters, limit=limit)
+    return jsonify([_serialize_usage_transaction_row(row) for row in rows])
+
+
+@bp.get("/service-points/<int:service_point_id>/usage-summary")
+def get_service_point_usage_summary_endpoint(service_point_id: int):
+    session = get_session()
+    service_point = session.get(ServicePoint, service_point_id)
+    if service_point is None:
+        return error_response("service_point_not_found", 404)
+
+    try:
+        limit = _parse_api_limit(request.args.get("limit"), default=50)
+        filter_args = request.args.to_dict(flat=True)
+        filter_args["service_point_id"] = str(service_point_id)
+        filters = build_usage_transaction_filters(filter_args)
+    except ValueError:
+        return error_response("invalid_limit", 400)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    summary_rows = list_usage_transactions(session, filters, limit=None)
+    rows = list_usage_transactions(session, filters, limit=limit)
     return jsonify(
-        [
-            {
-                "id": row.id,
-                "service_point_id": row.service_point_id,
-                "service_point_external_id": row.service_point.external_id,
-                "device_id": row.device_id,
-                "measuring_component_id": row.measuring_component_id,
-                "external_channel_id": row.measuring_component.external_channel_id,
-                "usage_type": row.usage_type,
-                "period_start_at": row.period_start_at.isoformat(),
-                "period_end_at": row.period_end_at.isoformat(),
-                "window_timezone_name": row.window_timezone_name,
-                "interval_size_minutes": row.interval_size_minutes,
-                "unit_of_measure": row.unit_of_measure,
-                "usage_value": _json_numeric(row.usage_value),
-                "source_final_count": row.source_final_count,
-                "missing_interval_count": row.missing_interval_count,
-                "quality_summary": row.quality_summary,
-                "calculation_status": row.calculation_status,
-                "calculated_at": row.calculated_at.isoformat(),
-                "pipeline_run_id": row.pipeline_run_id,
-            }
-            for row in rows
-        ]
+        {
+            "service_point_id": service_point.id,
+            "service_point_external_id": service_point.external_id,
+            "filters": _serialize_usage_summary_filters(service_point, filter_args, limit=limit),
+            "summary": _build_usage_summary(summary_rows),
+            "rows": [_serialize_usage_transaction_row(row) for row in rows],
+        }
     )
 
 

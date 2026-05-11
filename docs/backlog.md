@@ -174,6 +174,12 @@ This document captures the staged backlog derived from the reference PDF backlog
 - usage-local timezone windowing
 - usage quality summary and missing-interval visibility
 - explicit distinction between `usage_transaction` and later billing-ready determinant outputs
+- first service-facing API slice may start with read-only service-point usage list
+  and usage-summary endpoints
+- deferred: service-point bill determinant read API
+- deferred: service-point bill charge read API
+- deferred: service-point summary or aggregate API beyond first usage summary
+- deferred: service-facing export or pagination contract refinement
 
 ### V7. Event-linked decisioning
 

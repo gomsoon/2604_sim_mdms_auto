@@ -864,7 +864,7 @@ def list_final_measurements(
 
 
 def list_usage_transactions(
-    session: Session, filters: UsageTransactionFilters, *, limit: int = 200
+    session: Session, filters: UsageTransactionFilters, *, limit: int | None = 200
 ) -> list[UsageTransaction]:
     statement: Select[tuple[UsageTransaction]] = (
         select(UsageTransaction)
@@ -907,7 +907,9 @@ def list_usage_transactions(
     statement = statement.order_by(
         UsageTransaction.period_start_at.desc(),
         UsageTransaction.id.desc(),
-    ).limit(limit)
+    )
+    if limit is not None:
+        statement = statement.limit(limit)
     return session.execute(statement).scalars().unique().all()
 
 

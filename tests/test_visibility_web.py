@@ -396,6 +396,99 @@ def test_service_point_usage_api_returns_404_for_missing_service_point(client):
     }
 
 
+def test_service_point_usage_summary_api_returns_summary_and_rows(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+
+    response = client.get(
+        "/api/v1/service-points/1/usage-summary"
+        "?usage_type=daily_consumption"
+        "&external_channel_id=CH-01"
+        "&limit=10"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert payload["service_point_id"] == 1
+    assert payload["service_point_external_id"] == "SP-1001"
+    assert payload["filters"] == {
+        "service_point_id": 1,
+        "service_point_external_id": "SP-1001",
+        "usage_type": "daily_consumption",
+        "external_channel_id": "CH-01",
+        "date_from": None,
+        "date_to": None,
+        "calculation_status": None,
+        "limit": 10,
+    }
+    assert payload["summary"]["window_count"] == 1
+    assert payload["summary"]["complete_count"] == 0
+    assert payload["summary"]["partial_count"] == 1
+    assert payload["summary"]["blocked_count"] == 0
+    assert payload["summary"]["quality_summaries"] == {"missing_intervals": 1}
+    assert payload["summary"]["latest_calculated_at"] is not None
+    assert len(payload["rows"]) == 1
+    assert payload["rows"][0]["usage_type"] == "daily_consumption"
+    assert payload["rows"][0]["quality_summary"] == "missing_intervals"
+
+
+def test_service_point_usage_summary_api_filters_by_date_and_status(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+
+    response = client.get(
+        "/api/v1/service-points/1/usage-summary"
+        "?date_from=2026-04-17T00:00:00Z"
+        "&date_to=2026-04-17T23:59:59Z"
+        "&calculation_status=partial"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert payload["summary"]["window_count"] == 1
+    assert payload["summary"]["partial_count"] == 1
+    assert payload["summary"]["blocked_count"] == 0
+    assert len(payload["rows"]) == 1
+    assert payload["rows"][0]["usage_type"] == "daily_consumption"
+
+
+def test_service_point_usage_summary_api_rejects_invalid_limit(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/api/v1/service-points/1/usage-summary?limit=0")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_limit",
+        "message": "Limit must be a positive integer and no greater than 500.",
+        "locale": "en",
+    }
+
+
+def test_service_point_usage_summary_api_returns_404_for_missing_service_point(client):
+    response = client.get("/api/v1/service-points/999999/usage-summary")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "service_point_not_found",
+        "message": "The selected service point does not exist.",
+        "locale": "en",
+    }
+
+
 def test_usage_transactions_page_filters_by_service_point_and_channel(client, session):
     seed_demo_environment(session)
     session.commit()
