@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 
 from app.models import (
+    EstimationAudit,
     HesSystem,
     IngestBatch,
     InitialMeasurement,
+    ManualEditAudit,
     OperationalEvent,
     UsageTransaction,
     VeeException,
@@ -222,3 +226,112 @@ def test_dashboard_page_lists_recent_vee_replay_requests(client, session):
     assert f"/vee-replay-requests/{processing_request.id}" in text
     assert "0% (0/3)" in text
     assert "50% (2/4)" in text
+
+
+def test_dashboard_page_shows_correction_policy_spotlight_and_recent_audits(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial is not None
+
+    baseline_exception = VeeException(
+        initial_measurement_id=initial.id,
+        exception_code="vee_zero_value_detected",
+        severity="warning",
+        exception_status="open",
+        blocking_finalization=False,
+        detected_at=datetime.now(timezone.utc) - timedelta(minutes=15),
+        details={},
+    )
+    tamper_exception = VeeException(
+        initial_measurement_id=initial.id,
+        exception_code="vee_high_value_detected",
+        severity="error",
+        exception_status="open",
+        blocking_finalization=True,
+        detected_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+        details={
+            "event_context_snapshot": {
+                "primary_context_type": "tamper",
+                "matched_context_types": ["tamper"],
+            }
+        },
+    )
+    outage_exception = VeeException(
+        initial_measurement_id=initial.id,
+        exception_code="vee_missing_interval_detected",
+        severity="error",
+        exception_status="acknowledged",
+        blocking_finalization=True,
+        detected_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+        details={
+            "event_context_snapshot": {
+                "primary_context_type": "outage",
+                "matched_context_types": ["outage"],
+            }
+        },
+    )
+    session.add_all([baseline_exception, tamper_exception, outage_exception])
+    session.flush()
+    session.add_all(
+        [
+            EstimationAudit(
+                service_point_id=initial.service_point_id,
+                measuring_component_id=initial.measuring_component_id,
+                device_id=initial.device_id,
+                target_initial_measurement_id=initial.id,
+                target_measured_at=initial.measured_at,
+                strategy_code="previous_value_based",
+                estimation_status="blocked",
+                estimated_value=None,
+                unit_of_measure=initial.unit_of_measure,
+                operator_memo="blocked by tamper policy",
+                details={
+                    "correction_policy_snapshot": {
+                        "policy_reason_code": "tamper_correlated_value_anomaly",
+                        "recommended_action": "operator_investigation_then_manual_edit",
+                    }
+                },
+            ),
+            ManualEditAudit(
+                service_point_id=initial.service_point_id,
+                measuring_component_id=initial.measuring_component_id,
+                device_id=initial.device_id,
+                target_initial_measurement_id=initial.id,
+                related_vee_exception_id=baseline_exception.id,
+                target_measured_at=initial.measured_at,
+                reason_code="operator_meter_correction",
+                edit_status="applied",
+                edited_value=initial.value,
+                edited_by="operator_dashboard",
+                operator_memo="manual correction confirmed",
+                details={
+                    "correction_policy_snapshot": {
+                        "policy_reason_code": "no_event_specific_override",
+                        "recommended_action": "follow_existing_baseline",
+                    }
+                },
+            ),
+        ]
+    )
+    session.commit()
+
+    manual_audit = session.scalar(select(ManualEditAudit).order_by(ManualEditAudit.id.desc()).limit(1))
+    estimation_audit = session.scalar(
+        select(EstimationAudit).order_by(EstimationAudit.id.desc()).limit(1)
+    )
+    assert manual_audit is not None
+    assert estimation_audit is not None
+
+    response = client.get("/?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "보정 정책 스포트라이트" in text
+    assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
+    assert "변조 연계 값 이상은 시스템 추정보다 운영자 확인이 우선입니다" in text
+    assert "정전 연계 구간 누락은 아직 1차 보정 경로가 지원되지 않습니다" in text
+    assert "최근 보정 감사" in text
+    assert f"/manual-edit-audits/{manual_audit.id}?lang=ko" in text
+    assert f"/estimation-audits/{estimation_audit.id}?lang=ko" in text

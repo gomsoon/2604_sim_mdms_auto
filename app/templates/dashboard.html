@@ -254,6 +254,91 @@
   </div>
 </section>
 
+<section class="mb-4">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">{{ t("dashboard.correction_policy_spotlight") }}</h2>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('web.exceptions', lang=current_locale) }}">{{ t("dashboard.view_queue") }}</a>
+      </div>
+      <div class="row g-3 mb-4">
+        {% for row in correction_policy_spotlight %}
+        <div class="col-md-4">
+          <div class="border rounded-3 p-3 h-100">
+            <div class="fw-semibold mb-1">
+              {{ t_or("correction_policy.reason." ~ row.policy_reason_code, row.policy_reason_code) }}
+            </div>
+            <div class="text-secondary small mb-3">
+              {{ t_or("correction_policy.action." ~ row.recommended_action, row.recommended_action) }}
+            </div>
+            <div class="display-6 fw-semibold">{{ row.count }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="h6 mb-0">{{ t("dashboard.recent_correction_audits") }}</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>{{ t("table.id") }}</th>
+              <th>{{ t("table.type") }}</th>
+              <th>{{ t("table.service_point") }}</th>
+              <th>{{ t("table.channel") }}</th>
+              <th>{{ t("table.status") }}</th>
+              <th>{{ t("field.policy_reason") }}</th>
+              <th>{{ t("field.recommended_action") }}</th>
+              <th>{{ t("table.created_at") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in recent_correction_audits %}
+            <tr>
+              <td>
+                {% if row.audit_kind == "estimation" %}
+                <a class="link-primary text-decoration-none" href="{{ url_for(row.detail_endpoint, lang=current_locale, estimation_audit_id=row.audit_id) }}">
+                {% else %}
+                <a class="link-primary text-decoration-none" href="{{ url_for(row.detail_endpoint, lang=current_locale, manual_edit_audit_id=row.audit_id) }}">
+                {% endif %}
+                  {{ row.audit_id }}
+                </a>
+              </td>
+              <td>{{ t("audit.kind." ~ row.audit_kind) }}</td>
+              <td>{{ row.service_point_external_id }}</td>
+              <td>{{ row.external_channel_id or t("common.none") }}</td>
+              <td>
+                <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
+              </td>
+              <td>
+                {% if row.policy_reason_code %}
+                {{ t_or("correction_policy.reason." ~ row.policy_reason_code, row.policy_reason_code) }}
+                {% else %}
+                {{ t("common.none") }}
+                {% endif %}
+              </td>
+              <td>
+                {% if row.recommended_action %}
+                {{ t_or("correction_policy.action." ~ row.recommended_action, row.recommended_action) }}
+                {% else %}
+                {{ t("common.none") }}
+                {% endif %}
+              </td>
+              <td>{{ row.created_at|dt if row.created_at else t("common.none") }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="text-secondary">{{ t("dashboard.no_recent_correction_audits") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="row g-3 mb-4">
   <div class="col-6 col-lg-3">
     <div class="card shadow-sm h-100">

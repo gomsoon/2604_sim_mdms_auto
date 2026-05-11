@@ -11,20 +11,28 @@ from app.models import (
     BillDeterminant,
     CanonicalMeasurement,
     Device,
+    EstimationAudit,
     FinalMeasurement,
     HesEventRaw,
     HesReadRaw,
     IngestBatch,
     IngestErrorLog,
+    ManualEditAudit,
     MeasuringComponent,
     OperationalEvent,
     PipelineRun,
     ServicePoint,
     UsageTransaction,
+    VeeException,
     VeeReplayRequest,
 )
 from app.services.adapters import derive_effective_status
 from app.services.adapters import derive_is_overdue, derive_is_stale
+from app.services.correction_policy import (
+    CORRECTION_POLICY_REASON_NO_EVENT_SPECIFIC_OVERRIDE,
+    SUPPORTED_CORRECTION_POLICY_REASON_CODES,
+    build_correction_policy_decision,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +65,26 @@ class StageStatusCard:
 
 
 @dataclass(frozen=True, slots=True)
+class CorrectionPolicySpotlightRow:
+    policy_reason_code: str
+    recommended_action: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
+class RecentCorrectionAuditRow:
+    audit_kind: str
+    audit_id: int
+    detail_endpoint: str
+    service_point_external_id: str
+    external_channel_id: str | None
+    status: str
+    policy_reason_code: str | None
+    recommended_action: str | None
+    created_at: object | None
+
+
+@dataclass(frozen=True, slots=True)
 class DashboardSnapshot:
     stats: dict[str, int]
     stage_cards: list[StageStatusCard]
@@ -67,6 +95,8 @@ class DashboardSnapshot:
     recent_recalculated_usage: list[UsageTransaction]
     recent_bill_determinants: list[BillDeterminant]
     recent_vee_replay_requests: list[VeeReplayRequest]
+    correction_policy_spotlight: list[CorrectionPolicySpotlightRow]
+    recent_correction_audits: list[RecentCorrectionAuditRow]
 
 
 def _count(session: Session, statement) -> int:
@@ -97,6 +127,90 @@ def _usage_recalculated_after_vee_filter():
 
 def _bill_determinant_revised_filter():
     return BillDeterminant.is_current.is_(True) & (BillDeterminant.revision_number > 1)
+
+
+def _build_correction_policy_spotlight(session: Session) -> list[CorrectionPolicySpotlightRow]:
+    open_exceptions = session.scalars(
+        select(VeeException)
+        .options(selectinload(VeeException.initial_measurement))
+        .where(VeeException.exception_status.in_(("open", "acknowledged")))
+        .order_by(VeeException.detected_at.desc(), VeeException.id.desc())
+    ).all()
+
+    counts = {code: 0 for code in SUPPORTED_CORRECTION_POLICY_REASON_CODES}
+    actions = {
+        CORRECTION_POLICY_REASON_NO_EVENT_SPECIFIC_OVERRIDE: "follow_existing_baseline",
+    }
+    for exception in open_exceptions:
+        decision = build_correction_policy_decision(session, exception)
+        counts.setdefault(decision.policy_reason_code, 0)
+        counts[decision.policy_reason_code] += 1
+        actions[decision.policy_reason_code] = decision.recommended_action
+
+    return [
+        CorrectionPolicySpotlightRow(
+            policy_reason_code=code,
+            recommended_action=actions.get(code, "follow_existing_baseline"),
+            count=counts.get(code, 0),
+        )
+        for code in SUPPORTED_CORRECTION_POLICY_REASON_CODES
+    ]
+
+
+def _build_recent_correction_audits(session: Session) -> list[RecentCorrectionAuditRow]:
+    estimation_rows = session.scalars(
+        select(EstimationAudit)
+        .options(
+            selectinload(EstimationAudit.service_point),
+            selectinload(EstimationAudit.measuring_component),
+        )
+        .order_by(EstimationAudit.created_at.desc(), EstimationAudit.id.desc())
+        .limit(5)
+    ).all()
+    manual_rows = session.scalars(
+        select(ManualEditAudit)
+        .options(
+            selectinload(ManualEditAudit.service_point),
+            selectinload(ManualEditAudit.measuring_component),
+        )
+        .order_by(ManualEditAudit.created_at.desc(), ManualEditAudit.id.desc())
+        .limit(5)
+    ).all()
+
+    rows: list[RecentCorrectionAuditRow] = []
+    for row in estimation_rows:
+        correction_policy = (row.details or {}).get("correction_policy_snapshot") or {}
+        rows.append(
+            RecentCorrectionAuditRow(
+                audit_kind="estimation",
+                audit_id=row.id,
+                detail_endpoint="web.estimation_audit_detail",
+                service_point_external_id=row.service_point.external_id,
+                external_channel_id=row.measuring_component.external_channel_id,
+                status=row.estimation_status,
+                policy_reason_code=correction_policy.get("policy_reason_code"),
+                recommended_action=correction_policy.get("recommended_action"),
+                created_at=row.created_at,
+            )
+        )
+    for row in manual_rows:
+        correction_policy = (row.details or {}).get("correction_policy_snapshot") or {}
+        rows.append(
+            RecentCorrectionAuditRow(
+                audit_kind="manual_edit",
+                audit_id=row.id,
+                detail_endpoint="web.manual_edit_audit_detail",
+                service_point_external_id=row.service_point.external_id,
+                external_channel_id=row.measuring_component.external_channel_id,
+                status=row.edit_status,
+                policy_reason_code=correction_policy.get("policy_reason_code"),
+                recommended_action=correction_policy.get("recommended_action"),
+                created_at=row.created_at,
+            )
+        )
+
+    rows.sort(key=lambda row: (row.created_at is not None, row.created_at, row.audit_id), reverse=True)
+    return rows[:5]
 
 
 def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
@@ -560,6 +674,8 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         .order_by(VeeReplayRequest.updated_at.desc(), VeeReplayRequest.id.desc())
         .limit(5)
     ).all()
+    correction_policy_spotlight = _build_correction_policy_spotlight(session)
+    recent_correction_audits = _build_recent_correction_audits(session)
 
     return DashboardSnapshot(
         stats=stats,
@@ -571,4 +687,6 @@ def build_dashboard_snapshot(session: Session) -> DashboardSnapshot:
         recent_recalculated_usage=recent_recalculated_usage,
         recent_bill_determinants=recent_bill_determinants,
         recent_vee_replay_requests=recent_vee_replay_requests,
+        correction_policy_spotlight=correction_policy_spotlight,
+        recent_correction_audits=recent_correction_audits,
     )

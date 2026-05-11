@@ -8,10 +8,12 @@ from app.models import (
     AdapterInstance,
     BillDeterminant,
     AdapterRun,
+    EstimationAudit,
     HesSystem,
     IngestBatch,
     IngestErrorLog,
     InitialMeasurement,
+    ManualEditAudit,
     OperationalEvent,
     VeeException,
     VeeReplayRequest,
@@ -37,6 +39,8 @@ def test_dashboard_snapshot_returns_zero_stage_counts_without_data(session):
     assert snapshot.recent_events == []
     assert snapshot.recent_recalculated_usage == []
     assert snapshot.recent_vee_replay_requests == []
+    assert snapshot.recent_correction_audits == []
+    assert [row.count for row in snapshot.correction_policy_spotlight] == [0, 0, 0]
     assert [(card.waiting, card.processing, card.completed, card.failed) for card in snapshot.stage_cards] == [
         (0, 0, 0, 0),
         (0, 0, 0, 0),
@@ -424,3 +428,121 @@ def test_dashboard_snapshot_includes_vee_replay_request_spotlight(session):
     assert replay_card.detail_endpoint == "web.vee_replay_requests"
     assert summary["dashboard.vee_replay.cancelled"] == 1
     assert len(snapshot.recent_vee_replay_requests) == 4
+
+
+def test_dashboard_snapshot_includes_correction_policy_spotlight_and_recent_audits(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    initial = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial is not None
+
+    baseline_exception = VeeException(
+        initial_measurement_id=initial.id,
+        exception_code="vee_zero_value_detected",
+        severity="warning",
+        exception_status="open",
+        blocking_finalization=False,
+        detected_at=datetime.now(timezone.utc) - timedelta(minutes=15),
+        details={},
+    )
+    tamper_exception = VeeException(
+        initial_measurement_id=initial.id,
+        exception_code="vee_high_value_detected",
+        severity="error",
+        exception_status="open",
+        blocking_finalization=True,
+        detected_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+        details={
+            "event_context_snapshot": {
+                "primary_context_type": "tamper",
+                "matched_context_types": ["tamper"],
+            }
+        },
+    )
+    outage_exception = VeeException(
+        initial_measurement_id=initial.id,
+        exception_code="vee_missing_interval_detected",
+        severity="error",
+        exception_status="acknowledged",
+        blocking_finalization=True,
+        detected_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+        details={
+            "event_context_snapshot": {
+                "primary_context_type": "outage",
+                "matched_context_types": ["outage"],
+            }
+        },
+    )
+    session.add_all([baseline_exception, tamper_exception, outage_exception])
+    session.flush()
+
+    session.add_all(
+        [
+            EstimationAudit(
+                service_point_id=initial.service_point_id,
+                measuring_component_id=initial.measuring_component_id,
+                device_id=initial.device_id,
+                target_initial_measurement_id=initial.id,
+                target_measured_at=initial.measured_at,
+                strategy_code="previous_value_based",
+                estimation_status="blocked",
+                estimated_value=None,
+                unit_of_measure=initial.unit_of_measure,
+                operator_memo="blocked by tamper policy",
+                details={
+                    "correction_policy_snapshot": {
+                        "policy_reason_code": "tamper_correlated_value_anomaly",
+                        "recommended_action": "operator_investigation_then_manual_edit",
+                    }
+                },
+            ),
+            ManualEditAudit(
+                service_point_id=initial.service_point_id,
+                measuring_component_id=initial.measuring_component_id,
+                device_id=initial.device_id,
+                target_initial_measurement_id=initial.id,
+                related_vee_exception_id=baseline_exception.id,
+                target_measured_at=initial.measured_at,
+                reason_code="operator_meter_correction",
+                edit_status="applied",
+                edited_value=initial.value,
+                edited_by="operator_dashboard",
+                operator_memo="manual correction confirmed",
+                details={
+                    "correction_policy_snapshot": {
+                        "policy_reason_code": "no_event_specific_override",
+                        "recommended_action": "follow_existing_baseline",
+                    }
+                },
+            ),
+        ]
+    )
+    session.commit()
+
+    manual_audit = session.scalar(select(ManualEditAudit).order_by(ManualEditAudit.id.desc()).limit(1))
+    assert manual_audit is not None
+    estimation_audit = session.scalar(
+        select(EstimationAudit).order_by(EstimationAudit.id.desc()).limit(1)
+    )
+    assert estimation_audit is not None
+
+    snapshot = build_dashboard_snapshot(session)
+    spotlight = {
+        row.policy_reason_code: row.count for row in snapshot.correction_policy_spotlight
+    }
+
+    assert spotlight["no_event_specific_override"] == 1
+    assert spotlight["tamper_correlated_value_anomaly"] == 1
+    assert spotlight["outage_correlated_missing_interval"] == 1
+    assert len(snapshot.recent_correction_audits) == 2
+    assert {row.audit_kind for row in snapshot.recent_correction_audits} == {
+        "estimation",
+        "manual_edit",
+    }
+    assert {
+        (row.audit_kind, row.audit_id) for row in snapshot.recent_correction_audits
+    } == {
+        ("estimation", estimation_audit.id),
+        ("manual_edit", manual_audit.id),
+    }

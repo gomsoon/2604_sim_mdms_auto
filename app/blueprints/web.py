@@ -173,7 +173,10 @@ def dashboard():
         open_alerts=snapshot.open_alerts,
         recent_events=snapshot.recent_events,
         recent_recalculated_usage=snapshot.recent_recalculated_usage,
+        recent_bill_determinants=snapshot.recent_bill_determinants,
         recent_vee_replay_requests=snapshot.recent_vee_replay_requests,
+        correction_policy_spotlight=snapshot.correction_policy_spotlight,
+        recent_correction_audits=snapshot.recent_correction_audits,
     )
 
 
