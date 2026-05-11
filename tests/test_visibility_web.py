@@ -489,6 +489,94 @@ def test_service_point_usage_summary_api_returns_404_for_missing_service_point(c
     }
 
 
+def test_service_point_bill_determinants_api_returns_filtered_rows(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    response = client.get(
+        "/api/v1/service-points/1/bill-determinants"
+        "?determinant_type=billing_cycle_consumption_total"
+        "&external_channel_id=CH-01"
+        "&limit=10"
+    )
+
+    assert response.status_code == 200
+    rows = response.get_json()
+    assert len(rows) == 1
+
+    row = rows[0]
+    assert row["service_point_id"] == 1
+    assert row["service_point_external_id"] == "SP-1001"
+    assert row["external_channel_id"] == "CH-01"
+    assert row["determinant_type"] == "billing_cycle_consumption_total"
+    assert row["billing_cycle_mode"] == "calendar_month"
+    assert row["unit_of_measure"] == "kWh"
+    assert row["calculation_status"] == "partial"
+    assert row["quality_summary"] == "missing_intervals"
+    assert row["pipeline_run_id"] is not None
+
+
+def test_service_point_bill_determinants_api_filters_by_date_and_status(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    response = client.get(
+        "/api/v1/service-points/1/bill-determinants"
+        "?date_from=2026-03-31T00:00:00Z"
+        "&date_to=2026-04-01T00:00:00Z"
+        "&calculation_status=partial"
+    )
+
+    assert response.status_code == 200
+    rows = response.get_json()
+    assert len(rows) == 1
+    assert rows[0]["determinant_type"] == "billing_cycle_consumption_total"
+    assert rows[0]["calculation_status"] == "partial"
+
+
+def test_service_point_bill_determinants_api_rejects_invalid_limit(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/api/v1/service-points/1/bill-determinants?limit=0")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_limit",
+        "message": "Limit must be a positive integer and no greater than 500.",
+        "locale": "en",
+    }
+
+
+def test_service_point_bill_determinants_api_returns_404_for_missing_service_point(client):
+    response = client.get("/api/v1/service-points/999999/bill-determinants")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "service_point_not_found",
+        "message": "The selected service point does not exist.",
+        "locale": "en",
+    }
+
+
 def test_usage_transactions_page_filters_by_service_point_and_channel(client, session):
     seed_demo_environment(session)
     session.commit()

@@ -19,11 +19,13 @@ from app.services.ingestion import ingest_events, ingest_reads
 from app.services.receive_adapters import ReceiveAdapterError, receive_adapter_payload
 from app.services.visibility import (
     VisibilityFilterError,
+    build_bill_determinant_filters,
     build_canonical_filters,
     build_final_filters,
     build_ingest_batch_filters,
     build_operational_event_filters,
     build_usage_transaction_filters,
+    list_bill_determinants,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
@@ -151,6 +153,37 @@ def _build_usage_summary(rows) -> dict[str, object]:
         if latest_calculated_at is not None
         else None,
         "quality_summaries": quality_summaries,
+    }
+
+
+def _serialize_bill_determinant_row(row) -> dict[str, object]:
+    billing_context_snapshot = {}
+    if isinstance(row.details, dict):
+        billing_context_snapshot = row.details.get("billing_context_snapshot") or {}
+
+    return {
+        "id": row.id,
+        "service_point_id": row.service_point_id,
+        "service_point_external_id": row.service_point.external_id,
+        "device_id": row.device_id,
+        "measuring_component_id": row.measuring_component_id,
+        "external_channel_id": (
+            row.measuring_component.external_channel_id if row.measuring_component is not None else None
+        ),
+        "determinant_type": row.determinant_type,
+        "billing_period_start_at": row.billing_period_start_at.isoformat(),
+        "billing_period_end_at": row.billing_period_end_at.isoformat(),
+        "window_timezone_name": row.window_timezone_name,
+        "billing_cycle_mode": billing_context_snapshot.get("billing_cycle_mode"),
+        "unit_of_measure": row.unit_of_measure,
+        "determinant_value": _json_numeric(row.determinant_value),
+        "source_usage_count": row.source_usage_count,
+        "quality_summary": row.quality_summary,
+        "calculation_status": row.calculation_status,
+        "revision_number": row.revision_number,
+        "is_current": row.is_current,
+        "calculated_at": row.calculated_at.isoformat(),
+        "pipeline_run_id": row.pipeline_run_id,
     }
 
 
@@ -536,6 +569,36 @@ def get_service_point_usage_summary_endpoint(service_point_id: int):
             "rows": [_serialize_usage_transaction_row(row) for row in rows],
         }
     )
+
+
+@bp.get("/service-points/<int:service_point_id>/bill-determinants")
+def list_service_point_bill_determinants_endpoint(service_point_id: int):
+    session = get_session()
+    service_point = session.get(ServicePoint, service_point_id)
+    if service_point is None:
+        return error_response("service_point_not_found", 404)
+
+    try:
+        limit = _parse_api_limit(request.args.get("limit"))
+        filter_args = request.args.to_dict(flat=True)
+        filter_args["service_point_id"] = str(service_point_id)
+        filters = build_bill_determinant_filters(filter_args)
+    except ValueError:
+        return error_response("invalid_limit", 400)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_bill_determinants(session, filters, limit=limit)
+    return jsonify([_serialize_bill_determinant_row(row) for row in rows])
 
 
 @bp.get("/operational-events")
