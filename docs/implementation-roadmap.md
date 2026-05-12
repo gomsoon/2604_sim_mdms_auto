@@ -21,6 +21,7 @@ Key rule:
 - `bill_determinant` is billing-ready
 - `bill_charge` is charge-ready
 - `invoice_summary` is a lightweight review and handoff grouping layer
+- `billing_export_queue` is the first immutable export-staging layer
 - invoice and CIS handoff remain later steps
 
 ## Current policy-depth direction

@@ -13,6 +13,7 @@ from app.i18n import register_i18n
 from app.migrations import upgrade_db
 from app.services.adapter_execution import process_waiting_adapter_runs
 from app.services.adapters import enqueue_scheduled_adapter_runs, sync_adapter_health_alerts
+from app.services.billing_export_processor import process_queued_billing_export_requests
 from app.services.finalization import finalize_canonical_measurements
 from app.services.hes_meter_reference_sync import sync_hes_meter_references
 from app.services.seeds import seed_demo_environment
@@ -197,6 +198,38 @@ def register_commands(app: Flask) -> None:
             f"processed_items={summary.processed_items}, "
             f"succeeded_items={summary.succeeded_items}, "
             f"failed_items={summary.failed_items}"
+        )
+
+    @app.cli.command("process-billing-export-requests")
+    @click.option("--limit", default=1, type=int)
+    @click.option("--request-id", default=None, type=int)
+    @click.option("--processed-by", default="billing_export_worker")
+    def process_billing_export_requests_command(
+        limit: int,
+        request_id: int | None,
+        processed_by: str,
+    ) -> None:
+        session = get_session()
+        try:
+            summary = process_queued_billing_export_requests(
+                session,
+                limit=limit,
+                request_id=request_id,
+                processed_by=processed_by,
+            )
+        except Exception:
+            session.rollback()
+            raise
+
+        click.echo(
+            "Billing export processing completed: "
+            f"claimed_requests={summary.claimed_requests}, "
+            f"completed_requests={summary.completed_requests}, "
+            f"failed_requests={summary.failed_requests}, "
+            f"processed_items={summary.processed_items}, "
+            f"succeeded_items={summary.succeeded_items}, "
+            f"failed_items={summary.failed_items}, "
+            f"skipped_items={summary.skipped_items}"
         )
 
 

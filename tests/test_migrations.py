@@ -62,6 +62,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "usage_transaction" in tables
         assert "bill_determinant" in tables
         assert "bill_charge" in tables
+        assert "billing_export_request" in tables
+        assert "billing_export_item" in tables
         assert "service_point_billing_context" in tables
         assert "service_point_tariff_assignment" in tables
         assert "adapter_definition" in tables
@@ -165,6 +167,22 @@ def test_alembic_upgrade_creates_expected_tables():
             column["name"]: column
             for column in inspector.get_columns("bill_charge", schema=schema_name)
         }
+        billing_export_request_columns = {
+            column["name"]
+            for column in inspector.get_columns("billing_export_request", schema=schema_name)
+        }
+        billing_export_request_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("billing_export_request", schema=schema_name)
+        }
+        billing_export_item_columns = {
+            column["name"]
+            for column in inspector.get_columns("billing_export_item", schema=schema_name)
+        }
+        billing_export_item_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("billing_export_item", schema=schema_name)
+        }
         billing_context_columns = {
             column["name"]
             for column in inspector.get_columns("service_point_billing_context", schema=schema_name)
@@ -242,6 +260,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "vee_execution_log_id" in vee_replay_request_item_columns
         assert "previous_final_measurement_id" in vee_replay_request_item_columns
         assert "current_final_measurement_id" in vee_replay_request_item_columns
+        assert "billing_export_request_id" in pipeline_run_columns
         assert "pipeline_run_id" in estimation_audit_columns
         assert "service_point_id" in estimation_audit_columns
         assert "measuring_component_id" in estimation_audit_columns
@@ -329,6 +348,46 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "is_current" in bill_charge_columns
         assert "supersedes_bill_charge_id" in bill_charge_columns
         assert "calculated_at" in bill_charge_columns
+        assert "request_scope" in billing_export_request_columns
+        assert "status" in billing_export_request_columns
+        assert "service_point_id" in billing_export_request_columns
+        assert "billing_period_from" in billing_export_request_columns
+        assert "billing_period_to" in billing_export_request_columns
+        assert "target_system_code" in billing_export_request_columns
+        assert "payload_format" in billing_export_request_columns
+        assert "requested_by" in billing_export_request_columns
+        assert "item_count" in billing_export_request_columns
+        assert "processed_count" in billing_export_request_columns
+        assert "succeeded_count" in billing_export_request_columns
+        assert "failed_count" in billing_export_request_columns
+        assert "skipped_count" in billing_export_request_columns
+        assert "claimed_by" in billing_export_request_columns
+        assert "last_heartbeat_at" in billing_export_request_columns
+        assert "details" in billing_export_request_columns
+        assert billing_export_request_column_defs["request_scope"]["nullable"] is False
+        assert billing_export_request_column_defs["status"]["nullable"] is False
+        assert billing_export_request_column_defs["target_system_code"]["nullable"] is False
+        assert billing_export_request_column_defs["payload_format"]["nullable"] is False
+        assert billing_export_request_column_defs["requested_by"]["nullable"] is False
+        assert billing_export_request_column_defs["item_count"]["nullable"] is False
+        assert "billing_export_request_id" in billing_export_item_columns
+        assert "service_point_id" in billing_export_item_columns
+        assert "billing_period_start_at" in billing_export_item_columns
+        assert "billing_period_end_at" in billing_export_item_columns
+        assert "currency_code" in billing_export_item_columns
+        assert "tariff_plan_code" in billing_export_item_columns
+        assert "summary_status" in billing_export_item_columns
+        assert "status" in billing_export_item_columns
+        assert "payload_snapshot" in billing_export_item_columns
+        assert "exported_at" in billing_export_item_columns
+        assert "last_error" in billing_export_item_columns
+        assert "details" in billing_export_item_columns
+        assert billing_export_item_column_defs["billing_export_request_id"]["nullable"] is False
+        assert billing_export_item_column_defs["service_point_id"]["nullable"] is False
+        assert billing_export_item_column_defs["billing_period_start_at"]["nullable"] is False
+        assert billing_export_item_column_defs["billing_period_end_at"]["nullable"] is False
+        assert billing_export_item_column_defs["summary_status"]["nullable"] is False
+        assert billing_export_item_column_defs["status"]["nullable"] is False
         assert "service_point_id" in billing_context_columns
         assert "timezone_name" in billing_context_columns
         assert "billing_cycle_mode" in billing_context_columns
@@ -438,6 +497,8 @@ def test_alembic_upgrade_creates_expected_tables():
                         'usage_transaction',
                         'bill_determinant',
                         'bill_charge',
+                        'billing_export_request',
+                        'billing_export_item',
                         'service_point_billing_context',
                         'service_point_tariff_assignment'
                       )
@@ -513,6 +574,19 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_bill_charge_measuring_component_billing_period_start_at" in index_defs
         assert "ix_bill_charge_is_current" in index_defs
         assert "ix_bill_charge_supersedes_bill_charge_id" in index_defs
+        assert "ix_billing_export_request_status" in index_defs
+        assert "ix_billing_export_request_request_scope" in index_defs
+        assert "ix_billing_export_request_service_point_id" in index_defs
+        assert "ix_billing_export_request_target_system_code" in index_defs
+        assert "ix_billing_export_request_payload_format" in index_defs
+        assert "ix_billing_export_request_requested_by" in index_defs
+        assert "ix_billing_export_request_created_at" in index_defs
+        assert "ix_billing_export_item_billing_export_request_id" in index_defs
+        assert "ix_billing_export_item_status" in index_defs
+        assert "ix_billing_export_item_service_point_id" in index_defs
+        assert "ix_billing_export_item_request_period_start_at" in index_defs
+        assert "ix_billing_export_item_service_point_period_start_at" in index_defs
+        assert "ix_pipeline_run_billing_export_request_id" in index_defs
         assert "ix_service_point_billing_context_billing_cycle_mode" in index_defs
         assert "ix_service_point_billing_context_effective_from" in index_defs
         assert "ix_service_point_billing_context_effective_to" in index_defs
@@ -575,6 +649,19 @@ def test_alembic_upgrade_creates_expected_tables():
         )
         manual_edit_audit_check_names = {row["name"] for row in manual_edit_audit_checks}
         assert "ck_manual_edit_audit_edit_status" in manual_edit_audit_check_names
+        billing_export_request_checks = inspector.get_check_constraints(
+            "billing_export_request", schema=schema_name
+        )
+        billing_export_request_check_names = {
+            row["name"] for row in billing_export_request_checks
+        }
+        assert "ck_billing_export_request_status" in billing_export_request_check_names
+        billing_export_item_checks = inspector.get_check_constraints(
+            "billing_export_item", schema=schema_name
+        )
+        billing_export_item_check_names = {row["name"] for row in billing_export_item_checks}
+        assert "ck_billing_export_item_summary_status" in billing_export_item_check_names
+        assert "ck_billing_export_item_status" in billing_export_item_check_names
         hes_meter_reference_indexes = inspector.get_indexes("hes_meter_reference", schema=schema_name)
         hes_meter_reference_index_names = {row["name"] for row in hes_meter_reference_indexes}
         assert "ix_hes_meter_reference_hes_system_id" in hes_meter_reference_index_names

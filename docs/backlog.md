@@ -255,10 +255,17 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: invoice number allocation
 - deferred: invoice document rendering
 - Billing export queue
+- first export queue slice should persist immutable payload snapshots from
+  calculated `invoice_summary`
+- first export queue slice should include request and item progress counters,
+  `claimed_by`, and `last_heartbeat_at`
 - Export payload contract
 - Batch or API export
 - Re-send and recalculation handling
 - Export status management
+- deferred: external delivery integration
+- deferred: export worker registry
+- deferred: stale auto-reclaim or auto-recovery
 
 ### P4. CIS integration
 

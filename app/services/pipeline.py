@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session
 
 from app.models import (
+    BillingExportRequest,
     IngestBatch,
     PipelineRun,
     ProcessingWatermark,
@@ -51,6 +52,7 @@ def start_pipeline_run(
     ingest_batch: IngestBatch | None = None,
     reprocess_request: ReprocessRequest | None = None,
     vee_replay_request: VeeReplayRequest | None = None,
+    billing_export_request: BillingExportRequest | None = None,
     details: dict[str, Any] | None = None,
 ) -> PipelineRun:
     run = PipelineRun(
@@ -60,6 +62,7 @@ def start_pipeline_run(
         ingest_batch=ingest_batch,
         reprocess_request=reprocess_request,
         vee_replay_request=vee_replay_request,
+        billing_export_request=billing_export_request,
         started_at=datetime.now(timezone.utc),
         details=details or {},
     )

@@ -340,6 +340,12 @@ class ServicePoint(TimestampMixin, Base):
         back_populates="service_point"
     )
     bill_charges: Mapped[list["BillCharge"]] = relationship(back_populates="service_point")
+    billing_export_requests: Mapped[list["BillingExportRequest"]] = relationship(
+        back_populates="service_point"
+    )
+    billing_export_items: Mapped[list["BillingExportItem"]] = relationship(
+        back_populates="service_point"
+    )
 
 
 class ServicePointBillingContext(TimestampMixin, Base):
@@ -905,6 +911,105 @@ class VeeReplayRequestItem(TimestampMixin, Base):
     )
 
 
+class BillingExportRequest(TimestampMixin, Base):
+    __tablename__ = "billing_export_request"
+    __table_args__ = (
+        CheckConstraint(
+            "status in ('queued', 'processing', 'completed', 'failed', 'cancelled')",
+            name="ck_billing_export_request_status",
+        ),
+        Index("ix_billing_export_request_status", "status"),
+        Index("ix_billing_export_request_request_scope", "request_scope"),
+        Index("ix_billing_export_request_service_point_id", "service_point_id"),
+        Index("ix_billing_export_request_target_system_code", "target_system_code"),
+        Index("ix_billing_export_request_payload_format", "payload_format"),
+        Index("ix_billing_export_request_requested_by", "requested_by"),
+        Index("ix_billing_export_request_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_scope: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
+    service_point_id: Mapped[int | None] = mapped_column(ForeignKey("service_point.id"))
+    billing_period_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    billing_period_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    target_system_code: Mapped[str] = mapped_column(String(60), nullable=False)
+    payload_format: Mapped[str] = mapped_column(String(40), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    operator_memo: Mapped[str | None] = mapped_column(Text)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    succeeded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    claimed_by: Mapped[str | None] = mapped_column(String(120))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    service_point: Mapped["ServicePoint | None"] = relationship(
+        back_populates="billing_export_requests"
+    )
+    request_items: Mapped[list["BillingExportItem"]] = relationship(
+        back_populates="billing_export_request"
+    )
+    pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
+        back_populates="billing_export_request"
+    )
+
+
+class BillingExportItem(TimestampMixin, Base):
+    __tablename__ = "billing_export_item"
+    __table_args__ = (
+        CheckConstraint(
+            "summary_status in ('complete', 'partial', 'blocked')",
+            name="ck_billing_export_item_summary_status",
+        ),
+        CheckConstraint(
+            "status in ('pending', 'processing', 'completed', 'failed', 'skipped')",
+            name="ck_billing_export_item_status",
+        ),
+        Index("ix_billing_export_item_status", "status"),
+        Index("ix_billing_export_item_service_point_id", "service_point_id"),
+        Index(
+            "ix_billing_export_item_request_period_start_at",
+            "billing_export_request_id",
+            "billing_period_start_at",
+        ),
+        Index(
+            "ix_billing_export_item_service_point_period_start_at",
+            "service_point_id",
+            "billing_period_start_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    billing_export_request_id: Mapped[int] = mapped_column(
+        ForeignKey("billing_export_request.id"), nullable=False, index=True
+    )
+    service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    billing_period_start_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    billing_period_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    currency_code: Mapped[str | None] = mapped_column(String(3))
+    tariff_plan_code: Mapped[str | None] = mapped_column(String(60))
+    summary_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    result_code: Mapped[str | None] = mapped_column(String(80))
+    payload_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    billing_export_request: Mapped["BillingExportRequest"] = relationship(
+        back_populates="request_items"
+    )
+    service_point: Mapped["ServicePoint"] = relationship(back_populates="billing_export_items")
+
+
 class FinalMeasurement(TimestampMixin, Base):
     __tablename__ = "final_measurement"
 
@@ -1437,6 +1542,10 @@ class PipelineRun(TimestampMixin, Base):
         ForeignKey("vee_replay_request.id"),
         index=True,
     )
+    billing_export_request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("billing_export_request.id"),
+        index=True,
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result_code: Mapped[str | None] = mapped_column(String(80))
@@ -1445,6 +1554,9 @@ class PipelineRun(TimestampMixin, Base):
     ingest_batch: Mapped[IngestBatch | None] = relationship(back_populates="pipeline_runs")
     reprocess_request: Mapped[ReprocessRequest | None] = relationship(back_populates="pipeline_runs")
     vee_replay_request: Mapped["VeeReplayRequest | None"] = relationship(
+        back_populates="pipeline_runs"
+    )
+    billing_export_request: Mapped["BillingExportRequest | None"] = relationship(
         back_populates="pipeline_runs"
     )
     vee_execution_logs: Mapped[list["VeeExecutionLog"]] = relationship(back_populates="pipeline_run")

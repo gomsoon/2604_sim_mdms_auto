@@ -107,7 +107,7 @@ def list_invoice_summaries(
     session: Session,
     filters: InvoiceSummaryFilters,
     *,
-    limit: int = 50,
+    limit: int | None = 50,
 ) -> list[InvoiceSummaryRow]:
     charge_rows = list_bill_charges(session, _build_charge_filters(filters), limit=None)
 
@@ -176,4 +176,6 @@ def list_invoice_summaries(
             row.currency_code or "",
         )
     )
-    return summaries[:limit]
+    if limit is not None:
+        return summaries[:limit]
+    return summaries

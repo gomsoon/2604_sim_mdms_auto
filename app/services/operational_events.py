@@ -414,6 +414,82 @@ EVENT_SPECS: dict[str, OperationalEventSpec] = {
         message_en="Bill charge calculation completed with issues.",
         message_ko="청구 금액 계산이 문제를 포함한 상태로 끝났습니다.",
     ),
+    "billing_export_requested": OperationalEventSpec(
+        source_layer="operator_action",
+        event_category="billing_export",
+        severity="info",
+        is_alert=False,
+        title_en="Billing export requested",
+        title_ko="청구 내보내기 요청 등록",
+        message_en=(
+            "Billing export request {request_id} was queued for {request_scope}. "
+            "Items: {item_count}, skipped: {skipped_count}."
+        ),
+        message_ko=(
+            "청구 내보내기 요청 {request_id}이(가) {request_scope} 범위로 대기열에 등록되었습니다. "
+            "항목 수: {item_count}, 건너뜀 수: {skipped_count}."
+        ),
+    ),
+    "billing_export_started": OperationalEventSpec(
+        source_layer="processing",
+        event_category="billing_export",
+        severity="info",
+        is_alert=False,
+        title_en="Billing export started",
+        title_ko="청구 내보내기 처리 시작",
+        message_en=(
+            "Billing export request {request_id} started processing. "
+            "Items: {item_count}, already processed: {processed_count}."
+        ),
+        message_ko=(
+            "청구 내보내기 요청 {request_id} 처리가 시작되었습니다. "
+            "항목 수: {item_count}, 선처리 수: {processed_count}."
+        ),
+    ),
+    "billing_export_completed": OperationalEventSpec(
+        source_layer="processing",
+        event_category="billing_export",
+        severity="info",
+        is_alert=False,
+        title_en="Billing export completed",
+        title_ko="청구 내보내기 처리 완료",
+        message_en=(
+            "Billing export request {request_id} completed. "
+            "Processed: {processed_count}, succeeded: {succeeded_count}, "
+            "failed: {failed_count}, skipped: {skipped_count}."
+        ),
+        message_ko=(
+            "청구 내보내기 요청 {request_id} 처리가 완료되었습니다. "
+            "처리 수: {processed_count}, 성공 수: {succeeded_count}, "
+            "실패 수: {failed_count}, 건너뜀 수: {skipped_count}."
+        ),
+    ),
+    "billing_export_failed": OperationalEventSpec(
+        source_layer="processing",
+        event_category="billing_export",
+        severity="error",
+        is_alert=True,
+        title_en="Billing export requires attention",
+        title_ko="청구 내보내기 주의 필요",
+        message_en=(
+            "Billing export request {request_id} finished with failures. "
+            "Processed: {processed_count}, failed: {failed_count}. Last error: {last_error}."
+        ),
+        message_ko=(
+            "청구 내보내기 요청 {request_id} 처리 중 실패가 발생했습니다. "
+            "처리 수: {processed_count}, 실패 수: {failed_count}. 마지막 오류: {last_error}."
+        ),
+    ),
+    "billing_export_cancelled": OperationalEventSpec(
+        source_layer="operator_action",
+        event_category="billing_export",
+        severity="warning",
+        is_alert=False,
+        title_en="Billing export cancelled",
+        title_ko="청구 내보내기 요청 취소",
+        message_en="Billing export request {request_id} was cancelled before processing started.",
+        message_ko="청구 내보내기 요청 {request_id}이(가) 처리 시작 전에 취소되었습니다.",
+    ),
     "exception_reprocess_completed": OperationalEventSpec(
         source_layer="processing",
         event_category="exception_reprocess",
