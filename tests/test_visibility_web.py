@@ -645,6 +645,94 @@ def test_service_point_bill_charges_api_returns_404_for_missing_service_point(cl
     }
 
 
+def test_service_point_summary_api_returns_usage_determinant_and_charge_sections(client, session):
+    _prepare_bill_charge_rows(session)
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    session.commit()
+
+    response = client.get(
+        "/api/v1/service-points/1/summary"
+        "?external_channel_id=CH-01"
+        "&usage_type=daily_consumption"
+        "&determinant_type=billing_cycle_consumption_total"
+        "&charge_type=flat_energy_charge"
+        "&limit=5"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert payload["service_point_id"] == 1
+    assert payload["service_point_external_id"] == "SP-1001"
+    assert payload["filters"] == {
+        "service_point_id": 1,
+        "service_point_external_id": "SP-1001",
+        "external_channel_id": "CH-01",
+        "date_from": None,
+        "date_to": None,
+        "calculation_status": None,
+        "usage_type": "daily_consumption",
+        "determinant_type": "billing_cycle_consumption_total",
+        "charge_type": "flat_energy_charge",
+        "limit": 5,
+    }
+    assert payload["usage"]["summary"]["window_count"] == 1
+    assert payload["usage"]["summary"]["partial_count"] == 1
+    assert len(payload["usage"]["rows"]) == 1
+    assert payload["bill_determinants"]["summary"]["row_count"] == 1
+    assert payload["bill_determinants"]["summary"]["partial_count"] == 1
+    assert len(payload["bill_determinants"]["rows"]) == 1
+    assert payload["bill_charges"]["summary"]["row_count"] == 1
+    assert payload["bill_charges"]["summary"]["partial_count"] == 1
+    assert len(payload["bill_charges"]["rows"]) == 1
+
+
+def test_service_point_summary_api_filters_by_date_and_status(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get(
+        "/api/v1/service-points/1/summary"
+        "?date_from=2026-03-31T00:00:00Z"
+        "&date_to=2026-04-01T00:00:00Z"
+        "&calculation_status=partial"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert payload["usage"]["summary"]["window_count"] == 1
+    assert payload["bill_determinants"]["summary"]["row_count"] == 1
+    assert payload["bill_charges"]["summary"]["row_count"] == 1
+    assert payload["usage"]["rows"][0]["usage_type"] == "monthly_consumption"
+    assert payload["bill_determinants"]["rows"][0]["calculation_status"] == "partial"
+    assert payload["bill_charges"]["rows"][0]["calculation_status"] == "partial"
+
+
+def test_service_point_summary_api_rejects_invalid_limit(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/api/v1/service-points/1/summary?limit=0")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_limit",
+        "message": "Limit must be a positive integer and no greater than 500.",
+        "locale": "en",
+    }
+
+
+def test_service_point_summary_api_returns_404_for_missing_service_point(client):
+    response = client.get("/api/v1/service-points/999999/summary")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "service_point_not_found",
+        "message": "The selected service point does not exist.",
+        "locale": "en",
+    }
+
+
 def test_usage_transactions_page_filters_by_service_point_and_channel(client, session):
     seed_demo_environment(session)
     session.commit()

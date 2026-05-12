@@ -176,9 +176,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 - explicit distinction between `usage_transaction` and later billing-ready determinant outputs
 - first service-facing API slice may start with read-only service-point usage list
   and usage-summary endpoints
-- deferred: service-point bill determinant read API
-- deferred: service-point bill charge read API
-- deferred: service-point summary or aggregate API beyond first usage summary
+- first service-facing aggregate slice may expose `service_point` summary across
+  current `usage_transaction`, `bill_determinant`, and `bill_charge` layers
 - deferred: service-facing export or pagination contract refinement
 
 ### V7. Event-linked decisioning

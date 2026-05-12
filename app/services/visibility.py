@@ -914,7 +914,7 @@ def list_usage_transactions(
 
 
 def list_bill_determinants(
-    session: Session, filters: BillDeterminantFilters, *, limit: int = 200
+    session: Session, filters: BillDeterminantFilters, *, limit: int | None = 200
 ) -> list[BillDeterminant]:
     statement: Select[tuple[BillDeterminant]] = (
         select(BillDeterminant)
@@ -980,12 +980,14 @@ def list_bill_determinants(
         BillDeterminant.billing_period_start_at.desc(),
         BillDeterminant.revision_number.desc(),
         BillDeterminant.id.desc(),
-    ).limit(limit)
+    )
+    if limit is not None:
+        statement = statement.limit(limit)
     return session.execute(statement).scalars().unique().all()
 
 
 def list_bill_charges(
-    session: Session, filters: BillChargeFilters, *, limit: int = 200
+    session: Session, filters: BillChargeFilters, *, limit: int | None = 200
 ) -> list[BillCharge]:
     statement: Select[tuple[BillCharge]] = (
         select(BillCharge)
@@ -1037,7 +1039,9 @@ def list_bill_charges(
         BillCharge.billing_period_start_at.desc(),
         BillCharge.revision_number.desc(),
         BillCharge.id.desc(),
-    ).limit(limit)
+    )
+    if limit is not None:
+        statement = statement.limit(limit)
     return session.execute(statement).scalars().unique().all()
 
 

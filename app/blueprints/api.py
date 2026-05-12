@@ -126,6 +126,10 @@ def _serialize_usage_summary_filters(
 
 
 def _build_usage_summary(rows) -> dict[str, object]:
+    return _build_calculation_summary(rows, count_key="window_count")
+
+
+def _build_calculation_summary(rows, *, count_key: str = "row_count") -> dict[str, object]:
     quality_summaries: dict[str, int] = {}
     latest_calculated_at = None
     complete_count = 0
@@ -147,7 +151,7 @@ def _build_usage_summary(rows) -> dict[str, object]:
             latest_calculated_at = row.calculated_at
 
     return {
-        "window_count": len(rows),
+        count_key: len(rows),
         "complete_count": complete_count,
         "partial_count": partial_count,
         "blocked_count": blocked_count,
@@ -215,6 +219,26 @@ def _serialize_bill_charge_row(row) -> dict[str, object]:
         "is_current": row.is_current,
         "calculated_at": row.calculated_at.isoformat(),
         "pipeline_run_id": row.pipeline_run_id,
+    }
+
+
+def _serialize_service_point_aggregate_filters(
+    service_point: ServicePoint,
+    filter_args: dict[str, str],
+    *,
+    limit: int,
+) -> dict[str, object]:
+    return {
+        "service_point_id": service_point.id,
+        "service_point_external_id": service_point.external_id,
+        "external_channel_id": filter_args.get("external_channel_id"),
+        "date_from": filter_args.get("date_from"),
+        "date_to": filter_args.get("date_to"),
+        "calculation_status": filter_args.get("calculation_status"),
+        "usage_type": filter_args.get("usage_type"),
+        "determinant_type": filter_args.get("determinant_type"),
+        "charge_type": filter_args.get("charge_type"),
+        "limit": limit,
     }
 
 
@@ -660,6 +684,66 @@ def list_service_point_bill_charges_endpoint(service_point_id: int):
 
     rows = list_bill_charges(session, filters, limit=limit)
     return jsonify([_serialize_bill_charge_row(row) for row in rows])
+
+
+@bp.get("/service-points/<int:service_point_id>/summary")
+def get_service_point_summary_endpoint(service_point_id: int):
+    session = get_session()
+    service_point = session.get(ServicePoint, service_point_id)
+    if service_point is None:
+        return error_response("service_point_not_found", 404)
+
+    try:
+        limit = _parse_api_limit(request.args.get("limit"), default=5)
+        filter_args = request.args.to_dict(flat=True)
+        filter_args["service_point_id"] = str(service_point_id)
+        usage_filters = build_usage_transaction_filters(filter_args)
+        determinant_filters = build_bill_determinant_filters(filter_args)
+        charge_filters = build_bill_charge_filters(filter_args)
+    except ValueError:
+        return error_response("invalid_limit", 400)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    usage_summary_rows = list_usage_transactions(session, usage_filters, limit=None)
+    usage_rows = list_usage_transactions(session, usage_filters, limit=limit)
+    determinant_summary_rows = list_bill_determinants(session, determinant_filters, limit=None)
+    determinant_rows = list_bill_determinants(session, determinant_filters, limit=limit)
+    charge_summary_rows = list_bill_charges(session, charge_filters, limit=None)
+    charge_rows = list_bill_charges(session, charge_filters, limit=limit)
+
+    return jsonify(
+        {
+            "service_point_id": service_point.id,
+            "service_point_external_id": service_point.external_id,
+            "filters": _serialize_service_point_aggregate_filters(
+                service_point,
+                filter_args,
+                limit=limit,
+            ),
+            "usage": {
+                "summary": _build_usage_summary(usage_summary_rows),
+                "rows": [_serialize_usage_transaction_row(row) for row in usage_rows],
+            },
+            "bill_determinants": {
+                "summary": _build_calculation_summary(determinant_summary_rows),
+                "rows": [_serialize_bill_determinant_row(row) for row in determinant_rows],
+            },
+            "bill_charges": {
+                "summary": _build_calculation_summary(charge_summary_rows),
+                "rows": [_serialize_bill_charge_row(row) for row in charge_rows],
+            },
+        }
+    )
 
 
 @bp.get("/operational-events")
