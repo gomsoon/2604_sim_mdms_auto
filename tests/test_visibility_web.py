@@ -645,6 +645,106 @@ def test_service_point_bill_charges_api_returns_404_for_missing_service_point(cl
     }
 
 
+def test_service_point_invoice_summary_api_returns_summaries(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get(
+        "/api/v1/service-points/1/invoice-summary"
+        "?tariff_plan_code=RES-A"
+        "&summary_status=partial"
+        "&limit=10"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert payload["service_point_id"] == 1
+    assert payload["service_point_external_id"] == "SP-1001"
+    assert payload["filters"] == {
+        "service_point_id": 1,
+        "service_point_external_id": "SP-1001",
+        "external_channel_id": None,
+        "charge_type": None,
+        "tariff_plan_code": "RES-A",
+        "calculation_status": None,
+        "summary_status": "partial",
+        "date_from": None,
+        "date_to": None,
+        "limit": 10,
+    }
+    assert len(payload["summaries"]) == 1
+    summary = payload["summaries"][0]
+    assert summary["service_point_id"] == 1
+    assert summary["service_point_external_id"] == "SP-1001"
+    assert summary["currency_code"] == "KRW"
+    assert summary["tariff_plan_code"] == "RES-A"
+    assert summary["charge_count"] == 1
+    assert summary["complete_count"] == 0
+    assert summary["partial_count"] == 1
+    assert summary["blocked_count"] == 0
+    assert summary["summary_status"] == "partial"
+    assert summary["export_eligible"] is False
+    assert summary["subtotal_amount"] is not None
+    assert summary["latest_calculated_at"] is not None
+
+
+def test_service_point_invoice_summary_api_filters_by_date_and_status(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get(
+        "/api/v1/service-points/1/invoice-summary"
+        "?date_from=2026-03-31T00:00:00Z"
+        "&date_to=2026-04-01T00:00:00Z"
+        "&summary_status=partial"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert len(payload["summaries"]) == 1
+    assert payload["summaries"][0]["summary_status"] == "partial"
+    assert payload["summaries"][0]["partial_count"] == 1
+
+
+def test_service_point_invoice_summary_api_rejects_invalid_summary_status(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/api/v1/service-points/1/invoice-summary?summary_status=queued")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_invoice_summary_status_filter",
+        "message": "Invoice summary status must be complete, partial, or blocked when provided.",
+        "locale": "en",
+    }
+
+
+def test_service_point_invoice_summary_api_rejects_invalid_limit(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/api/v1/service-points/1/invoice-summary?limit=0")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_limit",
+        "message": "Limit must be a positive integer and no greater than 500.",
+        "locale": "en",
+    }
+
+
+def test_service_point_invoice_summary_api_returns_404_for_missing_service_point(client):
+    response = client.get("/api/v1/service-points/999999/invoice-summary")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "service_point_not_found",
+        "message": "The selected service point does not exist.",
+        "locale": "en",
+    }
+
+
 def test_service_point_summary_api_returns_usage_determinant_and_charge_sections(client, session):
     _prepare_bill_charge_rows(session)
     calculate_usage_transactions(session, usage_type="daily_consumption")

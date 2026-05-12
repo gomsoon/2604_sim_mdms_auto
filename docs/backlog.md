@@ -249,6 +249,10 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: tax and surcharge calculation
 - deferred: discount or subsidy rules
 - optional invoice summary baseline
+- first invoice summary slice should stay a calculated read model and
+  service-facing API above current `bill_charge`
+- deferred: invoice summary persistence
+- deferred: invoice number allocation
 - deferred: invoice document rendering
 - Billing export queue
 - Export payload contract

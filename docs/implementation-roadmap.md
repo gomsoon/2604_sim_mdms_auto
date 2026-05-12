@@ -14,11 +14,13 @@ The near-term downstream billing-lite sequence should now be read as:
 4. `service_point_tariff_assignment`
 5. `bill_charge`
 6. optional `invoice_summary`
+7. later billing export queue and export status
 
 Key rule:
 
 - `bill_determinant` is billing-ready
 - `bill_charge` is charge-ready
+- `invoice_summary` is a lightweight review and handoff grouping layer
 - invoice and CIS handoff remain later steps
 
 ## Current policy-depth direction

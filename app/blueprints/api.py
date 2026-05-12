@@ -16,6 +16,7 @@ from app.services.exception_queue import (
 )
 from app.services.ingest_contract import IngestContractError, validate_ingest_envelope
 from app.services.ingestion import ingest_events, ingest_reads
+from app.services.invoice_summaries import build_invoice_summary_filters, list_invoice_summaries
 from app.services.receive_adapters import ReceiveAdapterError, receive_adapter_payload
 from app.services.visibility import (
     build_bill_charge_filters,
@@ -238,6 +239,47 @@ def _serialize_service_point_aggregate_filters(
         "usage_type": filter_args.get("usage_type"),
         "determinant_type": filter_args.get("determinant_type"),
         "charge_type": filter_args.get("charge_type"),
+        "limit": limit,
+    }
+
+
+def _serialize_invoice_summary_row(row) -> dict[str, object]:
+    return {
+        "service_point_id": row.service_point_id,
+        "service_point_external_id": row.service_point_external_id,
+        "billing_period_start_at": row.billing_period_start_at.isoformat(),
+        "billing_period_end_at": row.billing_period_end_at.isoformat(),
+        "currency_code": row.currency_code,
+        "tariff_plan_code": row.tariff_plan_code,
+        "charge_count": row.charge_count,
+        "complete_count": row.complete_count,
+        "partial_count": row.partial_count,
+        "blocked_count": row.blocked_count,
+        "subtotal_amount": _json_numeric(row.subtotal_amount),
+        "summary_status": row.summary_status,
+        "export_eligible": row.export_eligible,
+        "latest_calculated_at": row.latest_calculated_at.isoformat()
+        if row.latest_calculated_at is not None
+        else None,
+    }
+
+
+def _serialize_invoice_summary_filters(
+    service_point: ServicePoint,
+    filter_args: dict[str, str],
+    *,
+    limit: int,
+) -> dict[str, object]:
+    return {
+        "service_point_id": service_point.id,
+        "service_point_external_id": service_point.external_id,
+        "external_channel_id": filter_args.get("external_channel_id"),
+        "charge_type": filter_args.get("charge_type"),
+        "tariff_plan_code": filter_args.get("tariff_plan_code"),
+        "calculation_status": filter_args.get("calculation_status"),
+        "summary_status": filter_args.get("summary_status"),
+        "date_from": filter_args.get("date_from"),
+        "date_to": filter_args.get("date_to"),
         "limit": limit,
     }
 
@@ -684,6 +726,45 @@ def list_service_point_bill_charges_endpoint(service_point_id: int):
 
     rows = list_bill_charges(session, filters, limit=limit)
     return jsonify([_serialize_bill_charge_row(row) for row in rows])
+
+
+@bp.get("/service-points/<int:service_point_id>/invoice-summary")
+def get_service_point_invoice_summary_endpoint(service_point_id: int):
+    session = get_session()
+    service_point = session.get(ServicePoint, service_point_id)
+    if service_point is None:
+        return error_response("service_point_not_found", 404)
+
+    try:
+        limit = _parse_api_limit(request.args.get("limit"), default=50)
+    except ValueError:
+        return error_response("invalid_limit", 400)
+
+    try:
+        filter_args = request.args.to_dict(flat=True)
+        filter_args["service_point_id"] = str(service_point_id)
+        filters = build_invoice_summary_filters(filter_args)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    summaries = list_invoice_summaries(session, filters, limit=limit)
+    return jsonify(
+        {
+            "service_point_id": service_point.id,
+            "service_point_external_id": service_point.external_id,
+            "filters": _serialize_invoice_summary_filters(service_point, filter_args, limit=limit),
+            "summaries": [_serialize_invoice_summary_row(row) for row in summaries],
+        }
+    )
 
 
 @bp.get("/service-points/<int:service_point_id>/summary")
