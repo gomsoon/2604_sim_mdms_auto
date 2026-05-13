@@ -918,8 +918,17 @@ class BillingExportRequest(TimestampMixin, Base):
             "status in ('queued', 'processing', 'completed', 'failed', 'cancelled')",
             name="ck_billing_export_request_status",
         ),
+        CheckConstraint(
+            "recovery_action_code is null or recovery_action_code in ('rerun', 'recreate')",
+            name="ck_billing_export_request_recovery_action_code",
+        ),
         Index("ix_billing_export_request_status", "status"),
         Index("ix_billing_export_request_request_scope", "request_scope"),
+        Index(
+            "ix_billing_export_request_source_billing_export_request_id",
+            "source_billing_export_request_id",
+        ),
+        Index("ix_billing_export_request_recovery_action_code", "recovery_action_code"),
         Index("ix_billing_export_request_service_point_id", "service_point_id"),
         Index("ix_billing_export_request_target_system_code", "target_system_code"),
         Index("ix_billing_export_request_payload_format", "payload_format"),
@@ -930,6 +939,10 @@ class BillingExportRequest(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     request_scope: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
+    source_billing_export_request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("billing_export_request.id")
+    )
+    recovery_action_code: Mapped[str | None] = mapped_column(String(30))
     service_point_id: Mapped[int | None] = mapped_column(ForeignKey("service_point.id"))
     billing_period_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     billing_period_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -958,6 +971,15 @@ class BillingExportRequest(TimestampMixin, Base):
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
         back_populates="billing_export_request"
     )
+    source_billing_export_request: Mapped["BillingExportRequest | None"] = relationship(
+        remote_side=[id],
+        foreign_keys=[source_billing_export_request_id],
+        back_populates="recovery_requests",
+    )
+    recovery_requests: Mapped[list["BillingExportRequest"]] = relationship(
+        back_populates="source_billing_export_request",
+        foreign_keys=[source_billing_export_request_id],
+    )
 
 
 class BillingExportItem(TimestampMixin, Base):
@@ -974,6 +996,10 @@ class BillingExportItem(TimestampMixin, Base):
         Index("ix_billing_export_item_status", "status"),
         Index("ix_billing_export_item_service_point_id", "service_point_id"),
         Index(
+            "ix_billing_export_item_source_billing_export_item_id",
+            "source_billing_export_item_id",
+        ),
+        Index(
             "ix_billing_export_item_request_period_start_at",
             "billing_export_request_id",
             "billing_period_start_at",
@@ -988,6 +1014,9 @@ class BillingExportItem(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     billing_export_request_id: Mapped[int] = mapped_column(
         ForeignKey("billing_export_request.id"), nullable=False, index=True
+    )
+    source_billing_export_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("billing_export_item.id")
     )
     service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
     billing_period_start_at: Mapped[datetime] = mapped_column(
@@ -1008,6 +1037,15 @@ class BillingExportItem(TimestampMixin, Base):
         back_populates="request_items"
     )
     service_point: Mapped["ServicePoint"] = relationship(back_populates="billing_export_items")
+    source_billing_export_item: Mapped["BillingExportItem | None"] = relationship(
+        remote_side=[id],
+        foreign_keys=[source_billing_export_item_id],
+        back_populates="recovery_items",
+    )
+    recovery_items: Mapped[list["BillingExportItem"]] = relationship(
+        back_populates="source_billing_export_item",
+        foreign_keys=[source_billing_export_item_id],
+    )
 
 
 class FinalMeasurement(TimestampMixin, Base):

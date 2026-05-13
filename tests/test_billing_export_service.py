@@ -22,6 +22,8 @@ from app.services.billing_export_requests import (
     BillingExportRequestError,
     cancel_billing_export_request,
     create_billing_export_request,
+    recreate_billing_export_request,
+    rerun_billing_export_request,
 )
 from app.services.seeds import seed_master_data
 
@@ -130,6 +132,53 @@ def _create_current_bill_charge(
     session.add(charge)
     session.commit()
     return charge
+
+
+def _create_failed_billing_export_request(
+    session,
+    monkeypatch,
+    *,
+    service_point_id: int,
+    device_id: int,
+    measuring_component_id: int,
+    period_start_at: datetime,
+    period_end_at: datetime,
+    quantity_value: Decimal,
+    unit_rate_value: Decimal,
+    charge_amount: Decimal,
+) -> int:
+    _create_current_bill_charge(
+        session,
+        service_point_id=service_point_id,
+        device_id=device_id,
+        measuring_component_id=measuring_component_id,
+        period_start_at=period_start_at,
+        period_end_at=period_end_at,
+        calculation_status="complete",
+        quality_summary="all_finalized",
+        quantity_value=quantity_value,
+        unit_rate_value=unit_rate_value,
+        charge_amount=charge_amount,
+    )
+    created = create_billing_export_request(
+        session,
+        request_scope="service_point_period",
+        service_point_id=service_point_id,
+        billing_period_from=period_start_at,
+        billing_period_to=period_end_at,
+        requested_by="operator_ui",
+    )
+    session.commit()
+
+    from app.services import billing_export_processor as processor_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("forced export failure")
+
+    monkeypatch.setattr(processor_module, "_process_pending_item", _boom)
+    process_queued_billing_export_requests(session, limit=1, processed_by="worker_fail")
+    session.commit()
+    return created.request.id
 
 
 def test_create_billing_export_request_creates_pending_and_skipped_items(session):
@@ -476,6 +525,207 @@ def test_cancel_billing_export_request_allows_only_queued_requests(session):
         )
 
     assert exc_info.value.error_code == "already_cancelled"
+
+
+def test_rerun_billing_export_request_creates_lineaged_pending_items_from_failed_request(
+    session,
+    monkeypatch,
+):
+    service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    source_request_id = _create_failed_billing_export_request(
+        session,
+        monkeypatch,
+        service_point_id=service_point_id,
+        device_id=device_id,
+        measuring_component_id=measuring_component_id,
+        period_start_at=datetime(2027, 1, 1, tzinfo=timezone.utc),
+        period_end_at=datetime(2027, 2, 1, tzinfo=timezone.utc),
+        quantity_value=Decimal("81.0000"),
+        unit_rate_value=Decimal("100.00000000"),
+        charge_amount=Decimal("8100.0000"),
+    )
+
+    result = rerun_billing_export_request(
+        session,
+        source_request_id,
+        requested_by="operator_retry",
+        operator_memo="rerun failed export",
+    )
+    session.commit()
+
+    source_request = session.get(BillingExportRequest, source_request_id)
+    recovery_request = result.request
+    recovery_items = session.scalars(
+        select(BillingExportItem)
+        .where(BillingExportItem.billing_export_request_id == recovery_request.id)
+        .order_by(BillingExportItem.id.asc())
+    ).all()
+    source_item = session.scalar(
+        select(BillingExportItem)
+        .where(BillingExportItem.billing_export_request_id == source_request_id)
+        .where(BillingExportItem.status == "failed")
+        .limit(1)
+    )
+
+    assert source_request is not None
+    assert source_request.status == "failed"
+    assert source_item is not None
+    assert recovery_request.source_billing_export_request_id == source_request_id
+    assert recovery_request.recovery_action_code == "rerun"
+    assert recovery_request.status == "queued"
+    assert recovery_request.processed_count == 0
+    assert result.created_item_count == 1
+    assert result.eligible_item_count == 1
+    assert result.skipped_item_count == 0
+    assert len(recovery_items) == 1
+    assert recovery_items[0].status == "pending"
+    assert recovery_items[0].source_billing_export_item_id == source_item.id
+    assert (
+        recovery_items[0].payload_snapshot["recovery_lineage_snapshot"][
+            "source_billing_export_request_id"
+        ]
+        == source_request_id
+    )
+    assert (
+        recovery_items[0].payload_snapshot["recovery_lineage_snapshot"][
+            "source_billing_export_item_id"
+        ]
+        == source_item.id
+    )
+    assert recovery_items[0].payload_snapshot["request_context_snapshot"]["request_id"] == (
+        recovery_request.id
+    )
+
+
+def test_recreate_billing_export_request_uses_current_invoice_summary_state(
+    session,
+    monkeypatch,
+):
+    service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    source_request_id = _create_failed_billing_export_request(
+        session,
+        monkeypatch,
+        service_point_id=service_point_id,
+        device_id=device_id,
+        measuring_component_id=measuring_component_id,
+        period_start_at=datetime(2027, 2, 1, tzinfo=timezone.utc),
+        period_end_at=datetime(2027, 3, 1, tzinfo=timezone.utc),
+        quantity_value=Decimal("82.0000"),
+        unit_rate_value=Decimal("100.00000000"),
+        charge_amount=Decimal("8200.0000"),
+    )
+
+    current_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.billing_period_start_at == datetime(2027, 2, 1, tzinfo=timezone.utc))
+        .where(BillCharge.is_current.is_(True))
+        .limit(1)
+    )
+    assert current_charge is not None
+    current_charge.charge_amount = Decimal("9150.0000")
+    current_charge.calculated_at = datetime(2027, 2, 15, tzinfo=timezone.utc)
+    session.commit()
+
+    result = recreate_billing_export_request(
+        session,
+        source_request_id,
+        requested_by="operator_recreate",
+        operator_memo="recreate with current summary",
+    )
+    session.commit()
+
+    recovery_request = result.request
+    recovery_item = session.scalar(
+        select(BillingExportItem)
+        .where(BillingExportItem.billing_export_request_id == recovery_request.id)
+        .limit(1)
+    )
+
+    assert recovery_request.source_billing_export_request_id == source_request_id
+    assert recovery_request.recovery_action_code == "recreate"
+    assert recovery_request.status == "queued"
+    assert result.created_item_count == 1
+    assert result.eligible_item_count == 1
+    assert result.skipped_item_count == 0
+    assert recovery_item is not None
+    assert recovery_item.status == "pending"
+    assert recovery_item.payload_snapshot["invoice_summary_snapshot"]["subtotal_amount"] == "9150.0000"
+    assert (
+        recovery_item.payload_snapshot["recovery_lineage_snapshot"]["recovery_action_code"]
+        == "recreate"
+    )
+
+
+def test_rerun_billing_export_request_rejects_non_failed_request(session):
+    service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    created_charge = _create_current_bill_charge(
+        session,
+        service_point_id=service_point_id,
+        device_id=device_id,
+        measuring_component_id=measuring_component_id,
+        period_start_at=datetime(2027, 3, 1, tzinfo=timezone.utc),
+        period_end_at=datetime(2027, 4, 1, tzinfo=timezone.utc),
+        calculation_status="complete",
+        quality_summary="all_finalized",
+        quantity_value=Decimal("70.0000"),
+        unit_rate_value=Decimal("100.00000000"),
+        charge_amount=Decimal("7000.0000"),
+    )
+    assert created_charge is not None
+    created = create_billing_export_request(
+        session,
+        request_scope="service_point_period",
+        service_point_id=service_point_id,
+        billing_period_from=datetime(2027, 3, 1, tzinfo=timezone.utc),
+        billing_period_to=datetime(2027, 4, 1, tzinfo=timezone.utc),
+        requested_by="operator_ui",
+    )
+    session.commit()
+
+    with pytest.raises(BillingExportRequestError) as exc_info:
+        rerun_billing_export_request(
+            session,
+            created.request.id,
+            requested_by="operator_retry",
+        )
+
+    assert exc_info.value.error_code == "request_not_failed"
+
+
+def test_rerun_billing_export_request_rejects_when_active_recovery_exists(
+    session,
+    monkeypatch,
+):
+    service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    source_request_id = _create_failed_billing_export_request(
+        session,
+        monkeypatch,
+        service_point_id=service_point_id,
+        device_id=device_id,
+        measuring_component_id=measuring_component_id,
+        period_start_at=datetime(2027, 4, 1, tzinfo=timezone.utc),
+        period_end_at=datetime(2027, 5, 1, tzinfo=timezone.utc),
+        quantity_value=Decimal("77.0000"),
+        unit_rate_value=Decimal("100.00000000"),
+        charge_amount=Decimal("7700.0000"),
+    )
+
+    rerun_billing_export_request(
+        session,
+        source_request_id,
+        requested_by="operator_retry",
+    )
+    session.commit()
+
+    with pytest.raises(BillingExportRequestError) as exc_info:
+        rerun_billing_export_request(
+            session,
+            source_request_id,
+            requested_by="operator_retry",
+        )
+
+    assert exc_info.value.error_code == "active_recovery_exists"
 
 
 def test_process_billing_export_requests_cli_processes_queued_request(app, session):

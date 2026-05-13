@@ -22,6 +22,8 @@ Key rule:
 - `bill_charge` is charge-ready
 - `invoice_summary` is a lightweight review and handoff grouping layer
 - `billing_export_queue` is the first immutable export-staging layer
+- recovery and resend actions should create new export requests instead of
+  mutating an old one in place
 - invoice and CIS handoff remain later steps
 
 ## Current policy-depth direction

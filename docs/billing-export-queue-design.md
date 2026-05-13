@@ -25,6 +25,8 @@ The first rollout should not yet include:
 - external target-specific payload mapping
 - real downstream delivery
 - webhook, callback, or receipt reconciliation
+- failed-request recovery actions beyond lineage-ready schema and later service
+  hooks
 - auto-reclaim or auto-recovery of stale workers
 - dedicated worker registry persistence
 - export analytics dashboards beyond simple request and item status
@@ -59,12 +61,19 @@ The first persistence model should use:
 
 `billing_export_item` is the immutable per-summary export snapshot record.
 
+Recovery or replay actions must not overwrite an existing request or item.
+
+The first recovery-ready design should instead create a new request and link it
+explicitly to the original request or item that it came from.
+
 ## Request fields
 
 `billing_export_request` should include at least:
 
 - `request_scope`
 - `status`
+- `source_billing_export_request_id`
+- `recovery_action_code`
 - `service_point_id`
 - `billing_period_from`
 - `billing_period_to`
@@ -89,6 +98,7 @@ The first persistence model should use:
 `billing_export_item` should include at least:
 
 - `billing_export_request_id`
+- `source_billing_export_item_id`
 - `service_point_id`
 - `billing_period_start_at`
 - `billing_period_end_at`
@@ -112,6 +122,45 @@ The first payload snapshot should contain at least:
 
 This keeps the first export queue deterministic even if later current
 `bill_charge` rows change.
+
+## Recovery lineage
+
+The first recovery-capable queue design should treat lineage as first-class
+schema, not only as `details` metadata.
+
+Request-level lineage should use:
+
+- `source_billing_export_request_id`
+- `recovery_action_code`
+
+Item-level lineage should use:
+
+- `source_billing_export_item_id`
+
+The intent is:
+
+- `rerun`
+  - same staged export meaning
+  - same original payload semantics
+  - strong request and item lineage
+- `recreate`
+  - same original business scope
+  - current recalculated billing state
+  - strong request lineage and optional item lineage
+
+The first service slice should interpret these actions as:
+
+- `rerun`
+  - create a new queued request
+  - copy retryable source items from the failed request
+  - reuse the original export payload snapshot semantics
+- `recreate`
+  - create a new queued request
+  - recalculate current `invoice_summary` for the retryable source periods
+  - stage new payload snapshots from current billing state
+
+The first implementation may still defer the actual `rerun` and `recreate`
+services, but the lineage fields should exist before those actions are exposed.
 
 ## Status model
 
@@ -203,5 +252,6 @@ Later work may add:
 - export request list and detail UI
 - payload preview and download
 - retry or recreate flow
+- root-request lineage and recovery-depth tracking
 - external-target-specific delivery adapters
 - export receipt or ack tracking

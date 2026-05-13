@@ -259,6 +259,8 @@ This document captures the staged backlog derived from the reference PDF backlog
   calculated `invoice_summary`
 - first export queue slice should include request and item progress counters,
   `claimed_by`, and `last_heartbeat_at`
+- export recovery lineage should remain explicit through request-level and
+  item-level source references
 - Export payload contract
 - Batch or API export
 - Re-send and recalculation handling
@@ -266,6 +268,8 @@ This document captures the staged backlog derived from the reference PDF backlog
 - first export status action API slice should expose queued-request cancel only
 - deferred: external delivery integration
 - deferred: failed export recreate or rerun action API
+- deferred: completed export re-send or re-export action API
+- deferred: root-request lineage and recovery-depth tracking
 - deferred: processing export cancel or safe stop workflow
 - deferred: bulk export action API
 - deferred: export worker registry
