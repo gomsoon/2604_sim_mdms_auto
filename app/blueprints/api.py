@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 
 from flask import Blueprint, jsonify, request
@@ -20,6 +21,7 @@ from app.services.invoice_summaries import build_invoice_summary_filters, list_i
 from app.services.receive_adapters import ReceiveAdapterError, receive_adapter_payload
 from app.services.visibility import (
     build_bill_charge_filters,
+    build_billing_export_request_filters,
     VisibilityFilterError,
     build_bill_determinant_filters,
     build_canonical_filters,
@@ -27,8 +29,10 @@ from app.services.visibility import (
     build_ingest_batch_filters,
     build_operational_event_filters,
     build_usage_transaction_filters,
+    get_billing_export_request_detail_context,
     list_bill_charges,
     list_bill_determinants,
+    list_billing_export_requests,
     list_canonical_measurements,
     list_final_measurements,
     list_ingest_batches,
@@ -281,6 +285,91 @@ def _serialize_invoice_summary_filters(
         "date_from": filter_args.get("date_from"),
         "date_to": filter_args.get("date_to"),
         "limit": limit,
+    }
+
+
+def _is_processing_heartbeat_stale(status: str, last_heartbeat_at) -> bool:
+    if status != "processing" or last_heartbeat_at is None:
+        return False
+    return (datetime.now(tz=last_heartbeat_at.tzinfo) - last_heartbeat_at).total_seconds() > 300
+
+
+def _serialize_billing_export_request_row(row) -> dict[str, object]:
+    details = row.details or {}
+    return {
+        "id": row.id,
+        "request_scope": row.request_scope,
+        "status": row.status,
+        "service_point_id": row.service_point_id,
+        "service_point_external_id": row.service_point.external_id if row.service_point is not None else None,
+        "billing_period_from": row.billing_period_from.isoformat() if row.billing_period_from else None,
+        "billing_period_to": row.billing_period_to.isoformat() if row.billing_period_to else None,
+        "target_system_code": row.target_system_code,
+        "payload_format": row.payload_format,
+        "requested_by": row.requested_by,
+        "operator_memo": row.operator_memo,
+        "item_count": row.item_count,
+        "processed_count": row.processed_count,
+        "succeeded_count": row.succeeded_count,
+        "failed_count": row.failed_count,
+        "skipped_count": row.skipped_count,
+        "claimed_by": row.claimed_by,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+        "last_heartbeat_at": row.last_heartbeat_at.isoformat() if row.last_heartbeat_at else None,
+        "last_error": row.last_error,
+        "progress_percent": details.get("progress_percent"),
+        "remaining_count": details.get("remaining_count"),
+        "current_item_id": details.get("current_item_id"),
+        "heartbeat_is_stale": _is_processing_heartbeat_stale(row.status, row.last_heartbeat_at),
+    }
+
+
+def _serialize_billing_export_request_filters(filter_args: dict[str, str], *, limit: int) -> dict[str, object]:
+    service_point_id = filter_args.get("service_point_id")
+    return {
+        "request_scope": filter_args.get("request_scope"),
+        "status": filter_args.get("status"),
+        "service_point_id": int(service_point_id) if service_point_id else None,
+        "service_point": filter_args.get("service_point"),
+        "target_system_code": filter_args.get("target_system_code"),
+        "requested_by": filter_args.get("requested_by"),
+        "date_from": filter_args.get("date_from"),
+        "date_to": filter_args.get("date_to"),
+        "limit": limit,
+    }
+
+
+def _serialize_pipeline_run_row(row) -> dict[str, object]:
+    return {
+        "id": row.id,
+        "pipeline_name": row.pipeline_name,
+        "trigger_type": row.trigger_type,
+        "status": row.status,
+        "result_code": row.result_code,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+        "details": row.details or {},
+    }
+
+
+def _serialize_billing_export_item_row(row) -> dict[str, object]:
+    return {
+        "id": row.id,
+        "billing_export_request_id": row.billing_export_request_id,
+        "service_point_id": row.service_point_id,
+        "service_point_external_id": row.service_point.external_id if row.service_point is not None else None,
+        "billing_period_start_at": row.billing_period_start_at.isoformat(),
+        "billing_period_end_at": row.billing_period_end_at.isoformat(),
+        "currency_code": row.currency_code,
+        "tariff_plan_code": row.tariff_plan_code,
+        "summary_status": row.summary_status,
+        "status": row.status,
+        "result_code": row.result_code,
+        "exported_at": row.exported_at.isoformat() if row.exported_at else None,
+        "last_error": row.last_error,
+        "payload_snapshot": row.payload_snapshot or {},
+        "details": row.details or {},
     }
 
 
@@ -823,6 +912,73 @@ def get_service_point_summary_endpoint(service_point_id: int):
                 "summary": _build_calculation_summary(charge_summary_rows),
                 "rows": [_serialize_bill_charge_row(row) for row in charge_rows],
             },
+        }
+    )
+
+
+@bp.get("/billing-export-requests")
+def list_billing_export_requests_endpoint():
+    session = get_session()
+    try:
+        limit = _parse_api_limit(request.args.get("limit"), default=100)
+        filter_args = request.args.to_dict(flat=True)
+        filters = build_billing_export_request_filters(filter_args)
+    except ValueError:
+        return error_response("invalid_limit", 400)
+    except VisibilityFilterError as exc:
+        return (
+            jsonify(
+                {
+                    "error_code": exc.error_code,
+                    "message": translate_visibility_error(exc.error_code, exc.fallback_message),
+                    "locale": get_locale(),
+                }
+            ),
+            400,
+        )
+
+    rows = list_billing_export_requests(session, filters, limit=limit)
+    return jsonify(
+        {
+            "filters": _serialize_billing_export_request_filters(filter_args, limit=limit),
+            "rows": [_serialize_billing_export_request_row(row) for row in rows],
+        }
+    )
+
+
+@bp.get("/billing-export-requests/<int:request_id>")
+def get_billing_export_request_detail_endpoint(request_id: int):
+    session = get_session()
+    detail = get_billing_export_request_detail_context(session, request_id)
+    if detail is None:
+        return error_response("billing_export_request_not_found", 404)
+
+    return jsonify(
+        {
+            "request": _serialize_billing_export_request_row(detail.request),
+            "latest_pipeline_run": (
+                _serialize_pipeline_run_row(detail.latest_pipeline_run)
+                if detail.latest_pipeline_run is not None
+                else None
+            ),
+            "current_item": (
+                _serialize_billing_export_item_row(detail.current_item)
+                if detail.current_item is not None
+                else None
+            ),
+            "focus_item": (
+                _serialize_billing_export_item_row(detail.focus_item)
+                if detail.focus_item is not None
+                else None
+            ),
+            "recent_items": [
+                _serialize_billing_export_item_row(row) for row in detail.recent_items
+            ],
+            "failed_items": [
+                _serialize_billing_export_item_row(row) for row in detail.failed_items
+            ],
+            "heartbeat_is_stale": detail.heartbeat_is_stale,
+            "request_metadata": detail.request.details or {},
         }
     )
 

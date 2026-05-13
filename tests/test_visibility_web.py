@@ -975,6 +975,83 @@ def test_service_point_summary_api_returns_404_for_missing_service_point(client)
     }
 
 
+def test_billing_export_requests_api_returns_filtered_rows(client, session):
+    request_id = _prepare_billing_export_request_rows(session, make_stale=True)
+    request = session.get(BillingExportRequest, request_id)
+    assert request is not None
+    assert request.service_point is not None
+
+    response = client.get(
+        "/api/v1/billing-export-requests"
+        f"?status=processing&service_point={request.service_point.external_id}"
+        "&target_system_code=generic_json"
+        "&requested_by=web_tester"
+        "&limit=10"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["filters"] == {
+        "request_scope": None,
+        "status": "processing",
+        "service_point_id": None,
+        "service_point": request.service_point.external_id,
+        "target_system_code": "generic_json",
+        "requested_by": "web_tester",
+        "date_from": None,
+        "date_to": None,
+        "limit": 10,
+    }
+    assert len(payload["rows"]) == 1
+    row = payload["rows"][0]
+    assert row["id"] == request_id
+    assert row["status"] == "processing"
+    assert row["service_point_external_id"] == request.service_point.external_id
+    assert row["target_system_code"] == "generic_json"
+    assert row["claimed_by"] == "web_worker"
+    assert row["heartbeat_is_stale"] is True
+    assert row["progress_percent"] == 50.0
+
+
+def test_billing_export_requests_api_rejects_invalid_limit(client):
+    response = client.get("/api/v1/billing-export-requests?limit=0")
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error_code": "invalid_limit",
+        "message": "Limit must be a positive integer and no greater than 500.",
+        "locale": "en",
+    }
+
+
+def test_billing_export_request_detail_api_returns_runtime_and_payload(client, session):
+    request_id = _prepare_billing_export_request_rows(session, process_request=True)
+
+    response = client.get(f"/api/v1/billing-export-requests/{request_id}")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["request"]["id"] == request_id
+    assert payload["request"]["status"] == "completed"
+    assert payload["latest_pipeline_run"] is not None
+    assert payload["latest_pipeline_run"]["pipeline_name"] == "billing_export"
+    assert payload["focus_item"] is not None
+    assert payload["focus_item"]["payload_snapshot"]["worker_result"]["delivery_mode"] == "staged_only"
+    assert payload["recent_items"]
+    assert payload["heartbeat_is_stale"] is False
+
+
+def test_billing_export_request_detail_api_returns_404_for_missing_request(client):
+    response = client.get("/api/v1/billing-export-requests/999999")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "billing_export_request_not_found",
+        "message": "The selected billing export request does not exist.",
+        "locale": "en",
+    }
+
+
 def test_usage_transactions_page_filters_by_service_point_and_channel(client, session):
     seed_demo_environment(session)
     session.commit()
