@@ -18,6 +18,8 @@ from app.services.exception_queue import (
 from app.services.billing_export_requests import (
     BillingExportRequestError,
     cancel_billing_export_request,
+    recreate_billing_export_request,
+    rerun_billing_export_request,
 )
 from app.services.ingest_contract import IngestContractError, validate_ingest_envelope
 from app.services.ingestion import ingest_events, ingest_reads
@@ -304,6 +306,8 @@ def _serialize_billing_export_request_row(row) -> dict[str, object]:
         "id": row.id,
         "request_scope": row.request_scope,
         "status": row.status,
+        "source_billing_export_request_id": row.source_billing_export_request_id,
+        "recovery_action_code": row.recovery_action_code,
         "service_point_id": row.service_point_id,
         "service_point_external_id": row.service_point.external_id if row.service_point is not None else None,
         "billing_period_from": row.billing_period_from.isoformat() if row.billing_period_from else None,
@@ -361,6 +365,7 @@ def _serialize_billing_export_item_row(row) -> dict[str, object]:
     return {
         "id": row.id,
         "billing_export_request_id": row.billing_export_request_id,
+        "source_billing_export_item_id": row.source_billing_export_item_id,
         "service_point_id": row.service_point_id,
         "service_point_external_id": row.service_point.external_id if row.service_point is not None else None,
         "billing_period_start_at": row.billing_period_start_at.isoformat(),
@@ -1019,6 +1024,90 @@ def cancel_billing_export_request_endpoint(request_id: int):
         {
             "result": "cancelled",
             "request": _serialize_billing_export_request_row(export_request),
+        }
+    )
+
+
+@bp.post("/billing-export-requests/<int:request_id>/rerun")
+def rerun_billing_export_request_endpoint(request_id: int):
+    payload = request.get_json(silent=True)
+    if request.content_length not in {None, 0} and payload is None:
+        return error_response("json_payload_required", 400)
+
+    if payload is not None and not isinstance(payload, dict):
+        return error_response("json_payload_required", 400)
+
+    session = get_session()
+    try:
+        result = rerun_billing_export_request(
+            session,
+            request_id,
+            requested_by="api",
+            operator_memo=(payload or {}).get("operator_memo") or None,
+        )
+        session.commit()
+    except BillingExportRequestError as exc:
+        session.rollback()
+        if exc.error_code == "not_found":
+            return error_response("billing_export_request_not_found", 404)
+        if exc.error_code == "request_not_failed":
+            return error_response("billing_export_request_not_failed", 409)
+        if exc.error_code == "active_recovery_exists":
+            return error_response("billing_export_request_active_recovery_exists", 409)
+        if exc.error_code == "no_retryable_items":
+            return error_response("billing_export_request_no_retryable_items", 409)
+        return error_response("ingest_request_failed", 400, details=exc.fallback_message)
+
+    return jsonify(
+        {
+            "result": "rerun_created",
+            "source_request_id": request_id,
+            "recovery_request": _serialize_billing_export_request_row(result.request),
+            "created_item_count": result.created_item_count,
+            "eligible_item_count": result.eligible_item_count,
+            "skipped_item_count": result.skipped_item_count,
+        }
+    )
+
+
+@bp.post("/billing-export-requests/<int:request_id>/recreate")
+def recreate_billing_export_request_endpoint(request_id: int):
+    payload = request.get_json(silent=True)
+    if request.content_length not in {None, 0} and payload is None:
+        return error_response("json_payload_required", 400)
+
+    if payload is not None and not isinstance(payload, dict):
+        return error_response("json_payload_required", 400)
+
+    session = get_session()
+    try:
+        result = recreate_billing_export_request(
+            session,
+            request_id,
+            requested_by="api",
+            operator_memo=(payload or {}).get("operator_memo") or None,
+        )
+        session.commit()
+    except BillingExportRequestError as exc:
+        session.rollback()
+        if exc.error_code == "not_found":
+            return error_response("billing_export_request_not_found", 404)
+        if exc.error_code == "request_not_failed":
+            return error_response("billing_export_request_not_failed", 409)
+        if exc.error_code == "active_recovery_exists":
+            return error_response("billing_export_request_active_recovery_exists", 409)
+        if exc.error_code == "no_retryable_items":
+            return error_response("billing_export_request_no_retryable_items", 409)
+        return error_response("ingest_request_failed", 400, details=exc.fallback_message)
+
+    return jsonify(
+        {
+            "result": "recreate_created",
+            "source_request_id": request_id,
+            "recovery_request": _serialize_billing_export_request_row(result.request),
+            "created_item_count": result.created_item_count,
+            "eligible_item_count": result.eligible_item_count,
+            "skipped_item_count": result.skipped_item_count,
         }
     )
 

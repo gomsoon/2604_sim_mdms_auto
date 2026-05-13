@@ -10,6 +10,7 @@ from app.services.billing_export_processor import process_queued_billing_export_
 from app.services.billing_export_requests import (
     cancel_billing_export_request,
     create_billing_export_request,
+    rerun_billing_export_request,
 )
 from app.services.bill_determinants import calculate_bill_determinants
 from app.services.estimation import (
@@ -365,6 +366,40 @@ def _prepare_billing_export_request_rows(
         request.details = details
         session.commit()
 
+    session.expire_all()
+    return request_id
+
+
+def _prepare_failed_billing_export_request_rows(
+    session,
+    *,
+    retryable_items: bool = True,
+) -> int:
+    request_id = _prepare_billing_export_request_rows(session)
+    export_request = session.get(BillingExportRequest, request_id)
+    assert export_request is not None
+
+    export_request.status = "failed"
+    export_request.claimed_by = "web_worker"
+    export_request.last_error = "forced export failure"
+    export_request.completed_at = datetime.now(timezone.utc)
+    export_request.processed_count = export_request.item_count
+    export_request.succeeded_count = 0
+    export_request.failed_count = 1 if retryable_items and export_request.request_items else 0
+    export_request.skipped_count = 0
+
+    if export_request.request_items:
+        first_item = export_request.request_items[0]
+        if retryable_items:
+            first_item.status = "failed"
+            first_item.result_code = "worker_failed"
+            first_item.last_error = "forced export failure"
+        else:
+            first_item.status = "completed"
+            first_item.result_code = "already_staged"
+            first_item.last_error = None
+
+    session.commit()
     session.expire_all()
     return request_id
 
@@ -1117,6 +1152,124 @@ def test_cancel_billing_export_request_api_rejects_processing_request(client, se
     assert response.get_json() == {
         "error_code": "billing_export_request_not_cancellable",
         "message": "Only queued billing export requests can be cancelled.",
+        "locale": "en",
+    }
+
+
+def test_rerun_billing_export_request_api_creates_recovery_request(client, session):
+    request_id = _prepare_failed_billing_export_request_rows(session)
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/rerun",
+        json={"operator_memo": "rerun from api"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["result"] == "rerun_created"
+    assert payload["source_request_id"] == request_id
+    assert payload["created_item_count"] == 1
+    assert payload["eligible_item_count"] == 1
+    assert payload["skipped_item_count"] == 0
+    assert payload["recovery_request"]["status"] == "queued"
+    assert payload["recovery_request"]["source_billing_export_request_id"] == request_id
+    assert payload["recovery_request"]["recovery_action_code"] == "rerun"
+
+    recovery_request = session.get(BillingExportRequest, payload["recovery_request"]["id"])
+    assert recovery_request is not None
+    assert recovery_request.operator_memo == "rerun from api"
+    assert recovery_request.source_billing_export_request_id == request_id
+    assert recovery_request.recovery_action_code == "rerun"
+
+
+def test_recreate_billing_export_request_api_creates_recovery_request(client, session):
+    request_id = _prepare_failed_billing_export_request_rows(session)
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/recreate",
+        json={"operator_memo": "recreate from api"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["result"] == "recreate_created"
+    assert payload["source_request_id"] == request_id
+    assert payload["created_item_count"] == 1
+    assert payload["eligible_item_count"] == 1
+    assert payload["skipped_item_count"] == 0
+    assert payload["recovery_request"]["status"] == "queued"
+    assert payload["recovery_request"]["source_billing_export_request_id"] == request_id
+    assert payload["recovery_request"]["recovery_action_code"] == "recreate"
+
+    recovery_request = session.get(BillingExportRequest, payload["recovery_request"]["id"])
+    assert recovery_request is not None
+    assert recovery_request.operator_memo == "recreate from api"
+    assert recovery_request.source_billing_export_request_id == request_id
+    assert recovery_request.recovery_action_code == "recreate"
+
+
+def test_rerun_billing_export_request_api_returns_404_for_missing_request(client):
+    response = client.post("/api/v1/billing-export-requests/999999/rerun", json={})
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "billing_export_request_not_found",
+        "message": "The selected billing export request does not exist.",
+        "locale": "en",
+    }
+
+
+def test_rerun_billing_export_request_api_rejects_non_failed_request(client, session):
+    request_id = _prepare_billing_export_request_rows(session)
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/rerun",
+        json={"operator_memo": "rerun queued"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json() == {
+        "error_code": "billing_export_request_not_failed",
+        "message": "Only failed billing export requests can be recovered.",
+        "locale": "en",
+    }
+
+
+def test_rerun_billing_export_request_api_rejects_when_active_recovery_exists(client, session):
+    request_id = _prepare_failed_billing_export_request_rows(session)
+    rerun_billing_export_request(
+        session,
+        request_id,
+        requested_by="operator_ui",
+        operator_memo="existing recovery",
+    )
+    session.commit()
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/rerun",
+        json={"operator_memo": "duplicate recovery"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json() == {
+        "error_code": "billing_export_request_active_recovery_exists",
+        "message": "An active recovery request already exists for the selected billing export request.",
+        "locale": "en",
+    }
+
+
+def test_rerun_billing_export_request_api_rejects_when_no_retryable_items(client, session):
+    request_id = _prepare_failed_billing_export_request_rows(session, retryable_items=False)
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/rerun",
+        json={"operator_memo": "rerun empty"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json() == {
+        "error_code": "billing_export_request_no_retryable_items",
+        "message": "The selected billing export request does not have retryable items.",
         "locale": "en",
     }
 
