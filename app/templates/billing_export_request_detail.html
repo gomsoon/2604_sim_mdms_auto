@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set request_details = detail.request.details or {} %}
+{% set focus_item = detail.focus_item %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ t("page.billing_export_request_detail.title") }}</h1>
+    <p class="text-secondary mb-0">{{ t("page.billing_export_request_detail.description") }}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.billing_export_requests', lang=current_locale) }}">{{ t("button.back_to_billing_export_requests") }}</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('web.billing_export_request_detail', request_id=detail.request.id, lang=current_locale) }}">{{ t("button.refresh") }}</a>
+    {% if detail.request.status == "queued" %}
+    <form method="post" action="{{ url_for('web.cancel_billing_export_request_view', request_id=detail.request.id, lang=current_locale) }}" class="d-flex gap-2">
+      <input type="hidden" name="next" value="{{ url_for('web.billing_export_request_detail', request_id=detail.request.id, lang=current_locale) }}">
+      <button type="submit" class="btn btn-outline-danger">{{ t("button.cancel_request") }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if detail.request.status == "processing" %}
+<div class="alert {% if detail.heartbeat_is_stale %}alert-warning{% else %}alert-info{% endif %} d-flex justify-content-between align-items-center" role="alert">
+  <span>
+    {% if detail.heartbeat_is_stale %}
+    {{ t("page.billing_export_request_detail.stale_warning") }}
+    {% else %}
+    {{ t("page.billing_export_request_detail.auto_refresh") }}
+    {% endif %}
+  </span>
+  <span class="small text-secondary">{{ t("field.request_progress_help") }}</span>
+</div>
+<script>
+  setTimeout(() => window.location.reload(), 5000);
+</script>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.summary") }}</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.id") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.id }}</dd>
+          <dt class="col-sm-4">{{ t("field.requested_scope") }}</dt>
+          <dd class="col-sm-8">{{ t_or("billing_export.request_scope." ~ detail.request.request_scope, detail.request.request_scope) }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("common.status." ~ detail.request.status, detail.request.status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.service_point.external_id if detail.request.service_point else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.target_system_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.target_system_code }}</dd>
+          <dt class="col-sm-4">{{ t("field.payload_format") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.payload_format }}</dd>
+          <dt class="col-sm-4">{{ t("table.requested_by") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.requested_by }}</dd>
+          <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.operator_memo or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.billing_period_from") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.billing_period_from|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.billing_period_to") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.billing_period_to|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.created_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.created_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.processing_started_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.started_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.processing_completed_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.completed_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.last_error") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.last_error or t("common.none") }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.progress") }}</h2>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">{{ request_details.get("progress_percent", 0) }}%</div>
+          <div class="small text-secondary">{{ detail.request.processed_count }}/{{ detail.request.item_count }}</div>
+        </div>
+        <div class="progress mb-3" role="progressbar" aria-valuenow="{{ request_details.get('progress_percent', 0) }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width: {{ request_details.get('progress_percent', 0) }}%"></div>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="border rounded p-3 h-100">
+              <div class="small text-secondary">{{ t("table.processed_count") }}</div>
+              <div class="fw-semibold">{{ detail.request.processed_count }}</div>
+              <div class="small text-secondary mt-1">{{ t("table.remaining_count") }}: {{ request_details.get("remaining_count", detail.request.item_count - detail.request.processed_count) }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded p-3 h-100">
+              <div class="small text-secondary">{{ t("table.succeeded_count") }}</div>
+              <div class="fw-semibold">{{ detail.request.succeeded_count }}</div>
+              <div class="small text-secondary mt-1">{{ t("table.failed_count") }}: {{ detail.request.failed_count }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded p-3 h-100">
+              <div class="small text-secondary">{{ t("table.skipped_count") }}</div>
+              <div class="fw-semibold">{{ detail.request.skipped_count }}</div>
+              <div class="small text-secondary mt-1">{{ t("field.claimed_by") }}: {{ detail.request.claimed_by or t("common.none") }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded p-3 h-100">
+              <div class="small text-secondary">{{ t("field.last_heartbeat_at") }}</div>
+              <div class="fw-semibold">{{ detail.request.last_heartbeat_at|dt }}</div>
+              <div class="small text-secondary mt-1">
+                {% if detail.heartbeat_is_stale %}
+                {{ t("billing_export.runtime_state.stale") }}
+                {% else %}
+                {{ t("billing_export.runtime_state.active") }}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.pipeline") }}</h2>
+        {% if detail.latest_pipeline_run %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.pipeline_run_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.latest_pipeline_run.id }}</dd>
+          <dt class="col-sm-4">{{ t("field.trigger_type") }}</dt>
+          <dd class="col-sm-8">{{ detail.latest_pipeline_run.trigger_type }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("common.status." ~ detail.latest_pipeline_run.status, detail.latest_pipeline_run.status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.result_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.latest_pipeline_run.result_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.processing_started_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.latest_pipeline_run.started_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.processing_completed_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.latest_pipeline_run.completed_at|dt }}</dd>
+        </dl>
+        {% else %}
+        <div class="text-secondary">{{ t("page.billing_export_request_detail.no_pipeline") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.current_item") }}</h2>
+        {% if detail.current_item %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">{{ t("table.item_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.current_item.id }}</dd>
+          <dt class="col-sm-4">{{ t("table.period") }}</dt>
+          <dd class="col-sm-8">{{ detail.current_item.billing_period_start_at|dt }} - {{ detail.current_item.billing_period_end_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("table.status") }}</dt>
+          <dd class="col-sm-8">{{ t_or("common.status." ~ detail.current_item.status, detail.current_item.status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.result_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.current_item.result_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.tariff_plan") }}</dt>
+          <dd class="col-sm-8">{{ detail.current_item.tariff_plan_code or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.currency_code") }}</dt>
+          <dd class="col-sm-8">{{ detail.current_item.currency_code or t("common.none") }}</dd>
+        </dl>
+        {% else %}
+        <div class="text-secondary">{{ t("page.billing_export_request_detail.no_current_item") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.failed_items") }}</h2>
+    {% if detail.failed_items %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>{{ t("table.item_id") }}</th>
+            <th>{{ t("table.period") }}</th>
+            <th>{{ t("table.result_code") }}</th>
+            <th>{{ t("table.last_error") }}</th>
+            <th>{{ t("table.updated_at") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in detail.failed_items %}
+          <tr>
+            <td>{{ item.id }}</td>
+            <td>{{ item.billing_period_start_at|dt }} - {{ item.billing_period_end_at|dt }}</td>
+            <td>{{ item.result_code or t("common.none") }}</td>
+            <td>{{ item.last_error or t("common.none") }}</td>
+            <td>{{ item.updated_at|dt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ t("page.billing_export_request_detail.no_failed_items") }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.recent_items") }}</h2>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th>{{ t("table.item_id") }}</th>
+                <th>{{ t("table.period") }}</th>
+                <th>{{ t("table.status") }}</th>
+                <th>{{ t("table.result_code") }}</th>
+                <th>{{ t("field.exported_at") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in detail.recent_items %}
+              <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.billing_period_start_at|dt }} - {{ item.billing_period_end_at|dt }}</td>
+                <td>{{ t_or("common.status." ~ item.status, item.status) }}</td>
+                <td>{{ item.result_code or t("common.none") }}</td>
+                <td>{{ item.exported_at|dt }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="text-secondary">{{ t("common.none") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.focus_payload_snapshot") }}</h2>
+        {% if focus_item %}
+        <div class="small text-secondary mb-2">
+          {{ t("table.item_id") }} {{ focus_item.id }} · {{ t("table.status") }} {{ t_or("common.status." ~ focus_item.status, focus_item.status) }}
+        </div>
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ focus_item.payload_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("page.billing_export_request_detail.no_focus_item") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.request_metadata") }}</h2>
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ request_details | tojson(indent=2) }}</code></pre>
+  </div>
+</div>
+{% endblock %}

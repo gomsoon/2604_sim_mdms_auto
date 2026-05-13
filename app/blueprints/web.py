@@ -12,6 +12,7 @@ from app.config import get_app_timezone_name
 from app.db import get_session
 from app.i18n import (
     translate_adapter_error,
+    translate_billing_export_request_error,
     get_locale,
     translate_hes_system_error,
     translate,
@@ -49,6 +50,10 @@ from app.services.adapters import (
     update_adapter_admin_state,
 )
 from app.services.billing_contexts import create_billing_context, update_billing_context
+from app.services.billing_export_requests import (
+    BillingExportRequestError,
+    cancel_billing_export_request,
+)
 from app.services.correction_policy import (
     CORRECTION_POLICY_BLOCKED,
     SUPPORTED_CORRECTION_POLICY_EVENT_CONTEXT_TYPES,
@@ -124,6 +129,7 @@ from app.services.vee_replay_requests import (
 )
 from app.services.visibility import (
     build_bill_charge_filters,
+    build_billing_export_request_filters,
     build_estimation_audit_filters,
     build_manual_edit_audit_filters,
     VisibilityFilterError,
@@ -136,6 +142,7 @@ from app.services.visibility import (
     build_vee_exception_filters,
     build_vee_replay_request_filters,
     get_bill_charge_detail_context,
+    get_billing_export_request_detail_context,
     get_estimation_audit_detail_context,
     get_manual_edit_audit_detail_context,
     get_bill_determinant_detail_context,
@@ -144,6 +151,7 @@ from app.services.visibility import (
     get_vee_replay_request_detail_context,
     get_operational_event_detail_context,
     list_bill_charges,
+    list_billing_export_requests,
     list_estimation_audits,
     list_manual_edit_audits,
     list_bill_determinants,
@@ -538,6 +546,77 @@ def cancel_vee_replay_request_view(request_id: int):
         return redirect(
             _safe_next_url(
                 url_for("web.vee_replay_request_detail", request_id=request_id, lang=get_locale())
+            )
+        )
+
+
+def _is_billing_export_request_heartbeat_stale(export_request) -> bool:
+    if export_request.status != "processing" or export_request.last_heartbeat_at is None:
+        return False
+    return (datetime.now(tz=export_request.last_heartbeat_at.tzinfo) - export_request.last_heartbeat_at).total_seconds() > 300
+
+
+@bp.get("/billing-export-requests")
+def billing_export_requests():
+    session = get_session()
+    try:
+        filters = build_billing_export_request_filters(request.args)
+    except VisibilityFilterError as exc:
+        flash(translate_visibility_error(exc.error_code, exc.fallback_message), "danger")
+        filters = build_billing_export_request_filters({})
+
+    rows = list_billing_export_requests(session, filters)
+    stale_request_ids = {
+        row.id for row in rows if _is_billing_export_request_heartbeat_stale(row)
+    }
+    return render_template(
+        "billing_export_requests.html",
+        rows=rows,
+        filters=filters,
+        stale_request_ids=stale_request_ids,
+    )
+
+
+@bp.get("/billing-export-requests/<int:request_id>")
+def billing_export_request_detail(request_id: int):
+    session = get_session()
+    detail = get_billing_export_request_detail_context(session, request_id)
+    if detail is None:
+        abort(404)
+    return render_template("billing_export_request_detail.html", detail=detail)
+
+
+@bp.post("/billing-export-requests/<int:request_id>/cancel")
+def cancel_billing_export_request_view(request_id: int):
+    session = get_session()
+    try:
+        export_request = cancel_billing_export_request(
+            session,
+            request_id,
+            cancelled_by="operator_ui",
+            operator_memo=request.form.get("operator_memo") or None,
+        )
+        session.commit()
+        flash(translate("billing_export.flash.cancelled"), "success")
+        return redirect(
+            _safe_next_url(
+                url_for(
+                    "web.billing_export_request_detail",
+                    request_id=export_request.id,
+                    lang=get_locale(),
+                )
+            )
+        )
+    except BillingExportRequestError as exc:
+        session.rollback()
+        flash(translate_billing_export_request_error(exc.error_code, exc.fallback_message), "danger")
+        return redirect(
+            _safe_next_url(
+                url_for(
+                    "web.billing_export_request_detail",
+                    request_id=request_id,
+                    lang=get_locale(),
+                )
             )
         )
 

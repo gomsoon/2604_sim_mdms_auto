@@ -13,6 +13,8 @@ from app.models import (
     AdapterRun,
     BillCharge,
     BillDeterminant,
+    BillingExportItem,
+    BillingExportRequest,
     CanonicalMeasurement,
     EstimationAudit,
     FinalMeasurement,
@@ -196,6 +198,29 @@ class VeeReplayRequestDetailContext:
     current_item: VeeReplayRequestItem | None = None
     recent_items: list[VeeReplayRequestItem] = ()
     failed_items: list[VeeReplayRequestItem] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class BillingExportRequestFilters:
+    request_scope: str | None = None
+    status: str | None = None
+    service_point_id: int | None = None
+    service_point: str | None = None
+    target_system_code: str | None = None
+    requested_by: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BillingExportRequestDetailContext:
+    request: BillingExportRequest
+    latest_pipeline_run: PipelineRun | None = None
+    current_item: BillingExportItem | None = None
+    focus_item: BillingExportItem | None = None
+    recent_items: list[BillingExportItem] = ()
+    failed_items: list[BillingExportItem] = ()
+    heartbeat_is_stale: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -780,6 +805,51 @@ def build_vee_replay_request_filters(args) -> VeeReplayRequestFilters:
             fallback_message="HES system filter must be a positive integer.",
         ),
         requested_by=_normalize_text(args.get("requested_by")),
+    )
+
+
+def build_billing_export_request_filters(args) -> BillingExportRequestFilters:
+    date_from = _parse_filter_datetime(args.get("date_from"))
+    date_to = _parse_filter_datetime(args.get("date_to"), end_of_day=True)
+    if date_from and date_to and date_from > date_to:
+        raise VisibilityFilterError(
+            "invalid_date_range", "The start date must be earlier than or equal to the end date."
+        )
+
+    request_scope = _normalize_text(args.get("request_scope"))
+    if request_scope not in {None, "service_point_period"}:
+        raise VisibilityFilterError(
+            "invalid_billing_export_request_scope",
+            "Billing export request scope must be service_point_period when provided.",
+        )
+
+    status = _normalize_text(args.get("status"))
+    if status not in {None, "queued", "processing", "completed", "failed", "cancelled"}:
+        raise VisibilityFilterError(
+            "invalid_billing_export_request_status",
+            "Billing export request status must be queued, processing, completed, failed, or cancelled when provided.",
+        )
+
+    target_system_code = _normalize_text(args.get("target_system_code"))
+    if target_system_code not in {None, "generic_json"}:
+        raise VisibilityFilterError(
+            "invalid_billing_export_target_system_code_filter",
+            "Billing export target system must be generic_json when provided.",
+        )
+
+    return BillingExportRequestFilters(
+        request_scope=request_scope,
+        status=status,
+        service_point_id=_parse_optional_int(
+            args.get("service_point_id"),
+            error_code="invalid_service_point_filter",
+            fallback_message="Service point filter must be a positive integer.",
+        ),
+        service_point=_normalize_text(args.get("service_point")),
+        target_system_code=target_system_code,
+        requested_by=_normalize_text(args.get("requested_by")),
+        date_from=date_from,
+        date_to=date_to,
     )
 
 
@@ -1587,6 +1657,46 @@ def list_vee_replay_requests(
     return session.execute(statement).scalars().unique().all()
 
 
+def list_billing_export_requests(
+    session: Session,
+    filters: BillingExportRequestFilters,
+    *,
+    limit: int = 200,
+) -> list[BillingExportRequest]:
+    statement: Select[tuple[BillingExportRequest]] = select(BillingExportRequest).options(
+        selectinload(BillingExportRequest.service_point),
+        selectinload(BillingExportRequest.pipeline_runs),
+        selectinload(BillingExportRequest.request_items),
+    )
+
+    if filters.request_scope:
+        statement = statement.where(BillingExportRequest.request_scope == filters.request_scope)
+    if filters.status:
+        statement = statement.where(BillingExportRequest.status == filters.status)
+    if filters.service_point_id is not None:
+        statement = statement.where(BillingExportRequest.service_point_id == filters.service_point_id)
+    if filters.service_point:
+        statement = statement.join(BillingExportRequest.service_point).where(
+            ServicePoint.external_id == filters.service_point
+        )
+    if filters.target_system_code:
+        statement = statement.where(
+            BillingExportRequest.target_system_code == filters.target_system_code
+        )
+    if filters.requested_by:
+        statement = statement.where(BillingExportRequest.requested_by == filters.requested_by)
+    if filters.date_from:
+        statement = statement.where(BillingExportRequest.billing_period_from >= filters.date_from)
+    if filters.date_to:
+        statement = statement.where(BillingExportRequest.billing_period_from <= filters.date_to)
+
+    statement = statement.order_by(
+        BillingExportRequest.created_at.desc(),
+        BillingExportRequest.id.desc(),
+    ).limit(limit)
+    return session.execute(statement).scalars().unique().all()
+
+
 def get_vee_replay_request_detail_context(
     session: Session,
     request_id: int,
@@ -1656,6 +1766,81 @@ def get_vee_replay_request_detail_context(
         current_item=current_item,
         recent_items=recent_items,
         failed_items=failed_items,
+    )
+
+
+def _is_processing_heartbeat_stale(
+    *,
+    status: str,
+    last_heartbeat_at: datetime | None,
+    stale_after_seconds: int = 300,
+) -> bool:
+    if status != "processing" or last_heartbeat_at is None:
+        return False
+    return (datetime.now(timezone.utc) - last_heartbeat_at).total_seconds() > stale_after_seconds
+
+
+def get_billing_export_request_detail_context(
+    session: Session,
+    request_id: int,
+    *,
+    recent_item_limit: int = 100,
+    failed_item_limit: int = 20,
+) -> BillingExportRequestDetailContext | None:
+    request = session.scalar(
+        select(BillingExportRequest)
+        .where(BillingExportRequest.id == request_id)
+        .options(
+            joinedload(BillingExportRequest.service_point),
+            selectinload(BillingExportRequest.pipeline_runs),
+            selectinload(BillingExportRequest.request_items),
+        )
+        .limit(1)
+    )
+    if request is None:
+        return None
+
+    latest_pipeline_run = None
+    if request.pipeline_runs:
+        latest_pipeline_run = max(
+            request.pipeline_runs,
+            key=lambda row: ((row.started_at or datetime.min.replace(tzinfo=timezone.utc)), row.id),
+        )
+
+    current_item_id = (request.details or {}).get("current_item_id")
+    current_item = next(
+        (
+            row
+            for row in request.request_items
+            if current_item_id is not None and row.id == current_item_id
+        ),
+        None,
+    )
+    if current_item is None:
+        current_item = next(
+            (row for row in request.request_items if row.status == "processing"),
+            None,
+        )
+
+    recent_items = sorted(
+        request.request_items,
+        key=lambda row: (row.updated_at, row.id),
+        reverse=True,
+    )[:recent_item_limit]
+    failed_items = [row for row in recent_items if row.status == "failed"][:failed_item_limit]
+    focus_item = current_item or (recent_items[0] if recent_items else None)
+
+    return BillingExportRequestDetailContext(
+        request=request,
+        latest_pipeline_run=latest_pipeline_run,
+        current_item=current_item,
+        focus_item=focus_item,
+        recent_items=recent_items,
+        failed_items=failed_items,
+        heartbeat_is_stale=_is_processing_heartbeat_stale(
+            status=request.status,
+            last_heartbeat_at=request.last_heartbeat_at,
+        ),
     )
 
 

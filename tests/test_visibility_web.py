@@ -1,22 +1,32 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import func, select
 
 from app.services.bill_charges import calculate_bill_charges
+from app.services.billing_export_processor import process_queued_billing_export_requests
+from app.services.billing_export_requests import create_billing_export_request
 from app.services.bill_determinants import calculate_bill_determinants
 from app.services.estimation import (
     ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
     apply_estimation_from_vee_exception,
 )
 from app.models import (
+    BillCharge,
+    BillDeterminant,
+    BillingExportRequest,
+    Device,
     EstimationAudit,
     FinalMeasurement,
     IngestBatch,
     InitialMeasurement,
     ManualEditAudit,
+    MeasuringComponent,
     OperationalEvent,
+    PipelineRun,
+    ServicePoint,
     UsageTransaction,
     VeeException,
 )
@@ -24,7 +34,7 @@ from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_reads
 from app.services.manual_edits import apply_manual_edit_from_vee_exception
 from app.services.operational_events import close_operational_alert
-from app.services.seeds import seed_demo_environment
+from app.services.seeds import seed_demo_environment, seed_master_data
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.usage import calculate_usage_transactions
 from app.services.vee import evaluate_or_get_vee_baseline
@@ -222,6 +232,138 @@ def _prepare_estimation_audit_rows(session) -> int:
     )
     session.commit()
     return summary.estimation_audit_id
+
+
+def _prepare_billing_export_request_rows(
+    session,
+    *,
+    process_request: bool = False,
+    make_stale: bool = False,
+) -> int:
+    existing_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.is_current.is_(True))
+        .order_by(BillCharge.billing_period_start_at.asc(), BillCharge.id.asc())
+        .limit(1)
+    )
+    if existing_charge is None:
+        seed_master_data(session)
+        session.commit()
+        service_point_id = session.scalar(select(ServicePoint.id).limit(1))
+        device_id = session.scalar(select(Device.id).limit(1))
+        measuring_component_id = session.scalar(select(MeasuringComponent.id).limit(1))
+        assert service_point_id is not None
+        assert device_id is not None
+        assert measuring_component_id is not None
+
+        now = datetime.now(timezone.utc)
+        determinant_run = PipelineRun(
+            pipeline_name="bill_determinant",
+            trigger_type="manual",
+            status="completed",
+            started_at=now,
+            completed_at=now,
+            result_code="bill_determinant_completed",
+            details={"trigger_source": "web_visibility_test"},
+        )
+        charge_run = PipelineRun(
+            pipeline_name="bill_charge",
+            trigger_type="manual",
+            status="completed",
+            started_at=now,
+            completed_at=now,
+            result_code="bill_charge_completed",
+            details={"trigger_source": "web_visibility_test"},
+        )
+        session.add_all([determinant_run, charge_run])
+        session.flush()
+
+        determinant = BillDeterminant(
+            pipeline_run_id=determinant_run.id,
+            service_point_id=service_point_id,
+            measuring_component_id=measuring_component_id,
+            device_id=device_id,
+            determinant_type="billing_cycle_consumption_total",
+            billing_period_start_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
+            billing_period_end_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            window_timezone_name="Asia/Seoul",
+            tariff_plan_code="KR_BASIC",
+            unit_of_measure="kWh",
+            determinant_value=Decimal("100.0000"),
+            source_usage_count=1,
+            quality_summary="all_finalized",
+            calculation_status="complete",
+            revision_number=1,
+            revision_reason_code=None,
+            is_current=True,
+            supersedes_bill_determinant_id=None,
+            calculated_at=now,
+            details={"trigger_source": "web_visibility_test"},
+        )
+        session.add(determinant)
+        session.flush()
+
+        charge_row = BillCharge(
+            pipeline_run_id=charge_run.id,
+            service_point_id=service_point_id,
+            measuring_component_id=measuring_component_id,
+            device_id=device_id,
+            bill_determinant_id=determinant.id,
+            charge_type="flat_energy_charge",
+            billing_period_start_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
+            billing_period_end_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            currency_code="KRW",
+            tariff_plan_code="KR_BASIC",
+            tariff_version_code="v1",
+            quantity_value=Decimal("100.0000"),
+            unit_rate_value=Decimal("120.00000000"),
+            charge_amount=Decimal("12000.0000"),
+            calculation_status="complete",
+            quality_summary="all_finalized",
+            revision_number=1,
+            revision_reason_code=None,
+            is_current=True,
+            supersedes_bill_charge_id=None,
+            calculated_at=now,
+            details={"trigger_source": "web_visibility_test"},
+        )
+        session.add(charge_row)
+        session.commit()
+    else:
+        charge_row = existing_charge
+
+    result = create_billing_export_request(
+        session,
+        request_scope="service_point_period",
+        service_point_id=charge_row.service_point_id,
+        billing_period_from=charge_row.billing_period_start_at,
+        billing_period_to=charge_row.billing_period_end_at,
+        requested_by="web_tester",
+    )
+    session.commit()
+
+    request_id = result.request.id
+    if process_request:
+        process_queued_billing_export_requests(
+            session,
+            request_id=request_id,
+            processed_by="web_worker",
+        )
+        session.commit()
+    elif make_stale:
+        request = session.get(BillingExportRequest, request_id)
+        assert request is not None
+        request.status = "processing"
+        request.claimed_by = "web_worker"
+        request.last_heartbeat_at = datetime(2026, 5, 1, tzinfo=timezone.utc)
+        details = dict(request.details or {})
+        details["progress_percent"] = 50.0
+        details["current_item_id"] = request.request_items[0].id if request.request_items else None
+        request.details = details
+        session.commit()
+
+    session.expire_all()
+    return request_id
 
 
 def test_ingest_batches_page_renders_filtered_results_in_korean(client, session):
@@ -1168,6 +1310,40 @@ def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, 
         f"/vee-exceptions/{audit_row.details['target_vee_exception_snapshot']['vee_exception_id']}?lang=ko"
         in text
     )
+
+
+def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(client, session):
+    request_id = _prepare_billing_export_request_rows(session, make_stale=True)
+    request = session.get(BillingExportRequest, request_id)
+    assert request is not None
+    assert request.service_point is not None
+
+    response = client.get(
+        f"/billing-export-requests?lang=ko&status=processing&service_point={request.service_point.external_id}&target_system_code=generic_json&requested_by=web_tester"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 내보내기 요청" in text
+    assert request.service_point.external_id in text
+    assert "worker heartbeat 지연" in text
+    assert f"/billing-export-requests/{request_id}?lang=ko" in text
+
+
+def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(client, session):
+    request_id = _prepare_billing_export_request_rows(session, process_request=True)
+
+    response = client.get(f"/billing-export-requests/{request_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "청구 내보내기 요청 상세" in text
+    assert "진행률" in text
+    assert "파이프라인 실행" in text
+    assert "선택된 payload 스냅샷" in text
+    assert "generic_json" in text
+    assert "staged_only" in text
+    assert "web_worker" in text
 
 
 def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, session):
