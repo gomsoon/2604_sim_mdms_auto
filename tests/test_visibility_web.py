@@ -7,7 +7,10 @@ from sqlalchemy import func, select
 
 from app.services.bill_charges import calculate_bill_charges
 from app.services.billing_export_processor import process_queued_billing_export_requests
-from app.services.billing_export_requests import create_billing_export_request
+from app.services.billing_export_requests import (
+    cancel_billing_export_request,
+    create_billing_export_request,
+)
 from app.services.bill_determinants import calculate_bill_determinants
 from app.services.estimation import (
     ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
@@ -1048,6 +1051,72 @@ def test_billing_export_request_detail_api_returns_404_for_missing_request(clien
     assert response.get_json() == {
         "error_code": "billing_export_request_not_found",
         "message": "The selected billing export request does not exist.",
+        "locale": "en",
+    }
+
+
+def test_cancel_billing_export_request_api_cancels_queued_request(client, session):
+    request_id = _prepare_billing_export_request_rows(session)
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/cancel",
+        json={"operator_memo": "cancel from api"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["result"] == "cancelled"
+    assert payload["request"]["id"] == request_id
+    assert payload["request"]["status"] == "cancelled"
+
+    refreshed = session.get(BillingExportRequest, request_id)
+    assert refreshed is not None
+    assert refreshed.status == "cancelled"
+    assert refreshed.details["cancelled_by"] == "api"
+    assert refreshed.details["cancellation_memo"] == "cancel from api"
+
+
+def test_cancel_billing_export_request_api_returns_404_for_missing_request(client):
+    response = client.post("/api/v1/billing-export-requests/999999/cancel", json={})
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error_code": "billing_export_request_not_found",
+        "message": "The selected billing export request does not exist.",
+        "locale": "en",
+    }
+
+
+def test_cancel_billing_export_request_api_rejects_already_cancelled_request(client, session):
+    request_id = _prepare_billing_export_request_rows(session)
+    cancel_billing_export_request(session, request_id, cancelled_by="operator_ui")
+    session.commit()
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/cancel",
+        json={"operator_memo": "cancel again"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json() == {
+        "error_code": "billing_export_request_already_cancelled",
+        "message": "The selected billing export request is already cancelled.",
+        "locale": "en",
+    }
+
+
+def test_cancel_billing_export_request_api_rejects_processing_request(client, session):
+    request_id = _prepare_billing_export_request_rows(session, make_stale=True)
+
+    response = client.post(
+        f"/api/v1/billing-export-requests/{request_id}/cancel",
+        json={"operator_memo": "stop processing"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json() == {
+        "error_code": "billing_export_request_not_cancellable",
+        "message": "Only queued billing export requests can be cancelled.",
         "locale": "en",
     }
 

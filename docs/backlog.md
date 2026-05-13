@@ -263,7 +263,11 @@ This document captures the staged backlog derived from the reference PDF backlog
 - Batch or API export
 - Re-send and recalculation handling
 - Export status management
+- first export status action API slice should expose queued-request cancel only
 - deferred: external delivery integration
+- deferred: failed export recreate or rerun action API
+- deferred: processing export cancel or safe stop workflow
+- deferred: bulk export action API
 - deferred: export worker registry
 - deferred: stale auto-reclaim or auto-recovery
 

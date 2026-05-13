@@ -15,6 +15,10 @@ from app.services.exception_queue import (
     get_exception_meter_id,
     list_exception_queue,
 )
+from app.services.billing_export_requests import (
+    BillingExportRequestError,
+    cancel_billing_export_request,
+)
 from app.services.ingest_contract import IngestContractError, validate_ingest_envelope
 from app.services.ingestion import ingest_events, ingest_reads
 from app.services.invoice_summaries import build_invoice_summary_filters, list_invoice_summaries
@@ -979,6 +983,42 @@ def get_billing_export_request_detail_endpoint(request_id: int):
             ],
             "heartbeat_is_stale": detail.heartbeat_is_stale,
             "request_metadata": detail.request.details or {},
+        }
+    )
+
+
+@bp.post("/billing-export-requests/<int:request_id>/cancel")
+def cancel_billing_export_request_endpoint(request_id: int):
+    payload = request.get_json(silent=True)
+    if request.content_length not in {None, 0} and payload is None:
+        return error_response("json_payload_required", 400)
+
+    if payload is not None and not isinstance(payload, dict):
+        return error_response("json_payload_required", 400)
+
+    session = get_session()
+    try:
+        export_request = cancel_billing_export_request(
+            session,
+            request_id,
+            cancelled_by="api",
+            operator_memo=(payload or {}).get("operator_memo") or None,
+        )
+        session.commit()
+    except BillingExportRequestError as exc:
+        session.rollback()
+        if exc.error_code == "not_found":
+            return error_response("billing_export_request_not_found", 404)
+        if exc.error_code == "already_cancelled":
+            return error_response("billing_export_request_already_cancelled", 409)
+        if exc.error_code == "request_not_cancellable":
+            return error_response("billing_export_request_not_cancellable", 409)
+        return error_response("ingest_request_failed", 400, details=exc.fallback_message)
+
+    return jsonify(
+        {
+            "result": "cancelled",
+            "request": _serialize_billing_export_request_row(export_request),
         }
     )
 
