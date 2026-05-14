@@ -303,6 +303,43 @@ This document captures the staged backlog derived from the reference PDF backlog
 - RBAC middleware
 - Audit expansion
 - Sensitive-action isolation
+- first auth close-out slice should include:
+  - `user_account`
+  - `user_action_audit`
+  - `admin` and `operator` role baseline
+  - session-cookie login and logout for human-facing surfaces
+  - append-only login and logout history
+  - route protection for web and human-facing API
+- authenticated user activity across existing features should become auditable by
+  account for:
+  - read
+  - create
+  - update
+  - delete
+  - execute
+- recommended model:
+  - `auth_session_audit` for session lifecycle
+  - `user_action_audit` for broad feature usage
+  - existing domain-specific audit tables for sensitive business mutations
+- login and logout history should:
+  - use a dedicated append-only auth audit table as the authoritative source
+  - optionally mirror key auth events into `operational_event` later for
+    timeline visibility
+- actor identity propagation should be staged by functional unit rather than in
+  one large schema sweep:
+  - phase B: VEE, estimation, manual edit, and replay request actor FKs
+  - phase C: billing export request and recovery actor FKs
+  - phase D: master-data and system-administration `created_by/updated_by`
+    fields
+- every actor-identity propagation slice should update regression tests in the
+  same change set so the new user-account lineage is both written and visible
+  in the affected feature area
+- deferred: MFA
+- deferred: password reset
+- deferred: API token or PAT baseline
+- deferred: richer RBAC beyond `admin` and `operator`
+- deferred: auth-event analytics dashboard
+- deferred: full user-management UI
 
 ### P7. Operability and reprocessing
 

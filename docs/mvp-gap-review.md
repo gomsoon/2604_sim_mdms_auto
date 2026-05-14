@@ -198,6 +198,20 @@ Important distinction:
 
 ## Cross-cutting MVP observations
 
+### MVP close-out still needs a human-user auth baseline
+
+Even with the current strong operator and billing-lite baseline, the repository
+still does not have:
+
+- `login_id + password` human-user authentication
+- `admin` versus `operator` authorization
+- append-only login and logout history
+- consistent user-account audit lineage on sensitive mutations
+
+That means MVP feature breadth is now strong enough to use, but MVP close-out
+should still require a first auth baseline before the system is treated as a
+real internal operator product.
+
 ### The repository is ahead in downstream billing-lite
 
 Compared with the original MVP backlog wording, the repository is now ahead in
@@ -229,7 +243,25 @@ the core processing loop rather than going deeper into billing first.
 
 ## Recommended next priorities
 
-### Priority 1. Event-aware correction policy
+### Priority 1. Auth close-out baseline
+
+Recommended first next step:
+
+- add `user_account`
+- add login and logout
+- add append-only auth audit
+- add `admin` versus `operator`
+- propagate user-account identity into sensitive actions in grouped feature
+  slices
+
+Why first:
+
+- the repository is already broad enough that human-user attribution is now a
+  real product requirement
+- the remaining gaps are increasingly about safe operation, not basic feature
+  existence
+
+### Priority 2. Event-aware correction policy
 
 Recommended first next step:
 
@@ -244,7 +276,7 @@ Why first:
 - connecting event meaning into correction choice is now the highest-leverage
   next policy step
 
-### Priority 2. Richer source-aware VEE policy later
+### Priority 3. Richer source-aware VEE policy later
 
 Recommended second next step:
 

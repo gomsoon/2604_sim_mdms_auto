@@ -42,6 +42,33 @@ Key rule:
 - do not imply a correction path that current persistence and lineage do not yet
   support
 
+## Current auth close-out direction
+
+If the current repository baseline is going to be treated as MVP close-out
+ready for real operator use, the near-term auth sequence should now be read as:
+
+1. `user_account`
+2. `auth_session_audit`
+3. `user_action_audit`
+4. session-cookie login and logout
+5. `admin` versus `operator` route guards
+6. phased actor-FK propagation by functional unit
+
+Key rule:
+
+- do not try to retrofit user identity into all persistence in one migration
+- make login and logout auditable first
+- make broad authenticated feature usage auditable by account early through
+  `user_action_audit`
+- then add `*_user_account_id` fields to sensitive mutation flows in grouped
+  feature slices:
+  - VEE and correction
+  - replay and billing export
+  - master-data and system administration
+- every grouped propagation slice should update the related regression tests in
+  the same turn so new actor lineage is verified at service, action, and
+  visibility layers
+
 ## Guiding principles
 
 - Structural alignment comes before feature expansion

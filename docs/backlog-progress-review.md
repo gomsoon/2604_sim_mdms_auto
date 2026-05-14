@@ -452,17 +452,27 @@ Recommendation:
 ### P6. Security and authorization
 
 - Status: `lightly addressed`
-- Importance: `medium`
-- Impact: `medium`
+- Importance: `high`
+- Impact: `high`
 
 Current baseline:
 
-- there is not yet a strong product-grade RBAC or sensitive-action isolation
-  layer
+- there is not yet a human-user login baseline
+- there is not yet a strong RBAC or sensitive-action isolation layer
+- many sensitive actions are still attributable only to free-form actor strings
+- there is not yet a broad account-level user activity audit for existing read,
+  create, update, delete, and execute flows
 
 Recommendation:
 
-- important for productization, but not the best next step in current flow
+- now important enough to act as an MVP close-out gate
+- first slice should stay small:
+  - `user_account`
+  - login and logout
+  - append-only auth audit
+  - broad `user_action_audit` for authenticated feature usage
+  - `admin` versus `operator`
+  - staged actor-FK propagation by functional unit
 
 ### P7. Operability and reprocessing
 
