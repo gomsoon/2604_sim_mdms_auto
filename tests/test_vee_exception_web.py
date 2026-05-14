@@ -10,9 +10,11 @@ from app.models import (
     BillDeterminant,
     EstimationAudit,
     FinalMeasurement,
+    HesReadRaw,
     HesSystem,
     InitialMeasurement,
     ManualEditAudit,
+    RawIntervalWindowState,
     ServicePoint,
     UsageTransaction,
     VeeException,
@@ -159,6 +161,28 @@ def _open_negative_vee_exception(session, *, initial_measurement_id: int) -> Vee
     return vee_exception
 
 
+def _open_missing_interval_vee_exception(session, *, initial_measurement_id: int) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_missing_interval_detected"
+    return vee_exception
+
+
 def _open_high_value_vee_exception_with_tamper(session) -> VeeException:
     seed_demo_environment(session)
     session.commit()
@@ -210,6 +234,169 @@ def _open_high_value_vee_exception_with_tamper(session) -> VeeException:
     assert vee_exception is not None
     assert vee_exception.exception_code == "vee_high_value_detected"
     return vee_exception
+
+
+def _prepare_synthetic_missing_interval_environment(
+    session,
+    *,
+    include_missing_slot_measurement: bool = False,
+    multi_missing_window: bool = False,
+    with_outage: bool = False,
+) -> tuple[int, int, int]:
+    seed_demo_environment(session)
+    hes_system_id = session.scalar(select(HesSystem.id).limit(1))
+    service_point_id = session.scalar(select(ServicePoint.id).limit(1))
+    assert hes_system_id is not None
+    assert service_point_id is not None
+
+    window_start = "2026-04-19T00:00:00+09:00"
+    reads: list[dict[str, object]] = [
+        {
+            "meter_id": "MTR-1001",
+            "channel_id": "CH-01",
+            "measured_at": "2026-04-19T00:00:00+09:00",
+            "value": 10.0,
+            "quality_code": "OK",
+            "status_code": "ACTUAL",
+            "unit": "kWh",
+            "interval_size_minutes": 15,
+            "source_business_ts": window_start,
+            "source_slot_code": "00",
+        },
+        {
+            "meter_id": "MTR-1001",
+            "channel_id": "CH-01",
+            "measured_at": "2026-04-19T00:15:00+09:00",
+            "value": 20.0,
+            "quality_code": "OK",
+            "status_code": "ACTUAL",
+            "unit": "kWh",
+            "interval_size_minutes": 15,
+            "source_business_ts": window_start,
+            "source_slot_code": "15",
+        },
+    ]
+    if not multi_missing_window:
+        reads.append(
+            {
+                "meter_id": "MTR-1001",
+                "channel_id": "CH-01",
+                "measured_at": "2026-04-19T00:45:00+09:00",
+                "value": 40.0,
+                "quality_code": "OK",
+                "status_code": "ACTUAL",
+                "unit": "kWh",
+                "interval_size_minutes": 15,
+                "source_business_ts": window_start,
+                "source_slot_code": "45",
+            }
+        )
+    if include_missing_slot_measurement:
+        reads.append(
+            {
+                "meter_id": "MTR-1001",
+                "channel_id": "CH-01",
+                "measured_at": "2026-04-19T00:30:00+09:00",
+                "value": 30.0,
+                "quality_code": "OK",
+                "status_code": "ACTUAL",
+                "unit": "kWh",
+                "interval_size_minutes": 15,
+                "source_business_ts": window_start,
+                "source_slot_code": "30",
+            }
+        )
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "synthetic-missing-web-read-batch",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": reads,
+        },
+        hes_system_id=hes_system_id,
+    )
+    session.commit()
+
+    anchor_initial = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.measured_at == datetime.fromisoformat("2026-04-19T00:15:00+09:00"))
+        .limit(1)
+    )
+    assert anchor_initial is not None
+    anchor_raw = anchor_initial.canonical_measurement.hes_read_raw
+    assert anchor_raw is not None
+
+    if with_outage:
+        ingest_events(
+            session,
+            {
+                "source_system": "HES",
+                "batch_id": "synthetic-missing-web-outage-batch",
+                "received_at": "2026-04-19T09:05:00+09:00",
+                "events": [
+                    {
+                        "meter_id": "MTR-1001",
+                        "event_time": "2026-04-19T00:00:00+09:00",
+                        "event_code": "POWER_FAIL",
+                        "severity": "high",
+                    }
+                ],
+            },
+            hes_system_id=hes_system_id,
+        )
+        session.commit()
+
+    session.add(
+        RawIntervalWindowState(
+            source_system=anchor_raw.source_system,
+            meter_identifier=anchor_raw.meter_identifier,
+            channel_identifier=anchor_raw.channel_identifier,
+            window_start_at=anchor_raw.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=15,
+            expected_slot_count=4,
+            received_slot_count=2 if multi_missing_window else 3,
+            received_slot_bitmap="00,15" if multi_missing_window else "00,15,45",
+            completion_status="partial",
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.commit()
+
+    finalize_canonical_measurements(session, limit=100)
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    create_tariff_assignment(
+        session,
+        service_point_id=service_point_id,
+        tariff_plan_code="KR_BASIC",
+        tariff_version_code="v1",
+        effective_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        effective_to=None,
+        source_system="test",
+        source_reference="test:synthetic-missing-web-tariff-assignment",
+    )
+    calculate_bill_determinants(
+        session,
+        determinant_type=BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL,
+        service_point_id=service_point_id,
+    )
+    calculate_bill_charges(
+        session,
+        charge_type=BILL_CHARGE_TYPE_FLAT_ENERGY_CHARGE,
+        unit_rate_value=Decimal("100.00000000"),
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    anchor_exception = _open_missing_interval_vee_exception(
+        session,
+        initial_measurement_id=anchor_initial.id,
+    )
+    return service_point_id, anchor_initial.id, anchor_exception.id
 
 
 def test_vee_exceptions_page_renders_exception_in_korean(client, session):
@@ -314,6 +501,43 @@ def test_vee_exception_detail_page_shows_estimation_form_for_supported_exception
     assert "선형 보간" in text
     assert "이전 값 기반" in text
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" in text
+
+
+def test_vee_exception_detail_page_shows_synthetic_estimation_form_for_supported_missing_interval(
+    client, session
+):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_synthetic_missing_interval_environment(session)
+    )
+
+    response = client.get(f"/vee-exceptions/{anchor_exception_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "누락 interval 복구" in text
+    assert "누락 slot" in text
+    assert "30" in text
+    assert f"/vee-exceptions/{anchor_exception_id}/estimate-synthetic-missing-interval?lang=ko" in text
+    assert f"/vee-exceptions/{anchor_exception_id}/estimate?lang=ko" not in text
+
+
+def test_vee_exception_detail_page_shows_synthetic_estimation_block_reason_for_outage_window(
+    client, session
+):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_synthetic_missing_interval_environment(
+            session,
+            with_outage=True,
+        )
+    )
+
+    response = client.get(f"/vee-exceptions/{anchor_exception_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 이 VEE 예외에는 synthetic missing-interval 복구를 적용할 수 없습니다." in text
+    assert "정전 연계 구간 누락에는 아직 1차 보정 경로가 없습니다" in text
+    assert f"/vee-exceptions/{anchor_exception_id}/estimate-synthetic-missing-interval?lang=ko" not in text
 
 
 def test_vee_exception_detail_page_shows_manual_edit_form_for_supported_exception(client, session):
@@ -517,6 +741,96 @@ def test_vee_exception_estimate_via_web_applies_estimation_and_shows_result(sess
     assert updated_exception is not None
     assert updated_exception.exception_status == "resolved"
     assert updated_exception.resolution_type == "estimated"
+
+
+def test_vee_exception_synthetic_estimate_via_web_applies_repair_and_shows_result(session, client):
+    service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_synthetic_missing_interval_environment(session)
+    )
+
+    response = client.post(
+        f"/vee-exceptions/{anchor_exception_id}/estimate-synthetic-missing-interval?lang=ko",
+        data={
+            "next": f"/vee-exceptions/{anchor_exception_id}?lang=ko",
+            "strategy_code": "linear_interpolation",
+            "operator_memo": "누락 slot 복구",
+        },
+        follow_redirects=True,
+    )
+    text = response.get_data(as_text=True)
+
+    updated_exception = session.get(VeeException, anchor_exception_id)
+    audit_row = session.scalar(
+        select(EstimationAudit)
+        .where(EstimationAudit.anchor_vee_exception_id == anchor_exception_id)
+        .order_by(EstimationAudit.id.desc())
+        .limit(1)
+    )
+    synthetic_row = session.scalar(
+        select(HesReadRaw)
+        .where(HesReadRaw.measured_at == datetime.fromisoformat("2026-04-19T00:30:00+09:00"))
+        .order_by(HesReadRaw.id.desc())
+        .limit(1)
+    )
+    current_determinant = session.scalar(
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == service_point_id)
+        .where(BillDeterminant.is_current.is_(True))
+        .order_by(BillDeterminant.id.desc())
+        .limit(1)
+    )
+    current_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.is_current.is_(True))
+        .order_by(BillCharge.id.desc())
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "VEE 예외에 synthetic missing-interval 복구가 적용되었습니다." in text
+    assert "추정 결과" in text
+    assert "선형 보간" in text
+    assert audit_row is not None
+    assert synthetic_row is not None
+    assert updated_exception is not None
+    assert updated_exception.exception_status == "resolved"
+    assert updated_exception.resolution_type == "estimated"
+    assert current_determinant is not None
+    assert current_charge is not None
+    assert f"/estimation-audits/{audit_row.id}?lang=ko" in text
+
+
+def test_vee_exception_synthetic_estimate_via_web_shows_blocked_result(session, client):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_synthetic_missing_interval_environment(
+            session,
+            include_missing_slot_measurement=True,
+        )
+    )
+
+    response = client.post(
+        f"/vee-exceptions/{anchor_exception_id}/estimate-synthetic-missing-interval?lang=ko",
+        data={
+            "next": f"/vee-exceptions/{anchor_exception_id}?lang=ko",
+            "strategy_code": "previous_value_based",
+        },
+        follow_redirects=True,
+    )
+    text = response.get_data(as_text=True)
+
+    audit_row = session.scalar(
+        select(EstimationAudit)
+        .where(EstimationAudit.anchor_vee_exception_id == anchor_exception_id)
+        .order_by(EstimationAudit.id.desc())
+        .limit(1)
+    )
+
+    assert response.status_code == 200
+    assert "이 VEE 예외에는 synthetic missing-interval 복구가 차단되었습니다." in text
+    assert "누락 slot에 이미 계측값이 존재합니다" in text
+    assert audit_row is not None
+    assert audit_row.estimation_status == "blocked"
 
 
 def test_vee_exception_manual_edit_via_web_applies_edit_and_shows_result(session, client):

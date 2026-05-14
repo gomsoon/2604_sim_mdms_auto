@@ -137,6 +137,9 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: estimation preview or approval workflow
 - deferred: broader event-aware estimation policy beyond the first
   event-aware correction guardrail slice
+- deferred: synthetic missing-interval bulk repair UI
+- deferred: multi-slot repair UI
+- deferred: inline missing-slot preview or visualization in `vee_exception` detail
 
 ### V4. Exception management
 

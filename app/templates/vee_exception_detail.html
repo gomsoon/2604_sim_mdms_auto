@@ -353,7 +353,8 @@
       </div>
     </div>
     <div class="row g-3 mt-1">
-      <div class="col-xl-6">
+      {% if detail.vee_exception.exception_code != "vee_missing_interval_detected" %}
+      <div class="{% if synthetic_estimation_precheck %}col-xl-4{% else %}col-xl-6{% endif %}">
         <div class="border rounded p-3 h-100">
           <div class="d-flex justify-content-between gap-3 align-items-start mb-2">
             <div>
@@ -397,7 +398,62 @@
           {% endif %}
         </div>
       </div>
-      <div class="col-xl-6">
+      {% endif %}
+      {% if synthetic_estimation_precheck %}
+      <div class="{% if detail.vee_exception.exception_code == 'vee_missing_interval_detected' %}col-xl-6{% else %}col-xl-4{% endif %}">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex justify-content-between gap-3 align-items-start mb-2">
+            <div>
+              <h3 class="h6 mb-1">{{ t("button.synthetic_estimate") }}</h3>
+              <div class="small text-secondary">{{ t("page.vee_exception_detail.synthetic_estimation_description") }}</div>
+            </div>
+          </div>
+          {% if synthetic_estimation_precheck.available %}
+          <dl class="row small mb-3">
+            <dt class="col-sm-5">{{ t("field.missing_slot_code") }}</dt>
+            <dd class="col-sm-7">{{ synthetic_estimation_precheck.missing_slot_code }}</dd>
+            <dt class="col-sm-5">{{ t("field.window_start_at") }}</dt>
+            <dd class="col-sm-7">{{ synthetic_estimation_precheck.window_start_at|dt }}</dd>
+            <dt class="col-sm-5">{{ t("field.interval_size_minutes") }}</dt>
+            <dd class="col-sm-7">{{ synthetic_estimation_precheck.interval_size_minutes }}</dd>
+          </dl>
+          <form method="post" action="{{ url_for('web.estimate_synthetic_missing_interval_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}" class="d-flex flex-column gap-2">
+            <input type="hidden" name="next" value="{{ url_for('web.vee_exception_detail', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <select name="strategy_code" class="form-select form-select-sm">
+                  {% for strategy_code in estimation_strategies %}
+                  <option value="{{ strategy_code }}">
+                    {{ t_or("estimation.strategy." ~ strategy_code, strategy_code) }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input
+                  type="text"
+                  name="operator_memo"
+                  class="form-control form-control-sm"
+                  placeholder="{{ t('page.vee_exception_detail.synthetic_estimation_memo_placeholder') }}"
+                >
+              </div>
+            </div>
+            <div>
+              <button type="submit" class="btn btn-outline-warning btn-sm">{{ t("button.synthetic_estimate") }}</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="small text-secondary mb-1">{{ t("page.vee_exception_detail.synthetic_estimation_blocked") }}</div>
+          {% if synthetic_estimation_precheck.reason_code %}
+          <div class="small text-warning-emphasis">
+            {{ t_or("estimation.result_code." ~ synthetic_estimation_precheck.reason_code, synthetic_estimation_precheck.reason_code) }}
+          </div>
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      <div class="{% if synthetic_estimation_precheck and detail.vee_exception.exception_code != 'vee_missing_interval_detected' %}col-xl-4{% elif synthetic_estimation_precheck %}col-xl-6{% else %}col-xl-6{% endif %}">
         <div class="border rounded p-3 h-100">
           <div class="d-flex justify-content-between gap-3 align-items-start mb-2">
             <div>

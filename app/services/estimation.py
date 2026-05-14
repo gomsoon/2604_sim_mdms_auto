@@ -104,6 +104,18 @@ class EstimationSummary:
     bill_charge_reused: int
 
 
+@dataclass(frozen=True, slots=True)
+class SyntheticMissingIntervalEstimationPrecheck:
+    available: bool
+    reason_code: str | None
+    target_measured_at: datetime | None
+    missing_slot_code: str | None
+    window_start_at: datetime | None
+    window_size_minutes: int | None
+    interval_size_minutes: int | None
+    raw_interval_window_state_id: int | None
+
+
 def _get_active_vee_exception(session: Session, vee_exception_id: int) -> VeeException:
     vee_exception = session.get(VeeException, vee_exception_id)
     if vee_exception is None:
@@ -996,6 +1008,67 @@ def _load_window_initial_measurements(
         .where(HesReadRaw.source_business_ts == window_state.window_start_at)
         .order_by(InitialMeasurement.measured_at.asc(), InitialMeasurement.id.asc())
     ).all()
+
+
+def get_synthetic_missing_interval_estimation_precheck(
+    session: Session,
+    *,
+    vee_exception: VeeException,
+    initial_row: InitialMeasurement | None = None,
+) -> SyntheticMissingIntervalEstimationPrecheck | None:
+    if vee_exception.exception_code != "vee_missing_interval_detected":
+        return None
+
+    anchor_initial = initial_row or vee_exception.initial_measurement
+    correction_policy = build_correction_policy_decision(
+        session,
+        vee_exception,
+        initial_row=anchor_initial,
+    )
+    window_state = _get_missing_interval_window_state(session, anchor_initial_row=anchor_initial)
+
+    reason_code: str | None = None
+    target_measured_at: datetime | None = anchor_initial.measured_at
+    window_context: dict[str, object] = {}
+
+    if window_state is None:
+        reason_code = "blocked_missing_interval_invalid_window_state"
+    elif correction_policy.estimation_policy == CORRECTION_POLICY_BLOCKED:
+        reason_code = f"blocked_event_policy_{correction_policy.policy_reason_code}"
+    else:
+        (
+            reason_code,
+            resolved_target_measured_at,
+            resolved_window_context,
+        ) = _resolve_single_missing_slot(window_state)
+        if resolved_target_measured_at is not None:
+            target_measured_at = resolved_target_measured_at
+        if resolved_window_context is not None:
+            window_context = resolved_window_context
+        if reason_code is None and target_measured_at is not None:
+            if _existing_measurement_present_for_slot(
+                session,
+                window_state=window_state,
+                target_measured_at=target_measured_at,
+            ):
+                reason_code = "blocked_missing_interval_existing_measurement_present"
+
+    return SyntheticMissingIntervalEstimationPrecheck(
+        available=reason_code is None,
+        reason_code=reason_code,
+        target_measured_at=target_measured_at,
+        missing_slot_code=(
+            str(window_context["missing_slot_code"])
+            if "missing_slot_code" in window_context
+            else None
+        ),
+        window_start_at=window_state.window_start_at if window_state is not None else None,
+        window_size_minutes=window_state.window_size_minutes if window_state is not None else None,
+        interval_size_minutes=(
+            window_state.interval_size_minutes if window_state is not None else None
+        ),
+        raw_interval_window_state_id=window_state.id if window_state is not None else None,
+    )
 
 
 def apply_synthetic_missing_interval_estimation_from_vee_exception(

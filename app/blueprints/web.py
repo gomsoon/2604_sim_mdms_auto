@@ -66,6 +66,8 @@ from app.services.estimation import (
     SUPPORTED_ESTIMATION_STRATEGIES,
     EstimationActionError,
     apply_estimation_from_vee_exception,
+    apply_synthetic_missing_interval_estimation_from_vee_exception,
+    get_synthetic_missing_interval_estimation_precheck,
 )
 from app.services.manual_edits import (
     MANUAL_EDIT_ALLOWED_EXCEPTION_CODES,
@@ -672,8 +674,13 @@ def _get_latest_estimation_audit_id_for_vee_exception(
     for row in rows:
         if fallback_id is None:
             fallback_id = row.id
-        snapshot = (row.details or {}).get("target_vee_exception_snapshot") or {}
-        if snapshot.get("vee_exception_id") == vee_exception_id:
+        details = row.details or {}
+        target_snapshot = details.get("target_vee_exception_snapshot") or {}
+        anchor_snapshot = details.get("anchor_vee_exception_snapshot") or {}
+        if (
+            target_snapshot.get("vee_exception_id") == vee_exception_id
+            or anchor_snapshot.get("vee_exception_id") == vee_exception_id
+        ):
             return row.id
     return fallback_id
 
@@ -710,6 +717,11 @@ def vee_exception_detail(vee_exception_id: int):
         detail.vee_exception.exception_code in ESTIMATION_ALLOWED_EXCEPTION_CODES
         and correction_policy.estimation_policy != CORRECTION_POLICY_BLOCKED
     )
+    synthetic_estimation_precheck = get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=detail.vee_exception,
+        initial_row=detail.initial_measurement,
+    )
     manual_edit_available = (
         detail.vee_exception.exception_code in MANUAL_EDIT_ALLOWED_EXCEPTION_CODES
         and correction_policy.manual_edit_policy != CORRECTION_POLICY_BLOCKED
@@ -730,6 +742,7 @@ def vee_exception_detail(vee_exception_id: int):
         manual_edit_summary=_pop_manual_edit_summary(vee_exception_id),
         correction_policy=correction_policy,
         estimation_available=estimation_available,
+        synthetic_estimation_precheck=synthetic_estimation_precheck,
         manual_edit_available=manual_edit_available,
         estimation_strategies=sorted(SUPPORTED_ESTIMATION_STRATEGIES),
         estimation_supported_exception_codes=ESTIMATION_ALLOWED_EXCEPTION_CODES,
@@ -810,6 +823,32 @@ def estimate_vee_exception_view(vee_exception_id: int):
             flash(translate("vee_exception.flash.estimation_blocked"), "warning")
         else:
             flash(translate("vee_exception.flash.estimation_failed"), "danger")
+    except EstimationActionError as exc:
+        session.rollback()
+        flash(translate_estimation_error(exc.error_code, exc.fallback_message), "danger")
+
+    return redirect(_safe_next_url(_vee_exception_redirect(vee_exception_id)))
+
+
+@bp.post("/vee-exceptions/<int:vee_exception_id>/estimate-synthetic-missing-interval")
+def estimate_synthetic_missing_interval_vee_exception_view(vee_exception_id: int):
+    session = get_session()
+    try:
+        summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+            session,
+            vee_exception_id,
+            strategy_code=request.form.get("strategy_code") or "",
+            estimated_by="operator_ui",
+            operator_memo=request.form.get("operator_memo"),
+        )
+        session.commit()
+        _store_estimation_summary(summary)
+        if summary.estimation_status == "applied":
+            flash(translate("vee_exception.flash.synthetic_estimated"), "success")
+        elif summary.estimation_status == "blocked":
+            flash(translate("vee_exception.flash.synthetic_estimation_blocked"), "warning")
+        else:
+            flash(translate("vee_exception.flash.synthetic_estimation_failed"), "danger")
     except EstimationActionError as exc:
         session.rollback()
         flash(translate_estimation_error(exc.error_code, exc.fallback_message), "danger")
