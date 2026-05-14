@@ -36,6 +36,123 @@ class TimestampMixin:
     )
 
 
+class UserAccount(TimestampMixin, Base):
+    __tablename__ = "user_account"
+    __table_args__ = (
+        CheckConstraint(
+            "role_code in ('admin', 'operator')",
+            name="ck_user_account_role_code",
+        ),
+        Index("ix_user_account_role_code", "role_code"),
+        Index("ix_user_account_is_active", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    login_id: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    role_code: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    auth_session_audits: Mapped[list["AuthSessionAudit"]] = relationship(
+        back_populates="user_account"
+    )
+    user_action_audits: Mapped[list["UserActionAudit"]] = relationship(
+        back_populates="user_account"
+    )
+
+
+class AuthSessionAudit(Base):
+    __tablename__ = "auth_session_audit"
+    __table_args__ = (
+        CheckConstraint(
+            "auth_event_type in "
+            "('login_succeeded', 'login_failed', 'logout', 'session_expired')",
+            name="ck_auth_session_audit_auth_event_type",
+        ),
+        CheckConstraint(
+            "auth_channel in ('web_session', 'api_session', 'api_token')",
+            name="ck_auth_session_audit_auth_channel",
+        ),
+        Index("ix_auth_session_audit_user_account_id", "user_account_id"),
+        Index("ix_auth_session_audit_login_id_attempted", "login_id_attempted"),
+        Index("ix_auth_session_audit_auth_event_type", "auth_event_type"),
+        Index("ix_auth_session_audit_session_identifier", "session_identifier"),
+        Index("ix_auth_session_audit_occurred_at", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_account_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
+    login_id_attempted: Mapped[str | None] = mapped_column(String(120))
+    auth_event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    session_identifier: Mapped[str | None] = mapped_column(String(120))
+    auth_channel: Mapped[str] = mapped_column(String(30), nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    result_code: Mapped[str | None] = mapped_column(String(80))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="auth_session_audits"
+    )
+    user_action_audits: Mapped[list["UserActionAudit"]] = relationship(
+        back_populates="auth_session_audit"
+    )
+
+
+class UserActionAudit(Base):
+    __tablename__ = "user_action_audit"
+    __table_args__ = (
+        CheckConstraint(
+            "action_type in "
+            "('read', 'create', 'update', 'delete', 'execute', 'login', 'logout')",
+            name="ck_user_action_audit_action_type",
+        ),
+        Index("ix_user_action_audit_user_account_id", "user_account_id"),
+        Index("ix_user_action_audit_auth_session_audit_id", "auth_session_audit_id"),
+        Index("ix_user_action_audit_action_type", "action_type"),
+        Index("ix_user_action_audit_resource_type", "resource_type"),
+        Index("ix_user_action_audit_request_path", "request_path"),
+        Index("ix_user_action_audit_outcome_code", "outcome_code"),
+        Index("ix_user_action_audit_occurred_at", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_account_id: Mapped[int] = mapped_column(
+        ForeignKey("user_account.id"),
+        nullable=False,
+    )
+    auth_session_audit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_session_audit.id")
+    )
+    action_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(String(120))
+    request_method: Mapped[str | None] = mapped_column(String(16))
+    request_path: Mapped[str | None] = mapped_column(String(255))
+    status_code: Mapped[int | None] = mapped_column(Integer)
+    outcome_code: Mapped[str] = mapped_column(String(60), nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    user_account: Mapped["UserAccount"] = relationship(back_populates="user_action_audits")
+    auth_session_audit: Mapped["AuthSessionAudit | None"] = relationship(
+        back_populates="user_action_audits"
+    )
+
+
 class HesSystem(TimestampMixin, Base):
     __tablename__ = "hes_system"
 

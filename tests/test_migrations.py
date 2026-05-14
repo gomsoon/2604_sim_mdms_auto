@@ -64,6 +64,9 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "bill_charge" in tables
         assert "billing_export_request" in tables
         assert "billing_export_item" in tables
+        assert "user_account" in tables
+        assert "auth_session_audit" in tables
+        assert "user_action_audit" in tables
         assert "service_point_billing_context" in tables
         assert "service_point_tariff_assignment" in tables
         assert "adapter_definition" in tables
@@ -182,6 +185,29 @@ def test_alembic_upgrade_creates_expected_tables():
         billing_export_item_column_defs = {
             column["name"]: column
             for column in inspector.get_columns("billing_export_item", schema=schema_name)
+        }
+        user_account_columns = {
+            column["name"] for column in inspector.get_columns("user_account", schema=schema_name)
+        }
+        user_account_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("user_account", schema=schema_name)
+        }
+        auth_session_audit_columns = {
+            column["name"]
+            for column in inspector.get_columns("auth_session_audit", schema=schema_name)
+        }
+        auth_session_audit_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("auth_session_audit", schema=schema_name)
+        }
+        user_action_audit_columns = {
+            column["name"]
+            for column in inspector.get_columns("user_action_audit", schema=schema_name)
+        }
+        user_action_audit_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("user_action_audit", schema=schema_name)
         }
         billing_context_columns = {
             column["name"]
@@ -394,6 +420,52 @@ def test_alembic_upgrade_creates_expected_tables():
         assert billing_export_item_column_defs["billing_period_end_at"]["nullable"] is False
         assert billing_export_item_column_defs["summary_status"]["nullable"] is False
         assert billing_export_item_column_defs["status"]["nullable"] is False
+        assert "login_id" in user_account_columns
+        assert "password_hash" in user_account_columns
+        assert "display_name" in user_account_columns
+        assert "role_code" in user_account_columns
+        assert "is_active" in user_account_columns
+        assert "last_login_at" in user_account_columns
+        assert "password_changed_at" in user_account_columns
+        assert "details" in user_account_columns
+        assert user_account_column_defs["login_id"]["nullable"] is False
+        assert user_account_column_defs["password_hash"]["nullable"] is False
+        assert user_account_column_defs["display_name"]["nullable"] is False
+        assert user_account_column_defs["role_code"]["nullable"] is False
+        assert user_account_column_defs["is_active"]["nullable"] is False
+        assert "user_account_id" in auth_session_audit_columns
+        assert "login_id_attempted" in auth_session_audit_columns
+        assert "auth_event_type" in auth_session_audit_columns
+        assert "session_identifier" in auth_session_audit_columns
+        assert "auth_channel" in auth_session_audit_columns
+        assert "ip_address" in auth_session_audit_columns
+        assert "user_agent" in auth_session_audit_columns
+        assert "result_code" in auth_session_audit_columns
+        assert "details" in auth_session_audit_columns
+        assert "occurred_at" in auth_session_audit_columns
+        assert auth_session_audit_column_defs["auth_event_type"]["nullable"] is False
+        assert auth_session_audit_column_defs["auth_channel"]["nullable"] is False
+        assert auth_session_audit_column_defs["details"]["nullable"] is False
+        assert auth_session_audit_column_defs["occurred_at"]["nullable"] is False
+        assert "user_account_id" in user_action_audit_columns
+        assert "auth_session_audit_id" in user_action_audit_columns
+        assert "action_type" in user_action_audit_columns
+        assert "resource_type" in user_action_audit_columns
+        assert "resource_id" in user_action_audit_columns
+        assert "request_method" in user_action_audit_columns
+        assert "request_path" in user_action_audit_columns
+        assert "status_code" in user_action_audit_columns
+        assert "outcome_code" in user_action_audit_columns
+        assert "ip_address" in user_action_audit_columns
+        assert "user_agent" in user_action_audit_columns
+        assert "details" in user_action_audit_columns
+        assert "occurred_at" in user_action_audit_columns
+        assert user_action_audit_column_defs["user_account_id"]["nullable"] is False
+        assert user_action_audit_column_defs["action_type"]["nullable"] is False
+        assert user_action_audit_column_defs["resource_type"]["nullable"] is False
+        assert user_action_audit_column_defs["outcome_code"]["nullable"] is False
+        assert user_action_audit_column_defs["details"]["nullable"] is False
+        assert user_action_audit_column_defs["occurred_at"]["nullable"] is False
         assert "service_point_id" in billing_context_columns
         assert "timezone_name" in billing_context_columns
         assert "billing_cycle_mode" in billing_context_columns
