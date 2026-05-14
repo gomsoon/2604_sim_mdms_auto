@@ -49,6 +49,15 @@ from app.services.adapters import (
     queue_adapter_run_once,
     update_adapter_admin_state,
 )
+from app.services.auth import (
+    AuthenticationResult,
+    admin_required,
+    get_current_user,
+    login_user_account,
+    logout_current_user,
+    authenticate_user,
+    record_failed_login,
+)
 from app.services.billing_contexts import create_billing_context, update_billing_context
 from app.services.billing_export_requests import (
     BillingExportRequestError,
@@ -170,6 +179,56 @@ from app.services.visibility import (
 bp = Blueprint("web", __name__)
 
 
+@bp.route("/login", methods=["GET", "POST"])
+def login():
+    if get_current_user() is not None:
+        return redirect(url_for("web.dashboard", lang=get_locale()))
+
+    next_url = request.values.get("next") or url_for("web.dashboard", lang=get_locale())
+
+    if request.method == "POST":
+        login_id = request.form.get("login_id", "").strip()
+        password = request.form.get("password", "")
+        session = get_session()
+        auth_result: AuthenticationResult = authenticate_user(
+            session,
+            login_id=login_id,
+            password=password,
+        )
+        if auth_result.user_account is None:
+            record_failed_login(login_id, auth_result.error_code or "invalid_credentials")
+            flash(translate(f"auth.errors.{auth_result.error_code or 'invalid_credentials'}"), "danger")
+            return render_template("login.html", next_url=next_url, login_id=login_id), 401
+
+        if auth_result.error_code is not None:
+            record_failed_login(
+                login_id,
+                auth_result.error_code,
+                user_account_id=auth_result.user_account.id,
+            )
+            flash(translate(f"auth.errors.{auth_result.error_code}"), "danger")
+            return render_template("login.html", next_url=next_url, login_id=login_id), 403
+
+        try:
+            login_user_account(auth_result.user_account)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+        flash(translate("auth.flash.login_succeeded"), "success")
+        return redirect(_safe_next_url(url_for("web.dashboard", lang=get_locale())))
+
+    return render_template("login.html", next_url=next_url, login_id="")
+
+
+@bp.post("/logout")
+def logout():
+    logout_current_user()
+    flash(translate("auth.flash.logout_succeeded"), "success")
+    return redirect(url_for("web.login", lang=get_locale()))
+
+
 @bp.get("/")
 def dashboard():
     session = get_session()
@@ -255,7 +314,7 @@ def _exception_redirect(exception_id: int) -> str:
 
 
 def _safe_next_url(default_url: str) -> str:
-    next_url = request.form.get("next")
+    next_url = request.form.get("next") or request.args.get("next")
     if next_url and next_url.startswith("/"):
         return next_url
     return default_url
@@ -589,6 +648,7 @@ def billing_export_request_detail(request_id: int):
 
 
 @bp.post("/billing-export-requests/<int:request_id>/cancel")
+@admin_required
 def cancel_billing_export_request_view(request_id: int):
     session = get_session()
     try:
@@ -1220,6 +1280,7 @@ def hes_systems():
 
 
 @bp.post("/hes-systems")
+@admin_required
 def create_hes_system_view():
     session = get_session()
     form_data = _hes_system_form_values()
@@ -1291,6 +1352,7 @@ def hes_meter_references(hes_system_id: int):
 
 
 @bp.post("/hes-systems/<int:hes_system_id>")
+@admin_required
 def update_hes_system_view(hes_system_id: int):
     session = get_session()
     hes_system = session.get(HesSystem, hes_system_id)
@@ -1356,6 +1418,7 @@ def new_adapter(hes_system_id: int | None = None):
 
 
 @bp.post("/adapters")
+@admin_required
 def create_adapter_view():
     session = get_session()
     definitions = list_active_adapter_definitions(session)
@@ -1400,6 +1463,7 @@ def adapter_detail(adapter_instance_id: int):
 
 
 @bp.post("/adapters/<int:adapter_instance_id>/enable")
+@admin_required
 def enable_adapter_view(adapter_instance_id: int):
     session = get_session()
     instance = session.get(AdapterInstance, adapter_instance_id)
@@ -1418,6 +1482,7 @@ def enable_adapter_view(adapter_instance_id: int):
 
 
 @bp.post("/adapters/<int:adapter_instance_id>/pause")
+@admin_required
 def pause_adapter_view(adapter_instance_id: int):
     session = get_session()
     instance = session.get(AdapterInstance, adapter_instance_id)
@@ -1436,6 +1501,7 @@ def pause_adapter_view(adapter_instance_id: int):
 
 
 @bp.post("/adapters/<int:adapter_instance_id>/run-once")
+@admin_required
 def run_adapter_once_view(adapter_instance_id: int):
     session = get_session()
     instance = session.get(AdapterInstance, adapter_instance_id)
@@ -1551,6 +1617,7 @@ def _flash_installation_error(exc: InstallationValidationError) -> None:
 
 
 @bp.post("/master-data/service-points")
+@admin_required
 def create_service_point_view():
     session = get_session()
     try:
@@ -1572,6 +1639,7 @@ def create_service_point_view():
 
 
 @bp.post("/master-data/service-points/<int:service_point_id>")
+@admin_required
 def update_service_point_view(service_point_id: int):
     session = get_session()
     service_point = session.get(ServicePoint, service_point_id)
@@ -1604,6 +1672,7 @@ def update_service_point_view(service_point_id: int):
 
 
 @bp.post("/master-data/devices")
+@admin_required
 def create_device_view():
     session = get_session()
     try:
@@ -1626,6 +1695,7 @@ def create_device_view():
 
 
 @bp.post("/master-data/devices/<int:device_id>")
+@admin_required
 def update_device_view(device_id: int):
     session = get_session()
     device = session.get(Device, device_id)
@@ -1657,6 +1727,7 @@ def update_device_view(device_id: int):
 
 
 @bp.post("/master-data/components")
+@admin_required
 def create_component_view():
     session = get_session()
     try:
@@ -1681,6 +1752,7 @@ def create_component_view():
 
 
 @bp.post("/master-data/components/<int:component_id>")
+@admin_required
 def update_component_view(component_id: int):
     session = get_session()
     component = session.get(MeasuringComponent, component_id)
@@ -1716,6 +1788,7 @@ def update_component_view(component_id: int):
 
 
 @bp.post("/master-data/installations")
+@admin_required
 def create_installation_view():
     session = get_session()
     try:
@@ -1740,6 +1813,7 @@ def create_installation_view():
 
 
 @bp.post("/master-data/installations/<int:installation_id>")
+@admin_required
 def update_installation_view(installation_id: int):
     session = get_session()
     installation = session.get(InstallationHistory, installation_id)
@@ -1775,6 +1849,7 @@ def update_installation_view(installation_id: int):
 
 
 @bp.post("/master-data/billing-contexts")
+@admin_required
 def create_billing_context_view():
     session = get_session()
     try:
@@ -1800,6 +1875,7 @@ def create_billing_context_view():
 
 
 @bp.post("/master-data/billing-contexts/<int:billing_context_id>")
+@admin_required
 def update_billing_context_view(billing_context_id: int):
     session = get_session()
     billing_context = session.get(ServicePointBillingContext, billing_context_id)
@@ -1836,6 +1912,7 @@ def update_billing_context_view(billing_context_id: int):
 
 
 @bp.post("/master-data/tariff-assignments")
+@admin_required
 def create_tariff_assignment_view():
     session = get_session()
     try:
@@ -1859,6 +1936,7 @@ def create_tariff_assignment_view():
 
 
 @bp.post("/master-data/tariff-assignments/<int:tariff_assignment_id>")
+@admin_required
 def update_tariff_assignment_view(tariff_assignment_id: int):
     session = get_session()
     tariff_assignment = session.get(ServicePointTariffAssignment, tariff_assignment_id)

@@ -21,6 +21,7 @@
         </button>
         <div id="mainNav" class="collapse navbar-collapse">
           <ul class="navbar-nav ms-auto gap-lg-2">
+            {% if current_user %}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.dashboard') }}">{{ t("nav.dashboard") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.ingest_batches') }}">{{ t("nav.ingest_batches") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.raw_reads') }}">{{ t("nav.raw_reads") }}</a></li>
@@ -40,6 +41,7 @@
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.vee_replay_requests') }}">{{ t("nav.vee_replay_requests") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.operational_events') }}">{{ t("nav.operational_events") }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('web.master_data') }}">{{ t("nav.master_data") }}</a></li>
+            {% endif %}
             <li class="nav-item d-flex align-items-center ms-lg-2">
               <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('nav.language') }}">
                 {% for locale_code in supported_locales %}
@@ -52,6 +54,24 @@
                 {% endfor %}
               </div>
             </li>
+            {% if current_user %}
+            <li class="nav-item d-flex align-items-center ms-lg-2">
+              <span class="navbar-text small text-muted">
+                {{ t("nav.signed_in_as") }}:
+                <strong>{{ current_user.display_name }}</strong>
+                <span class="badge text-bg-secondary">{{ t("role." ~ current_user.role_code) }}</span>
+              </span>
+            </li>
+            <li class="nav-item d-flex align-items-center">
+              <form method="post" action="{{ url_for('web.logout', lang=current_locale) }}" class="mb-0">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">{{ t("nav.logout") }}</button>
+              </form>
+            </li>
+            {% else %}
+            <li class="nav-item d-flex align-items-center">
+              <a class="btn btn-outline-primary btn-sm" href="{{ url_for('web.login', lang=current_locale) }}">{{ t("nav.login") }}</a>
+            </li>
+            {% endif %}
           </ul>
         </div>
       </div>

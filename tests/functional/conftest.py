@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 import threading
@@ -13,6 +14,7 @@ from werkzeug.serving import make_server
 from app import create_app
 from app.db import get_session
 from app.migrations import upgrade_db
+from app.services.auth import create_user_account
 from app.services.seeds import seed_demo_environment
 TESTS_DIR = Path(__file__).resolve().parent.parent
 if str(TESTS_DIR) not in sys.path:
@@ -59,6 +61,13 @@ def functional_app():
     session = get_session()
     try:
         seed_demo_environment(session)
+        create_user_account(
+            session,
+            login_id="functional-admin",
+            display_name="Functional Admin",
+            role_code="admin",
+            password="functional-password",
+        )
         session.commit()
     except Exception:
         session.rollback()
@@ -111,6 +120,11 @@ def browser() -> Browser:
 def page(browser: Browser, live_server: str) -> Page:
     context = browser.new_context(base_url=live_server, locale="en-US")
     page = context.new_page()
+    page.goto("/login?lang=en", wait_until="networkidle")
+    page.get_by_label("Login ID").fill("functional-admin")
+    page.get_by_label("Password").fill("functional-password")
+    page.get_by_role("button", name="Sign In").click()
+    page.wait_for_url(re.compile(r".*/(?:\?lang=en)?$"))
     try:
         yield page
     finally:

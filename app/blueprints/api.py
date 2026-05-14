@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.db import check_database_connection, get_session
 from app.i18n import get_locale, translate, translate_visibility_error
 from app.models import HesEventRaw, HesReadRaw, ServicePoint
+from app.services.auth import admin_required
 from app.services.exception_queue import (
     build_exception_filters,
     get_exception_batch_id,
@@ -993,6 +994,7 @@ def get_billing_export_request_detail_endpoint(request_id: int):
 
 
 @bp.post("/billing-export-requests/<int:request_id>/cancel")
+@admin_required
 def cancel_billing_export_request_endpoint(request_id: int):
     payload = request.get_json(silent=True)
     if request.content_length not in {None, 0} and payload is None:
@@ -1029,6 +1031,7 @@ def cancel_billing_export_request_endpoint(request_id: int):
 
 
 @bp.post("/billing-export-requests/<int:request_id>/rerun")
+@admin_required
 def rerun_billing_export_request_endpoint(request_id: int):
     payload = request.get_json(silent=True)
     if request.content_length not in {None, 0} and payload is None:
@@ -1071,6 +1074,7 @@ def rerun_billing_export_request_endpoint(request_id: int):
 
 
 @bp.post("/billing-export-requests/<int:request_id>/recreate")
+@admin_required
 def recreate_billing_export_request_endpoint(request_id: int):
     payload = request.get_json(silent=True)
     if request.content_length not in {None, 0} and payload is None:

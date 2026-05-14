@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="row justify-content-center">
+  <div class="col-lg-5 col-xl-4">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-3">{{ t("page.login.title") }}</h1>
+        <p class="text-muted mb-4">{{ t("page.login.description") }}</p>
+        <form method="post" action="{{ url_for('web.login', lang=current_locale) }}">
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <div class="mb-3">
+            <label for="login_id" class="form-label">{{ t("field.login_id") }}</label>
+            <input
+              id="login_id"
+              name="login_id"
+              type="text"
+              class="form-control"
+              value="{{ login_id }}"
+              autocomplete="username"
+              required
+            >
+          </div>
+          <div class="mb-4">
+            <label for="password" class="form-label">{{ t("field.password") }}</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              class="form-control"
+              autocomplete="current-password"
+              required
+            >
+          </div>
+          <button type="submit" class="btn btn-primary w-100">{{ t("button.login") }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

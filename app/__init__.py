@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import timedelta
 
 import click
 from flask import Flask
 
 from app.blueprints.api import bp as api_bp
 from app.blueprints.web import bp as web_bp
-from app.config import Config, get_database_url, get_secret_key
+from app.config import (
+    Config,
+    get_database_url,
+    get_secret_key,
+    get_session_cookie_secure,
+    get_session_timeout_hours,
+)
 from app.db import get_session, init_app as init_db
 from app.i18n import register_i18n
 from app.migrations import upgrade_db
 from app.services.adapter_execution import process_waiting_adapter_runs
 from app.services.adapters import enqueue_scheduled_adapter_runs, sync_adapter_health_alerts
+from app.services.auth import AuthValidationError, create_user_account, init_auth
 from app.services.billing_export_processor import process_queued_billing_export_requests
 from app.services.finalization import finalize_canonical_measurements
 from app.services.hes_meter_reference_sync import sync_hes_meter_references
@@ -26,12 +34,17 @@ def create_app() -> Flask:
         APP_TITLE=Config.APP_TITLE,
         SECRET_KEY=get_secret_key(),
         DATABASE_URL=get_database_url(),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=get_session_cookie_secure(),
+        PERMANENT_SESSION_LIFETIME=timedelta(hours=get_session_timeout_hours()),
     )
 
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
 
     init_db(app)
     register_i18n(app)
+    init_auth(app)
     app.register_blueprint(web_bp)
     app.register_blueprint(api_bp, url_prefix="/api/v1")
 
@@ -62,6 +75,41 @@ def register_commands(app: Flask) -> None:
             f"master_data_created={summary['master_data_created']}, "
             f"raw_reads={summary['read_summary']['raw_reads_received']}, "
             f"raw_events={summary['event_summary']['raw_events_received']}"
+        )
+
+    @app.cli.command("create-user")
+    @click.option("--login-id", prompt=True)
+    @click.option("--display-name", prompt=True)
+    @click.option("--role-code", prompt=True, type=click.Choice(["admin", "operator"]))
+    @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True)
+    def create_user_command(
+        login_id: str,
+        display_name: str,
+        role_code: str,
+        password: str,
+    ) -> None:
+        session = get_session()
+        try:
+            user_account = create_user_account(
+                session,
+                login_id=login_id,
+                display_name=display_name,
+                role_code=role_code,
+                password=password,
+            )
+            session.commit()
+        except AuthValidationError as exc:
+            session.rollback()
+            raise click.ClickException(exc.fallback_message) from exc
+        except Exception:
+            session.rollback()
+            raise
+
+        click.echo(
+            "User created: "
+            f"id={user_account.id}, "
+            f"login_id={user_account.login_id}, "
+            f"role_code={user_account.role_code}"
         )
 
     @app.cli.command("promote-final")
