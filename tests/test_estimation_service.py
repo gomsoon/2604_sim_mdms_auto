@@ -10,8 +10,10 @@ from app.models import (
     BillDeterminant,
     EstimationAudit,
     FinalMeasurement,
+    HesReadRaw,
     HesSystem,
     InitialMeasurement,
+    RawIntervalWindowState,
     ServicePoint,
     VeeException,
 )
@@ -29,6 +31,7 @@ from app.services.estimation import (
     ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
     ESTIMATION_QUALITY_CODE,
     apply_estimation_from_vee_exception,
+    apply_synthetic_missing_interval_estimation_from_vee_exception,
 )
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_events, ingest_reads
@@ -223,6 +226,201 @@ def _open_required_field_exception(session, *, initial_measurement_id: int) -> V
     assert vee_exception is not None
     assert vee_exception.exception_code == "vee_required_field_missing"
     return vee_exception
+
+
+def _open_missing_interval_exception(session, *, initial_measurement_id: int) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_missing_interval_detected"
+    return vee_exception
+
+
+def _prepare_single_slot_missing_interval_environment(
+    session,
+    *,
+    include_missing_slot_measurement: bool = False,
+    multi_missing_window: bool = False,
+    with_outage: bool = False,
+) -> tuple[int, int, int]:
+    seed_demo_environment(session)
+    hes_system_id = session.scalar(select(HesSystem.id).limit(1))
+    service_point_id = session.scalar(select(ServicePoint.id).limit(1))
+    assert hes_system_id is not None
+    assert service_point_id is not None
+
+    window_start = "2026-04-19T00:00:00+09:00"
+    reads: list[dict[str, object]] = [
+        {
+            "meter_id": "MTR-1001",
+            "channel_id": "CH-01",
+            "measured_at": "2026-04-19T00:00:00+09:00",
+            "value": 10.0,
+            "quality_code": "OK",
+            "status_code": "ACTUAL",
+            "unit": "kWh",
+            "interval_size_minutes": 15,
+            "source_business_ts": window_start,
+            "source_slot_code": "00",
+        },
+        {
+            "meter_id": "MTR-1001",
+            "channel_id": "CH-01",
+            "measured_at": "2026-04-19T00:15:00+09:00",
+            "value": 20.0,
+            "quality_code": "OK",
+            "status_code": "ACTUAL",
+            "unit": "kWh",
+            "interval_size_minutes": 15,
+            "source_business_ts": window_start,
+            "source_slot_code": "15",
+        },
+    ]
+    if not multi_missing_window:
+        reads.append(
+            {
+                "meter_id": "MTR-1001",
+                "channel_id": "CH-01",
+                "measured_at": "2026-04-19T00:45:00+09:00",
+                "value": 40.0,
+                "quality_code": "OK",
+                "status_code": "ACTUAL",
+                "unit": "kWh",
+                "interval_size_minutes": 15,
+                "source_business_ts": window_start,
+                "source_slot_code": "45",
+            }
+        )
+    if include_missing_slot_measurement:
+        reads.append(
+            {
+                "meter_id": "MTR-1001",
+                "channel_id": "CH-01",
+                "measured_at": "2026-04-19T00:30:00+09:00",
+                "value": 30.0,
+                "quality_code": "OK",
+                "status_code": "ACTUAL",
+                "unit": "kWh",
+                "interval_size_minutes": 15,
+                "source_business_ts": window_start,
+                "source_slot_code": "30",
+            }
+        )
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "synthetic-missing-read-batch",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": reads,
+        },
+        hes_system_id=hes_system_id,
+    )
+    session.commit()
+
+    anchor_initial = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.measured_at == datetime.fromisoformat("2026-04-19T00:15:00+09:00"))
+        .limit(1)
+    )
+    assert anchor_initial is not None
+    anchor_raw = anchor_initial.canonical_measurement.hes_read_raw
+    assert anchor_raw is not None
+
+    if with_outage:
+        ingest_events(
+            session,
+            {
+                "source_system": "HES",
+                "batch_id": "synthetic-missing-outage-batch",
+                "received_at": "2026-04-19T09:05:00+09:00",
+                "events": [
+                    {
+                        "meter_id": "MTR-1001",
+                        "event_time": "2026-04-19T00:00:00+09:00",
+                        "event_code": "POWER_FAIL",
+                        "severity": "high",
+                    }
+                ],
+            },
+            hes_system_id=hes_system_id,
+        )
+        session.commit()
+
+    received_slot_bitmap = "00,15"
+    received_slot_count = 2
+    if not multi_missing_window:
+        if include_missing_slot_measurement:
+            received_slot_bitmap = "00,15,45"
+            received_slot_count = 3
+        else:
+            received_slot_bitmap = "00,15,45"
+            received_slot_count = 3
+
+    session.add(
+        RawIntervalWindowState(
+            source_system=anchor_raw.source_system,
+            meter_identifier=anchor_raw.meter_identifier,
+            channel_identifier=anchor_raw.channel_identifier,
+            window_start_at=anchor_raw.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=15,
+            expected_slot_count=4,
+            received_slot_count=received_slot_count,
+            received_slot_bitmap=received_slot_bitmap,
+            completion_status="partial",
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.commit()
+
+    finalize_canonical_measurements(session, limit=100)
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    create_tariff_assignment(
+        session,
+        service_point_id=service_point_id,
+        tariff_plan_code="KR_BASIC",
+        tariff_version_code="v1",
+        effective_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        effective_to=None,
+        source_system="test",
+        source_reference="test:synthetic-missing-tariff-assignment",
+    )
+    calculate_bill_determinants(
+        session,
+        determinant_type=BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL,
+        service_point_id=service_point_id,
+    )
+    calculate_bill_charges(
+        session,
+        charge_type=BILL_CHARGE_TYPE_FLAT_ENERGY_CHARGE,
+        unit_rate_value=Decimal("100.00000000"),
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    anchor_exception = _open_missing_interval_exception(
+        session,
+        initial_measurement_id=anchor_initial.id,
+    )
+    return service_point_id, anchor_initial.id, anchor_exception.id
 
 
 def test_apply_previous_value_estimation_supersedes_final_and_recalculates_downstream(session):
@@ -453,3 +651,187 @@ def test_apply_estimation_blocks_when_tamper_policy_requires_manual_review(sessi
         audit_row.details["correction_policy_snapshot"]["policy_reason_code"]
         == "tamper_correlated_value_anomaly"
     )
+
+
+def test_apply_synthetic_missing_interval_linear_interpolation_creates_synthetic_chain(session):
+    service_point_id, anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_initial = session.get(InitialMeasurement, anchor_initial_id)
+    assert anchor_initial is not None
+    measuring_component_id = anchor_initial.measuring_component_id
+    old_determinant = session.scalar(
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == service_point_id)
+        .where(BillDeterminant.measuring_component_id == measuring_component_id)
+        .where(BillDeterminant.is_current.is_(True))
+        .order_by(BillDeterminant.id.desc())
+        .limit(1)
+    )
+    old_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.measuring_component_id == measuring_component_id)
+        .where(BillCharge.is_current.is_(True))
+        .order_by(BillCharge.id.desc())
+        .limit(1)
+    )
+    window_state = session.scalar(select(RawIntervalWindowState).limit(1))
+    assert old_determinant is not None
+    assert old_charge is not None
+    assert window_state is not None
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+        operator_memo="fill missing 00:30",
+    )
+    session.commit()
+
+    synthetic_initial = session.get(InitialMeasurement, summary.initial_measurement_id)
+    synthetic_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == summary.initial_measurement_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    current_determinant = session.scalar(
+        select(BillDeterminant)
+        .where(BillDeterminant.service_point_id == service_point_id)
+        .where(BillDeterminant.measuring_component_id == measuring_component_id)
+        .where(BillDeterminant.is_current.is_(True))
+        .order_by(BillDeterminant.id.desc())
+        .limit(1)
+    )
+    current_charge = session.scalar(
+        select(BillCharge)
+        .where(BillCharge.service_point_id == service_point_id)
+        .where(BillCharge.measuring_component_id == measuring_component_id)
+        .where(BillCharge.is_current.is_(True))
+        .order_by(BillCharge.id.desc())
+        .limit(1)
+    )
+    refreshed_window_state = session.get(RawIntervalWindowState, window_state.id)
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert synthetic_initial is not None
+    assert synthetic_final is not None
+    synthetic_raw = synthetic_initial.canonical_measurement.hes_read_raw
+    assert synthetic_raw is not None
+    assert current_determinant is not None
+    assert current_charge is not None
+    assert refreshed_window_state is not None
+    assert anchor_exception is not None
+    assert audit_row is not None
+    assert summary.estimation_status == "applied"
+    assert summary.estimated_value == Decimal("30.0000")
+    assert summary.final_created is True
+    assert synthetic_initial.value == Decimal("30.0000")
+    assert synthetic_initial.quality_code == ESTIMATION_QUALITY_CODE
+    assert synthetic_final.value == Decimal("30.0000")
+    assert synthetic_raw.payload["origin"] == "synthetic_missing_interval_estimation"
+    assert refreshed_window_state.completion_status == "complete"
+    assert refreshed_window_state.received_slot_count == 4
+    assert refreshed_window_state.received_slot_bitmap == "00,15,30,45"
+    assert anchor_exception.exception_status == "resolved"
+    assert anchor_exception.resolution_type == "estimated"
+    assert summary.bill_determinant_groups == 1
+    assert summary.bill_charge_groups == 1
+    assert summary.daily_usage_groups_updated == 1
+    assert len(summary.usage_recalculation_results) >= 1
+    assert audit_row.estimation_mode == "synthetic_missing_interval"
+    assert audit_row.anchor_vee_exception_id == anchor_exception_id
+    assert audit_row.raw_interval_window_state_id == window_state.id
+    assert audit_row.result_final_measurement_id == synthetic_final.id
+    assert audit_row.details["window_context"]["missing_slot_code"] == "30"
+    assert audit_row.details["synthetic_initial_measurement_snapshot"]["initial_measurement_id"] == synthetic_initial.id
+
+
+def test_apply_synthetic_missing_interval_blocks_for_multi_slot_window(session):
+    _service_point_id, anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(
+            session,
+            multi_missing_window=True,
+        )
+    )
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    anchor_initial = session.get(InitialMeasurement, anchor_initial_id)
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    synthetic_row = session.scalar(
+        select(HesReadRaw)
+        .where(HesReadRaw.measured_at == datetime.fromisoformat("2026-04-19T00:30:00+09:00"))
+        .limit(1)
+    )
+
+    assert anchor_initial is not None
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_missing_interval_multi_slot_window"
+    assert audit_row.estimation_status == "blocked"
+    assert synthetic_row is None
+
+
+def test_apply_synthetic_missing_interval_blocks_for_outage_correlated_window(session):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(
+            session,
+            with_outage=True,
+        )
+    )
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert (
+        summary.result_code
+        == "blocked_event_policy_outage_correlated_missing_interval"
+    )
+    assert audit_row.estimation_status == "blocked"
+    assert (
+        audit_row.details["correction_policy_snapshot"]["policy_reason_code"]
+        == "outage_correlated_missing_interval"
+    )
+
+
+def test_apply_synthetic_missing_interval_blocks_when_measurement_already_exists(session):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(
+            session,
+            include_missing_slot_measurement=True,
+        )
+    )
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_missing_interval_existing_measurement_present"
+    assert audit_row.estimation_status == "blocked"
