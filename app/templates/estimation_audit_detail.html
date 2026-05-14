@@ -2,7 +2,9 @@
 
 {% block content %}
 {% set audit_details = detail.estimation_audit.details or {} %}
-{% set exception_snapshot = audit_details.get("target_vee_exception_snapshot") %}
+{% set estimation_mode = detail.estimation_audit.estimation_mode or audit_details.get("estimation_mode") %}
+{% set is_synthetic = estimation_mode == "synthetic_missing_interval" %}
+{% set exception_snapshot = audit_details.get("target_vee_exception_snapshot") or audit_details.get("anchor_vee_exception_snapshot") %}
 {% set original_initial_snapshot = audit_details.get("original_initial_measurement_snapshot") %}
 {% set applied_initial_snapshot = audit_details.get("applied_initial_measurement_snapshot") %}
 {% set source_previous_snapshot = audit_details.get("source_previous_final_snapshot") %}
@@ -13,6 +15,13 @@
 {% set usage_results = downstream_summary.get("usage_recalculation_results") or [] %}
 {% set bill_determinant_summary = downstream_summary.get("bill_determinant") %}
 {% set bill_charge_summary = downstream_summary.get("bill_charge") %}
+{% set window_context = audit_details.get("window_context") or {} %}
+{% set window_state_before = audit_details.get("window_state_snapshot_before") %}
+{% set window_state_after = audit_details.get("window_state_snapshot_after") %}
+{% set synthetic_raw_snapshot = audit_details.get("synthetic_hes_read_raw_snapshot") %}
+{% set synthetic_canonical_snapshot = audit_details.get("synthetic_canonical_measurement_snapshot") %}
+{% set synthetic_initial_snapshot = audit_details.get("synthetic_initial_measurement_snapshot") %}
+{% set anchor_exception = detail.anchor_vee_exception or detail.related_vee_exception %}
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
   <div>
     <h1 class="h3 mb-1">{{ t("page.estimation_audit_detail.title") }}</h1>
@@ -48,6 +57,8 @@
           <dd class="col-sm-8">{{ detail.estimation_audit.target_measured_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("field.estimation_strategy") }}</dt>
           <dd class="col-sm-8">{{ t_or("estimation.strategy." ~ detail.estimation_audit.strategy_code, detail.estimation_audit.strategy_code) }}</dd>
+          <dt class="col-sm-4">{{ t("field.estimation_mode") }}</dt>
+          <dd class="col-sm-8">{{ t_or("estimation.mode." ~ estimation_mode, estimation_mode or t("common.none")) }}</dd>
           <dt class="col-sm-4">{{ t("field.estimated_value") }}</dt>
           <dd class="col-sm-8">{{ detail.estimation_audit.estimated_value if detail.estimation_audit.estimated_value is not none else t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.unit_of_measure") }}</dt>
@@ -88,6 +99,23 @@
             {{ t("common.none") }}
             {% endif %}
           </dd>
+          {% if is_synthetic %}
+          <dt class="col-sm-4">{{ t("field.anchor_vee_exception") }}</dt>
+          <dd class="col-sm-8">
+            {% if anchor_exception %}
+            <a
+              class="link-primary text-decoration-none"
+              href="{{ url_for('web.vee_exception_detail', vee_exception_id=anchor_exception.id, lang=current_locale) }}"
+            >
+              {{ anchor_exception.id }}
+            </a>
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.raw_interval_window_state") }}</dt>
+          <dd class="col-sm-8">{{ detail.raw_interval_window_state.id if detail.raw_interval_window_state else detail.estimation_audit.raw_interval_window_state_id or t("common.none") }}</dd>
+          {% endif %}
           <dt class="col-sm-4">{{ t("field.source_previous_final") }}</dt>
           <dd class="col-sm-8">{{ detail.source_previous_final_measurement.id if detail.source_previous_final_measurement else t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.source_next_final") }}</dt>
@@ -149,11 +177,30 @@
   <div class="col-xl-4">
     <div class="card shadow-sm h-100">
       <div class="card-body">
-        <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.applied_snapshot") }}</h2>
+        <h2 class="h5 mb-3">
+          {% if is_synthetic %}
+          {{ t("page.estimation_audit_detail.synthetic_repair_context") }}
+          {% else %}
+          {{ t("page.estimation_audit_detail.applied_snapshot") }}
+          {% endif %}
+        </h2>
+        {% if is_synthetic %}
+        <dl class="row mb-0">
+          <dt class="col-sm-5">{{ t("field.estimation_mode") }}</dt>
+          <dd class="col-sm-7">{{ t_or("estimation.mode." ~ estimation_mode, estimation_mode or t("common.none")) }}</dd>
+          <dt class="col-sm-5">{{ t("field.missing_slot_code") }}</dt>
+          <dd class="col-sm-7">{{ window_context.get("missing_slot_code") or t("common.none") }}</dd>
+          <dt class="col-sm-5">{{ t("field.window_start_at") }}</dt>
+          <dd class="col-sm-7">{{ window_state_before.window_start_at|dt if window_state_before and window_state_before.window_start_at else (detail.raw_interval_window_state.window_start_at|dt if detail.raw_interval_window_state else t("common.none")) }}</dd>
+          <dt class="col-sm-5">{{ t("field.interval_size_minutes") }}</dt>
+          <dd class="col-sm-7">{{ window_state_before.interval_size_minutes if window_state_before and window_state_before.interval_size_minutes is not none else (detail.raw_interval_window_state.interval_size_minutes if detail.raw_interval_window_state else t("common.none")) }}</dd>
+        </dl>
+        {% else %}
         {% if applied_initial_snapshot %}
         <pre class="bg-light border rounded p-3 mb-0"><code>{{ applied_initial_snapshot | tojson(indent=2) }}</code></pre>
         {% else %}
         <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
         {% endif %}
       </div>
     </div>
@@ -173,6 +220,32 @@
       </div>
     </div>
   </div>
+  {% if is_synthetic %}
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.window_state_before") }}</h2>
+        {% if window_state_before %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ window_state_before | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.window_state_after") }}</h2>
+        {% if window_state_after %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ window_state_after | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
   <div class="col-xl-4">
     <div class="card shadow-sm h-100">
       <div class="card-body">
@@ -197,7 +270,49 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
+
+{% if is_synthetic %}
+<div class="row g-4 mb-4">
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.synthetic_raw_snapshot") }}</h2>
+        {% if synthetic_raw_snapshot %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ synthetic_raw_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.synthetic_canonical_snapshot") }}</h2>
+        {% if synthetic_canonical_snapshot %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ synthetic_canonical_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.synthetic_initial_snapshot") }}</h2>
+        {% if synthetic_initial_snapshot %}
+        <pre class="bg-light border rounded p-3 mb-0"><code>{{ synthetic_initial_snapshot | tojson(indent=2) }}</code></pre>
+        {% else %}
+        <div class="text-secondary">{{ t("common.none") }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="row g-4 mb-4">
   <div class="col-xl-12">

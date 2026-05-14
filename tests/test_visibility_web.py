@@ -16,6 +16,7 @@ from app.services.bill_determinants import calculate_bill_determinants
 from app.services.estimation import (
     ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
     apply_estimation_from_vee_exception,
+    apply_synthetic_missing_interval_estimation_from_vee_exception,
 )
 from app.models import (
     BillCharge,
@@ -30,6 +31,7 @@ from app.models import (
     MeasuringComponent,
     OperationalEvent,
     PipelineRun,
+    RawIntervalWindowState,
     ServicePoint,
     UsageTransaction,
     VeeException,
@@ -233,6 +235,143 @@ def _prepare_estimation_audit_rows(session) -> int:
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
         estimated_by="web-tester",
         operator_memo="web-test",
+    )
+    session.commit()
+    return summary.estimation_audit_id
+
+
+def _prepare_synthetic_estimation_audit_rows(session) -> int:
+    seed_demo_environment(session)
+    service_point_id = session.scalar(select(ServicePoint.id).limit(1))
+    assert service_point_id is not None
+
+    window_start = "2026-04-19T00:00:00+09:00"
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "synthetic-estimation-web-read-batch",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:00:00+09:00",
+                    "value": 10.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "00",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:15:00+09:00",
+                    "value": 20.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "15",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:45:00+09:00",
+                    "value": 40.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "45",
+                },
+            ],
+        },
+    )
+    session.commit()
+
+    anchor_initial = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.measured_at == datetime.fromisoformat("2026-04-19T00:15:00+09:00"))
+        .limit(1)
+    )
+    assert anchor_initial is not None
+    anchor_raw = anchor_initial.canonical_measurement.hes_read_raw
+    assert anchor_raw is not None
+
+    session.add(
+        RawIntervalWindowState(
+            source_system=anchor_raw.source_system,
+            meter_identifier=anchor_raw.meter_identifier,
+            channel_identifier=anchor_raw.channel_identifier,
+            window_start_at=anchor_raw.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=15,
+            expected_slot_count=4,
+            received_slot_count=3,
+            received_slot_bitmap="00,15,45",
+            completion_status="partial",
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.commit()
+
+    finalize_canonical_measurements(session, limit=100)
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    create_tariff_assignment(
+        session,
+        service_point_id=service_point_id,
+        tariff_plan_code="KR_BASIC",
+        tariff_version_code="v1",
+        effective_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        effective_to=None,
+        source_system="test",
+        source_reference="test:synthetic-estimation-web",
+    )
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+        service_point_id=service_point_id,
+    )
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="100.00000000",
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    for row in list(anchor_initial.vee_exceptions):
+        session.delete(row)
+    for row in list(anchor_initial.vee_execution_logs):
+        session.delete(row)
+    anchor_initial.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, anchor_initial, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == anchor_initial.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_missing_interval_detected"
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="web-tester",
+        operator_memo="synthetic-web-test",
     )
     session.commit()
     return summary.estimation_audit_id
@@ -1609,6 +1748,30 @@ def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, 
         f"/vee-exceptions/{audit_row.details['target_vee_exception_snapshot']['vee_exception_id']}?lang=ko"
         in text
     )
+
+
+def test_estimation_audit_detail_page_shows_synthetic_repair_context(client, session):
+    estimation_audit_id = _prepare_synthetic_estimation_audit_rows(session)
+    audit_row = session.get(EstimationAudit, estimation_audit_id)
+    assert audit_row is not None
+    assert audit_row.anchor_vee_exception_id is not None
+
+    response = client.get(f"/estimation-audits/{estimation_audit_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "추정 감사 상세" in text
+    assert "synthetic 복구 컨텍스트" in text
+    assert "추정 모드" in text
+    assert "누락 slot" in text
+    assert "window 상태(전)" in text
+    assert "window 상태(후)" in text
+    assert "synthetic raw 스냅샷" in text
+    assert "synthetic initial 스냅샷" in text
+    assert "synthetic missing-interval 복구" in text
+    assert "00:30:00+09:00" in text
+    assert "00,15,30,45" in text
+    assert f"/vee-exceptions/{audit_row.anchor_vee_exception_id}?lang=ko" in text
 
 
 def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(client, session):

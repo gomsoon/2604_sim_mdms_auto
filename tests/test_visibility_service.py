@@ -15,6 +15,7 @@ from app.models import (
     InitialMeasurement,
     MeasuringComponent,
     PipelineRun,
+    RawIntervalWindowState,
     ServicePoint,
     VeeException,
 )
@@ -25,6 +26,7 @@ from app.services.bill_determinants import calculate_bill_determinants
 from app.services.estimation import (
     ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
     apply_estimation_from_vee_exception,
+    apply_synthetic_missing_interval_estimation_from_vee_exception,
 )
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.manual_edits import apply_manual_edit_from_vee_exception
@@ -254,6 +256,143 @@ def _prepare_estimation_visibility(session) -> int:
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
         estimated_by="visibility-tester",
         operator_memo="visibility-test",
+    )
+    session.commit()
+    return summary.estimation_audit_id
+
+
+def _prepare_synthetic_estimation_visibility(session) -> int:
+    seed_demo_environment(session)
+    service_point_id = session.scalar(select(ServicePoint.id).limit(1))
+    assert service_point_id is not None
+
+    window_start = "2026-04-19T00:00:00+09:00"
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "synthetic-estimation-visibility-read-batch",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:00:00+09:00",
+                    "value": 10.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "00",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:15:00+09:00",
+                    "value": 20.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "15",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:45:00+09:00",
+                    "value": 40.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "45",
+                },
+            ],
+        },
+    )
+    session.commit()
+
+    anchor_initial = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.measured_at == datetime.fromisoformat("2026-04-19T00:15:00+09:00"))
+        .limit(1)
+    )
+    assert anchor_initial is not None
+    anchor_raw = anchor_initial.canonical_measurement.hes_read_raw
+    assert anchor_raw is not None
+
+    session.add(
+        RawIntervalWindowState(
+            source_system=anchor_raw.source_system,
+            meter_identifier=anchor_raw.meter_identifier,
+            channel_identifier=anchor_raw.channel_identifier,
+            window_start_at=anchor_raw.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=15,
+            expected_slot_count=4,
+            received_slot_count=3,
+            received_slot_bitmap="00,15,45",
+            completion_status="partial",
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.commit()
+
+    finalize_canonical_measurements(session, limit=100)
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    create_tariff_assignment(
+        session,
+        service_point_id=service_point_id,
+        tariff_plan_code="KR_BASIC",
+        tariff_version_code="v1",
+        effective_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        effective_to=None,
+        source_system="test",
+        source_reference="test:synthetic-estimation-visibility",
+    )
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+        service_point_id=service_point_id,
+    )
+    calculate_bill_charges(
+        session,
+        charge_type="flat_energy_charge",
+        unit_rate_value="100.00000000",
+        service_point_id=service_point_id,
+    )
+    session.commit()
+
+    for row in list(anchor_initial.vee_exceptions):
+        session.delete(row)
+    for row in list(anchor_initial.vee_execution_logs):
+        session.delete(row)
+    anchor_initial.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, anchor_initial, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == anchor_initial.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_missing_interval_detected"
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="visibility-tester",
+        operator_memo="synthetic-visibility-test",
     )
     session.commit()
     return summary.estimation_audit_id
@@ -928,6 +1067,26 @@ def test_get_estimation_audit_detail_context_loads_lineage_and_source_finals(ses
     assert (
         detail.estimation_audit.details["correction_policy_snapshot"]["policy_reason_code"]
         == "no_event_specific_override"
+    )
+
+
+def test_get_estimation_audit_detail_context_loads_synthetic_anchor_and_window_state(session):
+    estimation_audit_id = _prepare_synthetic_estimation_visibility(session)
+
+    detail = get_estimation_audit_detail_context(session, estimation_audit_id)
+
+    assert detail is not None
+    assert detail.estimation_audit.id == estimation_audit_id
+    assert detail.estimation_audit.estimation_mode == "synthetic_missing_interval"
+    assert detail.related_vee_exception is not None
+    assert detail.anchor_vee_exception is not None
+    assert detail.related_vee_exception.id == detail.anchor_vee_exception.id
+    assert detail.raw_interval_window_state is not None
+    assert detail.raw_interval_window_state.completion_status == "complete"
+    assert detail.estimation_audit.details["window_context"]["missing_slot_code"] == "30"
+    assert (
+        detail.estimation_audit.details["synthetic_initial_measurement_snapshot"]["measured_at"]
+        == "2026-04-19T00:30:00+09:00"
     )
 
 

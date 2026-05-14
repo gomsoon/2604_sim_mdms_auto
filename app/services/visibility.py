@@ -26,6 +26,7 @@ from app.models import (
     MeasuringComponent,
     OperationalEvent,
     PipelineRun,
+    RawIntervalWindowState,
     ReprocessRequest,
     ServicePoint,
     ServicePointTariffAssignment,
@@ -293,6 +294,8 @@ class EstimationAuditDetailContext:
     estimation_audit: EstimationAudit
     pipeline_run: PipelineRun | None = None
     related_vee_exception: VeeException | None = None
+    anchor_vee_exception: VeeException | None = None
+    raw_interval_window_state: RawIntervalWindowState | None = None
     target_initial_measurement: InitialMeasurement | None = None
     source_previous_final_measurement: FinalMeasurement | None = None
     source_next_final_measurement: FinalMeasurement | None = None
@@ -1598,6 +1601,8 @@ def get_estimation_audit_detail_context(
             joinedload(EstimationAudit.device),
             joinedload(EstimationAudit.measuring_component),
             joinedload(EstimationAudit.target_initial_measurement),
+            joinedload(EstimationAudit.anchor_vee_exception),
+            joinedload(EstimationAudit.raw_interval_window_state),
             joinedload(EstimationAudit.source_previous_final_measurement),
             joinedload(EstimationAudit.source_next_final_measurement),
             joinedload(EstimationAudit.superseded_final_measurement),
@@ -1608,18 +1613,26 @@ def get_estimation_audit_detail_context(
     if estimation_audit is None:
         return None
 
-    related_vee_exception = None
-    exception_snapshot = (estimation_audit.details or {}).get("target_vee_exception_snapshot") or {}
-    vee_exception_id = exception_snapshot.get("vee_exception_id")
-    if isinstance(vee_exception_id, int):
-        related_vee_exception = session.scalar(
-            select(VeeException).where(VeeException.id == vee_exception_id).limit(1)
+    related_vee_exception = estimation_audit.anchor_vee_exception
+    if related_vee_exception is None:
+        details = estimation_audit.details or {}
+        exception_snapshot = (
+            details.get("target_vee_exception_snapshot")
+            or details.get("anchor_vee_exception_snapshot")
+            or {}
         )
+        vee_exception_id = exception_snapshot.get("vee_exception_id")
+        if isinstance(vee_exception_id, int):
+            related_vee_exception = session.scalar(
+                select(VeeException).where(VeeException.id == vee_exception_id).limit(1)
+            )
 
     return EstimationAuditDetailContext(
         estimation_audit=estimation_audit,
         pipeline_run=estimation_audit.pipeline_run,
         related_vee_exception=related_vee_exception,
+        anchor_vee_exception=estimation_audit.anchor_vee_exception,
+        raw_interval_window_state=estimation_audit.raw_interval_window_state,
         target_initial_measurement=estimation_audit.target_initial_measurement,
         source_previous_final_measurement=estimation_audit.source_previous_final_measurement,
         source_next_final_measurement=estimation_audit.source_next_final_measurement,
