@@ -266,7 +266,10 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "measuring_component_id" in estimation_audit_columns
         assert "device_id" in estimation_audit_columns
         assert "target_initial_measurement_id" in estimation_audit_columns
+        assert "anchor_vee_exception_id" in estimation_audit_columns
+        assert "raw_interval_window_state_id" in estimation_audit_columns
         assert "target_measured_at" in estimation_audit_columns
+        assert "estimation_mode" in estimation_audit_columns
         assert "strategy_code" in estimation_audit_columns
         assert "estimation_status" in estimation_audit_columns
         assert "estimated_value" in estimation_audit_columns
@@ -446,6 +449,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert estimation_audit_column_defs["service_point_id"]["nullable"] is False
         assert estimation_audit_column_defs["target_initial_measurement_id"]["nullable"] is False
         assert estimation_audit_column_defs["target_measured_at"]["nullable"] is False
+        assert estimation_audit_column_defs["estimation_mode"]["nullable"] is False
         assert estimation_audit_column_defs["strategy_code"]["nullable"] is False
         assert estimation_audit_column_defs["estimation_status"]["nullable"] is False
         assert estimation_audit_column_defs["estimated_value"]["type"].precision == 19
@@ -547,6 +551,9 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_estimation_audit_strategy_code" in index_defs
         assert "ix_estimation_audit_service_point_target_measured_at" in index_defs
         assert "ix_estimation_audit_pipeline_run_id" in index_defs
+        assert "ix_estimation_audit_anchor_vee_exception_id" in index_defs
+        assert "ix_estimation_audit_raw_interval_window_state_id" in index_defs
+        assert "ix_estimation_audit_estimation_mode" in index_defs
         assert "ix_manual_edit_audit_target_initial_measurement_id" in index_defs
         assert "ix_manual_edit_audit_related_vee_exception_id" in index_defs
         assert "ix_manual_edit_audit_target_measured_at" in index_defs
@@ -650,6 +657,7 @@ def test_alembic_upgrade_creates_expected_tables():
         estimation_audit_check_names = {row["name"] for row in estimation_audit_checks}
         assert "ck_estimation_audit_strategy_code" in estimation_audit_check_names
         assert "ck_estimation_audit_estimation_status" in estimation_audit_check_names
+        assert "ck_estimation_audit_estimation_mode" in estimation_audit_check_names
         manual_edit_audit_checks = inspector.get_check_constraints(
             "manual_edit_audit", schema=schema_name
         )

@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from sqlalchemy import inspect
 
-from app.models import EstimationAudit, FinalMeasurement, InitialMeasurement, PipelineRun, ServicePoint
+from app.models import (
+    EstimationAudit,
+    FinalMeasurement,
+    InitialMeasurement,
+    PipelineRun,
+    RawIntervalWindowState,
+    ServicePoint,
+    VeeException,
+)
 
 
 def test_estimation_audit_columns_exist():
@@ -13,7 +21,10 @@ def test_estimation_audit_columns_exist():
     assert "measuring_component_id" in mapper.columns
     assert "device_id" in mapper.columns
     assert "target_initial_measurement_id" in mapper.columns
+    assert "anchor_vee_exception_id" in mapper.columns
+    assert "raw_interval_window_state_id" in mapper.columns
     assert "target_measured_at" in mapper.columns
+    assert "estimation_mode" in mapper.columns
     assert "strategy_code" in mapper.columns
     assert "estimation_status" in mapper.columns
     assert "estimated_value" in mapper.columns
@@ -31,9 +42,13 @@ def test_estimation_audit_relationships_exist():
     initial_mapper = inspect(InitialMeasurement)
     final_mapper = inspect(FinalMeasurement)
     pipeline_run_mapper = inspect(PipelineRun)
+    vee_exception_mapper = inspect(VeeException)
+    raw_interval_window_state_mapper = inspect(RawIntervalWindowState)
 
     assert "estimation_audits" in service_point_mapper.relationships
     assert "estimation_audits" in initial_mapper.relationships
+    assert "estimation_audits" in vee_exception_mapper.relationships
+    assert "estimation_audits" in raw_interval_window_state_mapper.relationships
     assert "previous_source_estimation_audits" in final_mapper.relationships
     assert "result_estimation_audits" in final_mapper.relationships
     assert "estimation_audits" in pipeline_run_mapper.relationships

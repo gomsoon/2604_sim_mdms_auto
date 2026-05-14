@@ -65,6 +65,9 @@ Not included in the first slice:
 - event-aware estimation policy
 - advanced estimation strategy catalog
 
+The next planned expansion should treat synthetic missing-interval repair as a
+separate slice with its own explicit raw-window lineage and audit requirements.
+
 ## Key design decision
 
 ### First estimation is substitution-only
@@ -225,6 +228,16 @@ Recommended minimum columns:
 - `details`
 - `created_at`
 - `updated_at`
+
+The next synthetic missing-interval slice should expand this audit table with
+explicit:
+
+- `anchor_vee_exception_id`
+- `raw_interval_window_state_id`
+- `estimation_mode`
+
+so that substitution and synthetic estimation remain traceable from a single
+audit surface.
 
 Important interpretation:
 

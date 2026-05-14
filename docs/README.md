@@ -76,6 +76,7 @@ This directory captures the working engineering baseline for the `Minimal End-to
 68. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
 69. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
 70. [minimal-e2e-plan.md](/home/tprover/2604_sim_mdms_auto/docs/minimal-e2e-plan.md)
+71. [synthetic-missing-interval-estimation-design.md](/home/tprover/2604_sim_mdms_auto/docs/synthetic-missing-interval-estimation-design.md)
 
 ## Intent
 
@@ -118,6 +119,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `bill-charge-baseline-design.md` defines the first charge-ready output layer that should sit on top of `bill_determinant`, including the flat-rate-first scope, required tariff context, and explicit deferrals to later billing-lite or CIS work.
 - `invoice-summary-baseline-design.md` defines the first calculated billing-lite grouping layer above current `bill_charge`, including summary status, export eligibility, and the initial service-facing summary API boundary.
 - `billing-export-queue-design.md` defines the first immutable export-staging layer above calculated `invoice_summary`, including request and item persistence, worker heartbeat visibility, explicit recovery lineage, and explicit deferrals of real downstream delivery.
+- `synthetic-missing-interval-estimation-design.md` defines the next estimation expansion for repairing a single explicitly-identified missing slot while keeping synthetic lineage inside the existing raw, canonical, initial, final, and audit chain.
 - `mvp-gap-review.md` summarizes which MVP backlog areas are already strong, which are only partial, and which next gaps remain after the first VEE closure baseline, the first `service_point` usage API slice, and current downstream billing-lite progress.
 - `backlog-progress-review.md` refreshes backlog-wide progress, importance, impact, and next-step recommendations across minimal, MVP, and later product slices, including the shift from VEE closure into policy-depth review and selective service-facing refinement.
 - `estimation-baseline-design.md` defines the first operator-triggered, substitution-only estimation slice, including estimation audit, final revision behavior, VEE resolution semantics, and downstream recalculation expectations.

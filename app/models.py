@@ -811,6 +811,9 @@ class VeeException(TimestampMixin, Base):
     representative_replay_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
         back_populates="representative_vee_exception"
     )
+    estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="anchor_vee_exception"
+    )
     manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
         back_populates="related_vee_exception"
     )
@@ -1126,6 +1129,10 @@ class EstimationAudit(TimestampMixin, Base):
             "estimation_status in ('applied', 'blocked', 'failed')",
             name="ck_estimation_audit_estimation_status",
         ),
+        CheckConstraint(
+            "estimation_mode in ('substitution', 'synthetic_missing_interval')",
+            name="ck_estimation_audit_estimation_mode",
+        ),
         Index(
             "ix_estimation_audit_target_initial_measurement_id",
             "target_initial_measurement_id",
@@ -1151,6 +1158,18 @@ class EstimationAudit(TimestampMixin, Base):
             "ix_estimation_audit_pipeline_run_id",
             "pipeline_run_id",
         ),
+        Index(
+            "ix_estimation_audit_anchor_vee_exception_id",
+            "anchor_vee_exception_id",
+        ),
+        Index(
+            "ix_estimation_audit_raw_interval_window_state_id",
+            "raw_interval_window_state_id",
+        ),
+        Index(
+            "ix_estimation_audit_estimation_mode",
+            "estimation_mode",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -1163,7 +1182,20 @@ class EstimationAudit(TimestampMixin, Base):
     target_initial_measurement_id: Mapped[int] = mapped_column(
         ForeignKey("initial_measurement.id"), nullable=False
     )
+    anchor_vee_exception_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vee_exception.id"),
+        index=True,
+    )
+    raw_interval_window_state_id: Mapped[int | None] = mapped_column(
+        ForeignKey("raw_interval_window_state.id"),
+        index=True,
+    )
     target_measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    estimation_mode: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+        default="substitution",
+    )
     strategy_code: Mapped[str] = mapped_column(String(40), nullable=False)
     estimation_status: Mapped[str] = mapped_column(String(30), nullable=False)
     estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
@@ -1190,6 +1222,12 @@ class EstimationAudit(TimestampMixin, Base):
     )
     device: Mapped["Device"] = relationship(back_populates="estimation_audits")
     target_initial_measurement: Mapped["InitialMeasurement"] = relationship(
+        back_populates="estimation_audits"
+    )
+    anchor_vee_exception: Mapped["VeeException | None"] = relationship(
+        back_populates="estimation_audits"
+    )
+    raw_interval_window_state: Mapped["RawIntervalWindowState | None"] = relationship(
         back_populates="estimation_audits"
     )
     source_previous_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
@@ -1520,6 +1558,9 @@ class RawIntervalWindowState(TimestampMixin, Base):
         back_populates="raw_interval_window_states"
     )
     last_ingest_batch: Mapped["IngestBatch | None"] = relationship()
+    estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="raw_interval_window_state"
+    )
 
 
 class IngestErrorLog(TimestampMixin, Base):

@@ -121,7 +121,15 @@ This document captures the staged backlog derived from the reference PDF backlog
 - first estimation slice starts with substitution-only operator flow
 - first estimation slice supports only selected VEE exception codes such as
   `vee_negative_value_detected` and `vee_high_value_detected`
-- deferred: synthetic missing-interval estimation
+- next synthetic missing-interval slice should start with:
+  - single-slot repair only
+  - explicit `estimation_audit` lineage to `vee_exception` and
+    `raw_interval_window_state`
+  - synthetic `hes_read_raw -> canonical_measurement -> initial_measurement ->
+    final_measurement` creation rather than an isolated gap-fill table
+- deferred: multi-slot synthetic missing-interval estimation
+- deferred: outage- or tamper-correlated missing-interval repair
+- deferred: arbitrary synthetic interval creation without raw-window-state anchor
 - deferred: estimation for `duplicate_detected`
 - deferred: estimation for `required_field_missing`
 - deferred: estimation for `interval_size_invalid`
@@ -159,10 +167,6 @@ This document captures the staged backlog derived from the reference PDF backlog
 - deferred: preview-and-compare correction workspace
 - first event-aware correction policy slice should reuse outage and tamper
   context to guide or constrain estimation and manual edit actions
-- deferred: dedicated `estimation_audit` visibility baseline with policy snapshot
-  drill-down
-- deferred: correction-policy-focused audit list filters and dashboard spotlight
-- deferred: correction-policy-focused API or export surface for operator follow-up
 - deferred: broader event-aware correction policy
 
 ### V6. Usage calculation

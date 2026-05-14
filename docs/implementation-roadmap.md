@@ -382,6 +382,8 @@ side-effects.
 #### Key tasks
 
 - finish the first operator-triggered estimation path
+- define the next synthetic missing-interval estimation boundary
+- keep synthetic repair anchored to `RawIntervalWindowState` and `estimation_audit`
 - define a narrow manual-edit-and-audit baseline
 - keep both correction paths anchored to `initial_measurement`
 - regenerate current `final_measurement` through revision rather than overwrite
@@ -398,6 +400,7 @@ side-effects.
 #### Related documents
 
 - [estimation-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/estimation-baseline-design.md)
+- [synthetic-missing-interval-estimation-design.md](/home/tprover/2604_sim_mdms_auto/docs/synthetic-missing-interval-estimation-design.md)
 - [manual-edit-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/manual-edit-baseline-design.md)
 - [final-measurement-revision-design.md](/home/tprover/2604_sim_mdms_auto/docs/final-measurement-revision-design.md)
 - [usage-transaction-design.md](/home/tprover/2604_sim_mdms_auto/docs/usage-transaction-design.md)
