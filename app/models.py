@@ -63,6 +63,14 @@ class UserAccount(TimestampMixin, Base):
     user_action_audits: Mapped[list["UserActionAudit"]] = relationship(
         back_populates="user_account"
     )
+    acknowledged_vee_exceptions: Mapped[list["VeeException"]] = relationship(
+        back_populates="acknowledged_by_user_account",
+        foreign_keys="VeeException.acknowledged_by_user_account_id",
+    )
+    resolved_vee_exceptions: Mapped[list["VeeException"]] = relationship(
+        back_populates="resolved_by_user_account",
+        foreign_keys="VeeException.resolved_by_user_account_id",
+    )
 
 
 class AuthSessionAudit(Base):
@@ -916,7 +924,16 @@ class VeeException(TimestampMixin, Base):
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     acknowledged_by: Mapped[str | None] = mapped_column(String(120))
+    acknowledged_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[str | None] = mapped_column(String(120))
+    resolved_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
     resolution_type: Mapped[str | None] = mapped_column(String(40))
     operator_memo: Mapped[str | None] = mapped_column(Text)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
@@ -924,6 +941,14 @@ class VeeException(TimestampMixin, Base):
     initial_measurement: Mapped["InitialMeasurement"] = relationship(back_populates="vee_exceptions")
     vee_execution_log: Mapped["VeeExecutionLog | None"] = relationship(
         back_populates="vee_exceptions"
+    )
+    acknowledged_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="acknowledged_vee_exceptions",
+        foreign_keys=[acknowledged_by_user_account_id],
+    )
+    resolved_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="resolved_vee_exceptions",
+        foreign_keys=[resolved_by_user_account_id],
     )
     representative_replay_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
         back_populates="representative_vee_exception"

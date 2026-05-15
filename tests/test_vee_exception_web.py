@@ -16,6 +16,7 @@ from app.models import (
     ManualEditAudit,
     RawIntervalWindowState,
     ServicePoint,
+    UserAccount,
     UsageTransaction,
     VeeException,
     VeeExecutionLog,
@@ -581,6 +582,8 @@ def test_vee_exception_detail_hides_manual_edit_form_for_unsupported_exception(c
 
 def test_vee_exception_acknowledge_via_web_updates_status(client, session):
     vee_exception = _create_open_vee_exception(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
 
     response = client.post(
         f"/vee-exceptions/{vee_exception.id}/acknowledge?lang=ko",
@@ -594,11 +597,15 @@ def test_vee_exception_acknowledge_via_web_updates_status(client, session):
     assert "VEE 예외가 확인 상태로 변경되었습니다." in text
     assert updated is not None
     assert updated.exception_status == "acknowledged"
-    assert updated.acknowledged_by == "operator_ui"
+    assert updated.acknowledged_by == "admin"
+    assert updated.acknowledged_by_user_account_id == actor.id
+    assert "Test Admin (admin)" in text
 
 
 def test_vee_exception_resolve_via_web_updates_status(client, session):
     vee_exception = _create_open_vee_exception(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
 
     response = client.post(
         f"/vee-exceptions/{vee_exception.id}/resolve?lang=ko",
@@ -616,8 +623,11 @@ def test_vee_exception_resolve_via_web_updates_status(client, session):
     assert "VEE 예외가 해결 상태로 변경되었습니다." in text
     assert updated is not None
     assert updated.exception_status == "resolved"
+    assert updated.resolved_by == "admin"
+    assert updated.resolved_by_user_account_id == actor.id
     assert updated.resolution_type == "operator_resolution"
     assert updated.operator_memo == "운영 확인 완료"
+    assert "Test Admin (admin)" in text
 
 
 def test_vee_exception_re_evaluate_via_web_creates_new_execution(session, client):

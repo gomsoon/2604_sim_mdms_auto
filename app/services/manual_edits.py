@@ -426,6 +426,7 @@ def apply_manual_edit_from_vee_exception(
             session,
             target_exception.id,
             resolution_type="manually_corrected",
+            resolved_by=normalized_edited_by,
             operator_memo=operator_memo,
         )
         execution, _ = evaluate_or_get_vee_baseline(

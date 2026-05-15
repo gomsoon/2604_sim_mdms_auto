@@ -272,6 +272,9 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "initial_measurement_id" in vee_exception_columns
         assert "vee_execution_log_id" in vee_exception_columns
         assert "blocking_finalization" in vee_exception_columns
+        assert "acknowledged_by_user_account_id" in vee_exception_columns
+        assert "resolved_by" in vee_exception_columns
+        assert "resolved_by_user_account_id" in vee_exception_columns
         assert "request_scope" in vee_replay_request_columns
         assert "status" in vee_replay_request_columns
         assert "requested_by" in vee_replay_request_columns
@@ -605,6 +608,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_vee_exception_exception_code" in index_defs
         assert "ix_vee_exception_detected_at" in index_defs
         assert "ix_vee_exception_blocking_finalization" in index_defs
+        assert "ix_vee_exception_acknowledged_by_user_account_id" in index_defs
+        assert "ix_vee_exception_resolved_by_user_account_id" in index_defs
         assert "ix_vee_replay_request_status" in index_defs
         assert "ix_vee_replay_request_request_scope" in index_defs
         assert "ix_vee_replay_request_hes_system_id" in index_defs

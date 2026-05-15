@@ -550,8 +550,12 @@
           <dd class="col-sm-8">{{ detail.vee_exception.detected_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("table.acknowledged_at") }}</dt>
           <dd class="col-sm-8">{{ detail.vee_exception.acknowledged_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.acknowledged_by") }}</dt>
+          <dd class="col-sm-8">{{ detail.acknowledged_actor_display or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("table.resolved_at") }}</dt>
           <dd class="col-sm-8">{{ detail.vee_exception.resolved_at|dt }}</dd>
+          <dt class="col-sm-4">{{ t("field.resolved_by") }}</dt>
+          <dd class="col-sm-8">{{ detail.resolved_actor_display or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("table.resolution_type") }}</dt>
           <dd class="col-sm-8">{{ detail.vee_exception.resolution_type or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>

@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import HesSystem, InitialMeasurement, VeeException
+from app.services.auth import create_user_account
 from app.services.ingestion import ingest_events
 from app.services.seeds import seed_demo_environment
 from app.services.vee import evaluate_or_get_vee_baseline
@@ -155,6 +156,18 @@ def test_list_vee_exceptions_filters_by_active_status_and_correction_policy(sess
 
 def test_get_vee_exception_detail_context_returns_lineage(session):
     vee_exception = _create_open_vee_exception(session)
+    actor = create_user_account(
+        session,
+        login_id="vee-visibility",
+        password="password123!",
+        display_name="VEE Visibility",
+        role_code="operator",
+    )
+    vee_exception.acknowledged_by = actor.login_id
+    vee_exception.acknowledged_by_user_account_id = actor.id
+    vee_exception.resolved_by = actor.login_id
+    vee_exception.resolved_by_user_account_id = actor.id
+    session.commit()
 
     detail = get_vee_exception_detail_context(session, vee_exception.id)
 
@@ -165,3 +178,5 @@ def test_get_vee_exception_detail_context_returns_lineage(session):
     assert detail.ingest_batch is not None
     assert detail.ingest_batch.batch_id == "demo-read-batch"
     assert detail.vee_execution_log is not None
+    assert detail.acknowledged_actor_display == "VEE Visibility (vee-visibility)"
+    assert detail.resolved_actor_display == "VEE Visibility (vee-visibility)"

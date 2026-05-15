@@ -591,6 +591,7 @@ def acknowledge_vee_exception(
     vee_exception_id: int,
     *,
     acknowledged_by: str,
+    acknowledged_by_user_account_id: int | None = None,
     acknowledged_at: datetime | None = None,
 ) -> VeeException:
     vee_exception = _get_vee_exception(session, vee_exception_id)
@@ -607,6 +608,7 @@ def acknowledge_vee_exception(
     vee_exception.exception_status = "acknowledged"
     vee_exception.acknowledged_at = acknowledged_at or datetime.now(timezone.utc)
     vee_exception.acknowledged_by = acknowledged_by
+    vee_exception.acknowledged_by_user_account_id = acknowledged_by_user_account_id
     if vee_exception.blocking_finalization:
         vee_exception.initial_measurement.initial_status = "exception"
     else:
@@ -628,15 +630,20 @@ def _resolve_vee_exception_row(
     vee_exception: VeeException,
     *,
     resolution_type: str,
+    resolved_by: str | None = None,
+    resolved_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
     resolved_at: datetime | None = None,
 ) -> None:
     normalized_resolution_type = (resolution_type or "").strip() or "operator_resolution"
+    normalized_resolved_by = (resolved_by or "").strip() or None
     normalized_memo = (operator_memo or "").strip() or None
 
     vee_exception.exception_status = "resolved"
     vee_exception.resolution_type = normalized_resolution_type
     vee_exception.resolved_at = resolved_at or datetime.now(timezone.utc)
+    vee_exception.resolved_by = normalized_resolved_by
+    vee_exception.resolved_by_user_account_id = resolved_by_user_account_id
     if normalized_memo:
         vee_exception.operator_memo = normalized_memo
     refresh_initial_measurement_status(vee_exception.initial_measurement)
@@ -678,6 +685,7 @@ def reevaluate_initial_measurement(
     initial_measurement_id: int,
     *,
     reevaluated_by: str,
+    reevaluated_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
     reevaluated_at: datetime | None = None,
 ) -> VeeExecutionLog:
@@ -701,6 +709,8 @@ def reevaluate_initial_measurement(
             session,
             row,
             resolution_type="re_evaluated_superseded",
+            resolved_by=reevaluated_by,
+            resolved_by_user_account_id=reevaluated_by_user_account_id,
             operator_memo=operator_memo,
             resolved_at=reevaluated_at,
         )
@@ -743,6 +753,7 @@ def reevaluate_vee_exception(
     vee_exception_id: int,
     *,
     reevaluated_by: str,
+    reevaluated_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
     reevaluated_at: datetime | None = None,
 ) -> VeeExecutionLog:
@@ -751,6 +762,7 @@ def reevaluate_vee_exception(
         session,
         vee_exception.initial_measurement_id,
         reevaluated_by=reevaluated_by,
+        reevaluated_by_user_account_id=reevaluated_by_user_account_id,
         operator_memo=operator_memo,
         reevaluated_at=reevaluated_at,
     )
@@ -761,6 +773,8 @@ def resolve_vee_exception(
     vee_exception_id: int,
     *,
     resolution_type: str,
+    resolved_by: str | None = None,
+    resolved_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
     resolved_at: datetime | None = None,
 ) -> VeeException:
@@ -774,6 +788,8 @@ def resolve_vee_exception(
         session,
         vee_exception,
         resolution_type=resolution_type,
+        resolved_by=resolved_by,
+        resolved_by_user_account_id=resolved_by_user_account_id,
         operator_memo=operator_memo,
         resolved_at=resolved_at,
     )

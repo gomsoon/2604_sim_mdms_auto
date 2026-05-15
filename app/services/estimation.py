@@ -635,6 +635,7 @@ def apply_estimation_from_vee_exception(
             session,
             target_exception.id,
             resolution_type="estimated",
+            resolved_by=estimated_by,
             operator_memo=operator_memo,
         )
         execution, _ = evaluate_or_get_vee_baseline(
@@ -1329,6 +1330,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
             session,
             target_exception.id,
             resolution_type="estimated",
+            resolved_by=estimated_by,
             operator_memo=operator_memo,
         )
 

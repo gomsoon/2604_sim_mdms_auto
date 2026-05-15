@@ -814,8 +814,15 @@ def vee_exception_detail(vee_exception_id: int):
 @bp.post("/vee-exceptions/<int:vee_exception_id>/acknowledge")
 def acknowledge_vee_exception_view(vee_exception_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
-        acknowledge_vee_exception(session, vee_exception_id, acknowledged_by="operator_ui")
+        acknowledge_vee_exception(
+            session,
+            vee_exception_id,
+            acknowledged_by=current_user.login_id,
+            acknowledged_by_user_account_id=current_user.id,
+        )
         session.commit()
         flash(translate("vee_exception.flash.acknowledged"), "success")
     except VeeExceptionActionError as exc:
@@ -828,11 +835,15 @@ def acknowledge_vee_exception_view(vee_exception_id: int):
 @bp.post("/vee-exceptions/<int:vee_exception_id>/resolve")
 def resolve_vee_exception_view(vee_exception_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         resolve_vee_exception(
             session,
             vee_exception_id,
             resolution_type=request.form.get("resolution_type") or "operator_resolution",
+            resolved_by=current_user.login_id,
+            resolved_by_user_account_id=current_user.id,
             operator_memo=request.form.get("operator_memo"),
         )
         session.commit()
@@ -847,11 +858,14 @@ def resolve_vee_exception_view(vee_exception_id: int):
 @bp.post("/vee-exceptions/<int:vee_exception_id>/re-evaluate")
 def reevaluate_vee_exception_view(vee_exception_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         summary = reevaluate_vee_exception_and_replay(
             session,
             vee_exception_id,
-            reevaluated_by="operator_ui",
+            reevaluated_by=current_user.login_id,
+            reevaluated_by_user_account_id=current_user.id,
             operator_memo=request.form.get("operator_memo"),
         )
         session.commit()

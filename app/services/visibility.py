@@ -250,6 +250,8 @@ class VeeExceptionDetailContext:
     ingest_batch: IngestBatch | None = None
     vee_execution_log: VeeExecutionLog | None = None
     final_measurement: FinalMeasurement | None = None
+    acknowledged_actor_display: str | None = None
+    resolved_actor_display: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -2086,6 +2088,8 @@ def get_vee_exception_detail_context(
                 InitialMeasurement.final_measurement
             ),
             joinedload(VeeException.vee_execution_log),
+            joinedload(VeeException.acknowledged_by_user_account),
+            joinedload(VeeException.resolved_by_user_account),
             joinedload(VeeException.initial_measurement).joinedload(
                 InitialMeasurement.device
             ),
@@ -2114,7 +2118,22 @@ def get_vee_exception_detail_context(
         ingest_batch=ingest_batch,
         vee_execution_log=vee_exception.vee_execution_log,
         final_measurement=initial_measurement.final_measurement,
+        acknowledged_actor_display=_format_user_actor_display(
+            vee_exception.acknowledged_by_user_account,
+            vee_exception.acknowledged_by,
+        ),
+        resolved_actor_display=_format_user_actor_display(
+            vee_exception.resolved_by_user_account,
+            vee_exception.resolved_by,
+        ),
     )
+
+
+def _format_user_actor_display(user_account, fallback_actor: str | None) -> str | None:
+    if user_account is not None:
+        return f"{user_account.display_name} ({user_account.login_id})"
+    normalized_fallback = (fallback_actor or "").strip()
+    return normalized_fallback or None
 
 
 def _list_related_raw_rows(

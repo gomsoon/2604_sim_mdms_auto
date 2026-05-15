@@ -315,6 +315,7 @@ def reevaluate_vee_exception_and_replay(
     vee_exception_id: int,
     *,
     reevaluated_by: str,
+    reevaluated_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
 ) -> ReVeeReplaySummary:
     target_exception = session.get(VeeException, vee_exception_id)
@@ -335,6 +336,7 @@ def reevaluate_vee_exception_and_replay(
         session,
         vee_exception_id,
         reevaluated_by=reevaluated_by,
+        reevaluated_by_user_account_id=reevaluated_by_user_account_id,
         operator_memo=operator_memo,
     )
     initial_row = session.get(InitialMeasurement, initial_measurement_id)
