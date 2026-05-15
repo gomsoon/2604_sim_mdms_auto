@@ -881,12 +881,15 @@ def reevaluate_vee_exception_view(vee_exception_id: int):
 @bp.post("/vee-exceptions/<int:vee_exception_id>/estimate")
 def estimate_vee_exception_view(vee_exception_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         summary = apply_estimation_from_vee_exception(
             session,
             vee_exception_id,
             strategy_code=request.form.get("strategy_code") or "",
-            estimated_by="operator_ui",
+            estimated_by=current_user.login_id,
+            estimated_by_user_account_id=current_user.id,
             operator_memo=request.form.get("operator_memo"),
         )
         session.commit()
@@ -907,12 +910,15 @@ def estimate_vee_exception_view(vee_exception_id: int):
 @bp.post("/vee-exceptions/<int:vee_exception_id>/estimate-synthetic-missing-interval")
 def estimate_synthetic_missing_interval_vee_exception_view(vee_exception_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
             session,
             vee_exception_id,
             strategy_code=request.form.get("strategy_code") or "",
-            estimated_by="operator_ui",
+            estimated_by=current_user.login_id,
+            estimated_by_user_account_id=current_user.id,
             operator_memo=request.form.get("operator_memo"),
         )
         session.commit()

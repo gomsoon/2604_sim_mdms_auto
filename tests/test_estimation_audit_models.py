@@ -9,6 +9,7 @@ from app.models import (
     PipelineRun,
     RawIntervalWindowState,
     ServicePoint,
+    UserAccount,
     VeeException,
 )
 
@@ -25,6 +26,8 @@ def test_estimation_audit_columns_exist():
     assert "raw_interval_window_state_id" in mapper.columns
     assert "target_measured_at" in mapper.columns
     assert "estimation_mode" in mapper.columns
+    assert "estimated_by" in mapper.columns
+    assert "estimated_by_user_account_id" in mapper.columns
     assert "strategy_code" in mapper.columns
     assert "estimation_status" in mapper.columns
     assert "estimated_value" in mapper.columns
@@ -44,6 +47,7 @@ def test_estimation_audit_relationships_exist():
     pipeline_run_mapper = inspect(PipelineRun)
     vee_exception_mapper = inspect(VeeException)
     raw_interval_window_state_mapper = inspect(RawIntervalWindowState)
+    user_account_mapper = inspect(UserAccount)
 
     assert "estimation_audits" in service_point_mapper.relationships
     assert "estimation_audits" in initial_mapper.relationships
@@ -52,3 +56,4 @@ def test_estimation_audit_relationships_exist():
     assert "previous_source_estimation_audits" in final_mapper.relationships
     assert "result_estimation_audits" in final_mapper.relationships
     assert "estimation_audits" in pipeline_run_mapper.relationships
+    assert "estimated_estimation_audits" in user_account_mapper.relationships

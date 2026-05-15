@@ -25,6 +25,7 @@ from app.services.bill_determinants import (
     BILL_DETERMINANT_TYPE_BILLING_CYCLE_CONSUMPTION_TOTAL,
     calculate_bill_determinants,
 )
+from app.services.auth import create_user_account
 from app.services.estimation import (
     ESTIMATION_REVISION_REASON_CODE,
     ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
@@ -442,6 +443,13 @@ def test_apply_previous_value_estimation_supersedes_final_and_recalculates_downs
     )
     assert old_final is not None
     assert old_charge is not None
+    actor = create_user_account(
+        session,
+        login_id="estimation-actor",
+        password="secret-password",
+        display_name="Estimation Actor",
+        role_code="operator",
+    )
 
     vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
 
@@ -449,7 +457,8 @@ def test_apply_previous_value_estimation_supersedes_final_and_recalculates_downs
         session,
         vee_exception.id,
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
-        estimated_by="operator_ui",
+        estimated_by=actor.login_id,
+        estimated_by_user_account_id=actor.id,
         operator_memo="apply previous value",
     )
     session.commit()
@@ -504,7 +513,11 @@ def test_apply_previous_value_estimation_supersedes_final_and_recalculates_downs
     assert current_charge.revision_reason_code == ESTIMATION_REVISION_REASON_CODE
     assert resolved_exception.exception_status == "resolved"
     assert resolved_exception.resolution_type == "estimated"
+    assert resolved_exception.resolved_by == actor.login_id
+    assert resolved_exception.resolved_by_user_account_id == actor.id
     assert audit_row.estimation_status == "applied"
+    assert audit_row.estimated_by == actor.login_id
+    assert audit_row.estimated_by_user_account_id == actor.id
     assert audit_row.source_previous_final_measurement_id is not None
     assert audit_row.result_final_measurement_id == current_final.id
     assert audit_row.superseded_final_measurement_id == old_final.id
@@ -569,6 +582,13 @@ def test_apply_estimation_blocks_for_unsupported_exception_code(session):
         .limit(1)
     )
     assert old_final is not None
+    actor = create_user_account(
+        session,
+        login_id="estimation-blocked",
+        password="secret-password",
+        display_name="Estimation Blocked",
+        role_code="operator",
+    )
 
     vee_exception = _open_required_field_exception(session, initial_measurement_id=target_initial_id)
 
@@ -576,7 +596,8 @@ def test_apply_estimation_blocks_for_unsupported_exception_code(session):
         session,
         vee_exception.id,
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
-        estimated_by="operator_ui",
+        estimated_by=actor.login_id,
+        estimated_by_user_account_id=actor.id,
     )
     session.commit()
 
@@ -601,6 +622,8 @@ def test_apply_estimation_blocks_for_unsupported_exception_code(session):
     assert refreshed_initial.value == Decimal("14.2000")
     assert current_final.id == old_final.id
     assert audit_row.estimation_status == "blocked"
+    assert audit_row.estimated_by == actor.login_id
+    assert audit_row.estimated_by_user_account_id == actor.id
     assert audit_row.result_final_measurement_id is None
 
 
@@ -680,12 +703,20 @@ def test_apply_synthetic_missing_interval_linear_interpolation_creates_synthetic
     assert old_determinant is not None
     assert old_charge is not None
     assert window_state is not None
+    actor = create_user_account(
+        session,
+        login_id="synthetic-estimation-actor",
+        password="secret-password",
+        display_name="Synthetic Estimation Actor",
+        role_code="operator",
+    )
 
     summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
         session,
         anchor_exception_id,
         strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
-        estimated_by="operator_ui",
+        estimated_by=actor.login_id,
+        estimated_by_user_account_id=actor.id,
         operator_memo="fill missing 00:30",
     )
     session.commit()
@@ -738,11 +769,15 @@ def test_apply_synthetic_missing_interval_linear_interpolation_creates_synthetic
     assert refreshed_window_state.received_slot_bitmap == "00,15,30,45"
     assert anchor_exception.exception_status == "resolved"
     assert anchor_exception.resolution_type == "estimated"
+    assert anchor_exception.resolved_by == actor.login_id
+    assert anchor_exception.resolved_by_user_account_id == actor.id
     assert summary.bill_determinant_groups == 1
     assert summary.bill_charge_groups == 1
     assert summary.daily_usage_groups_updated == 1
     assert len(summary.usage_recalculation_results) >= 1
     assert audit_row.estimation_mode == "synthetic_missing_interval"
+    assert audit_row.estimated_by == actor.login_id
+    assert audit_row.estimated_by_user_account_id == actor.id
     assert audit_row.anchor_vee_exception_id == anchor_exception_id
     assert audit_row.raw_interval_window_state_id == window_state.id
     assert audit_row.result_final_measurement_id == synthetic_final.id

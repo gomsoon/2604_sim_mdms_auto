@@ -12,6 +12,7 @@ from app.services.billing_export_requests import (
     create_billing_export_request,
     rerun_billing_export_request,
 )
+from app.services.auth import create_user_account
 from app.services.bill_determinants import calculate_bill_determinants
 from app.services.estimation import (
     ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
@@ -148,6 +149,13 @@ def _prepare_manual_edit_audit_rows(session) -> int:
 
 def _prepare_estimation_audit_rows(session) -> int:
     seed_demo_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="web-tester",
+        password="secret-password",
+        display_name="Web Tester",
+        role_code="operator",
+    )
     ingest_reads(
         session,
         {
@@ -233,7 +241,8 @@ def _prepare_estimation_audit_rows(session) -> int:
         session,
         vee_exception.id,
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
-        estimated_by="web-tester",
+        estimated_by=actor.login_id,
+        estimated_by_user_account_id=actor.id,
         operator_memo="web-test",
     )
     session.commit()
@@ -242,6 +251,13 @@ def _prepare_estimation_audit_rows(session) -> int:
 
 def _prepare_synthetic_estimation_audit_rows(session) -> int:
     seed_demo_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="web-tester",
+        password="secret-password",
+        display_name="Web Tester",
+        role_code="operator",
+    )
     service_point_id = session.scalar(select(ServicePoint.id).limit(1))
     assert service_point_id is not None
 
@@ -370,7 +386,8 @@ def _prepare_synthetic_estimation_audit_rows(session) -> int:
         session,
         vee_exception.id,
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
-        estimated_by="web-tester",
+        estimated_by=actor.login_id,
+        estimated_by_user_account_id=actor.id,
         operator_memo="synthetic-web-test",
     )
     session.commit()
@@ -1743,6 +1760,7 @@ def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, 
     assert "결과 final 스냅샷" in text
     assert "현재 기본 보정 흐름을 그대로 따릅니다" in text
     assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
+    assert "Web Tester (web-tester)" in text
     assert "18.4000" in text
     assert (
         f"/vee-exceptions/{audit_row.details['target_vee_exception_snapshot']['vee_exception_id']}?lang=ko"
@@ -1769,6 +1787,7 @@ def test_estimation_audit_detail_page_shows_synthetic_repair_context(client, ses
     assert "synthetic raw 스냅샷" in text
     assert "synthetic initial 스냅샷" in text
     assert "synthetic missing-interval 복구" in text
+    assert "Web Tester (web-tester)" in text
     assert "00:30:00+09:00" in text
     assert "00,15,30,45" in text
     assert f"/vee-exceptions/{audit_row.anchor_vee_exception_id}?lang=ko" in text

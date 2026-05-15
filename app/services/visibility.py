@@ -303,6 +303,7 @@ class EstimationAuditDetailContext:
     source_next_final_measurement: FinalMeasurement | None = None
     superseded_final_measurement: FinalMeasurement | None = None
     result_final_measurement: FinalMeasurement | None = None
+    estimated_actor_display: str | None = None
 
 
 def _normalize_text(value: str | None) -> str | None:
@@ -1605,6 +1606,7 @@ def get_estimation_audit_detail_context(
             joinedload(EstimationAudit.target_initial_measurement),
             joinedload(EstimationAudit.anchor_vee_exception),
             joinedload(EstimationAudit.raw_interval_window_state),
+            joinedload(EstimationAudit.estimated_by_user_account),
             joinedload(EstimationAudit.source_previous_final_measurement),
             joinedload(EstimationAudit.source_next_final_measurement),
             joinedload(EstimationAudit.superseded_final_measurement),
@@ -1640,6 +1642,11 @@ def get_estimation_audit_detail_context(
         source_next_final_measurement=estimation_audit.source_next_final_measurement,
         superseded_final_measurement=estimation_audit.superseded_final_measurement,
         result_final_measurement=estimation_audit.result_final_measurement,
+        estimated_actor_display=_format_user_actor_display(
+            estimation_audit.estimated_by_user_account,
+            estimation_audit.estimated_by
+            or (estimation_audit.details or {}).get("estimated_by"),
+        ),
     )
 
 

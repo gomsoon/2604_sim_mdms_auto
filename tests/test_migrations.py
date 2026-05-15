@@ -299,6 +299,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "raw_interval_window_state_id" in estimation_audit_columns
         assert "target_measured_at" in estimation_audit_columns
         assert "estimation_mode" in estimation_audit_columns
+        assert "estimated_by" in estimation_audit_columns
+        assert "estimated_by_user_account_id" in estimation_audit_columns
         assert "strategy_code" in estimation_audit_columns
         assert "estimation_status" in estimation_audit_columns
         assert "estimated_value" in estimation_audit_columns
@@ -631,6 +633,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_estimation_audit_anchor_vee_exception_id" in index_defs
         assert "ix_estimation_audit_raw_interval_window_state_id" in index_defs
         assert "ix_estimation_audit_estimation_mode" in index_defs
+        assert "ix_estimation_audit_estimated_by_user_account_id" in index_defs
         assert "ix_manual_edit_audit_target_initial_measurement_id" in index_defs
         assert "ix_manual_edit_audit_related_vee_exception_id" in index_defs
         assert "ix_manual_edit_audit_target_measured_at" in index_defs

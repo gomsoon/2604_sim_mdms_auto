@@ -59,6 +59,8 @@
           <dd class="col-sm-8">{{ t_or("estimation.strategy." ~ detail.estimation_audit.strategy_code, detail.estimation_audit.strategy_code) }}</dd>
           <dt class="col-sm-4">{{ t("field.estimation_mode") }}</dt>
           <dd class="col-sm-8">{{ t_or("estimation.mode." ~ estimation_mode, estimation_mode or t("common.none")) }}</dd>
+          <dt class="col-sm-4">{{ t("field.estimated_by") }}</dt>
+          <dd class="col-sm-8">{{ detail.estimated_actor_display or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.estimated_value") }}</dt>
           <dd class="col-sm-8">{{ detail.estimation_audit.estimated_value if detail.estimation_audit.estimated_value is not none else t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.unit_of_measure") }}</dt>

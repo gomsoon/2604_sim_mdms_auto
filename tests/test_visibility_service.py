@@ -23,6 +23,7 @@ from app.services.billing_export_processor import process_queued_billing_export_
 from app.services.billing_export_requests import create_billing_export_request
 from app.services.bill_charges import calculate_bill_charges
 from app.services.bill_determinants import calculate_bill_determinants
+from app.services.auth import create_user_account
 from app.services.estimation import (
     ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
     apply_estimation_from_vee_exception,
@@ -169,6 +170,13 @@ def _prepare_manual_edit_visibility(session) -> int:
 
 def _prepare_estimation_visibility(session) -> int:
     seed_demo_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="visibility-tester",
+        password="secret-password",
+        display_name="Visibility Tester",
+        role_code="operator",
+    )
     ingest_reads(
         session,
         {
@@ -254,7 +262,8 @@ def _prepare_estimation_visibility(session) -> int:
         session,
         vee_exception.id,
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
-        estimated_by="visibility-tester",
+        estimated_by=actor.login_id,
+        estimated_by_user_account_id=actor.id,
         operator_memo="visibility-test",
     )
     session.commit()
@@ -263,6 +272,13 @@ def _prepare_estimation_visibility(session) -> int:
 
 def _prepare_synthetic_estimation_visibility(session) -> int:
     seed_demo_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="visibility-tester",
+        password="secret-password",
+        display_name="Visibility Tester",
+        role_code="operator",
+    )
     service_point_id = session.scalar(select(ServicePoint.id).limit(1))
     assert service_point_id is not None
 
@@ -391,7 +407,8 @@ def _prepare_synthetic_estimation_visibility(session) -> int:
         session,
         vee_exception.id,
         strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
-        estimated_by="visibility-tester",
+        estimated_by=actor.login_id,
+        estimated_by_user_account_id=actor.id,
         operator_memo="synthetic-visibility-test",
     )
     session.commit()
@@ -1062,6 +1079,7 @@ def test_get_estimation_audit_detail_context_loads_lineage_and_source_finals(ses
     assert detail.source_previous_final_measurement is not None
     assert detail.source_next_final_measurement is not None
     assert detail.result_final_measurement is not None
+    assert detail.estimated_actor_display == "Visibility Tester (visibility-tester)"
     assert detail.estimation_audit.details["original_initial_measurement_snapshot"]["value"] == "-1.0000"
     assert detail.estimation_audit.details["applied_initial_measurement_snapshot"]["value"] == "18.4000"
     assert (
@@ -1083,6 +1101,7 @@ def test_get_estimation_audit_detail_context_loads_synthetic_anchor_and_window_s
     assert detail.related_vee_exception.id == detail.anchor_vee_exception.id
     assert detail.raw_interval_window_state is not None
     assert detail.raw_interval_window_state.completion_status == "complete"
+    assert detail.estimated_actor_display == "Visibility Tester (visibility-tester)"
     assert detail.estimation_audit.details["window_context"]["missing_slot_code"] == "30"
     assert (
         detail.estimation_audit.details["synthetic_initial_measurement_snapshot"]["measured_at"]

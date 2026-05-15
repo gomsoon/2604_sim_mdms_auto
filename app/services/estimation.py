@@ -490,6 +490,7 @@ def apply_estimation_from_vee_exception(
     *,
     strategy_code: str,
     estimated_by: str,
+    estimated_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
 ) -> EstimationSummary:
     if strategy_code not in SUPPORTED_ESTIMATION_STRATEGIES:
@@ -518,6 +519,7 @@ def apply_estimation_from_vee_exception(
             "initial_measurement_id": initial_row.id,
             "strategy_code": strategy_code,
             "estimated_by": estimated_by,
+            "estimated_by_user_account_id": estimated_by_user_account_id,
             "operator_memo": operator_memo,
             "correction_policy_reason_code": correction_policy.policy_reason_code,
             "recommended_action": correction_policy.recommended_action,
@@ -539,6 +541,8 @@ def apply_estimation_from_vee_exception(
             device_id=initial_row.device_id,
             target_initial_measurement_id=initial_row.id,
             target_measured_at=initial_row.measured_at,
+            estimated_by=estimated_by,
+            estimated_by_user_account_id=estimated_by_user_account_id,
             strategy_code=strategy_code,
             estimation_status=computation_result.estimation_status,
             estimated_value=computation_result.estimated_value,
@@ -563,6 +567,8 @@ def apply_estimation_from_vee_exception(
                     "severity": target_exception.severity,
                     "blocking_finalization": target_exception.blocking_finalization,
                 },
+                "estimated_by": estimated_by,
+                "estimated_by_user_account_id": estimated_by_user_account_id,
                 "original_initial_measurement_snapshot": _snapshot_initial_measurement(initial_row),
                 "source_previous_final_snapshot": _snapshot_final_measurement(
                     computation_result.source_previous_final
@@ -628,6 +634,7 @@ def apply_estimation_from_vee_exception(
             "strategy_code": strategy_code,
             "estimated_at": datetime.now(timezone.utc).isoformat(),
             "estimated_by": estimated_by,
+            "estimated_by_user_account_id": estimated_by_user_account_id,
         }
         initial_row.details = updated_details
 
@@ -636,6 +643,7 @@ def apply_estimation_from_vee_exception(
             target_exception.id,
             resolution_type="estimated",
             resolved_by=estimated_by,
+            resolved_by_user_account_id=estimated_by_user_account_id,
             operator_memo=operator_memo,
         )
         execution, _ = evaluate_or_get_vee_baseline(
@@ -879,6 +887,7 @@ def _create_synthetic_ingest_batch(
     target_measured_at: datetime,
     strategy_code: str,
     estimated_by: str,
+    estimated_by_user_account_id: int | None = None,
 ) -> IngestBatch:
     anchor_raw = anchor_initial_row.canonical_measurement.hes_read_raw
     return IngestBatch(
@@ -895,6 +904,7 @@ def _create_synthetic_ingest_batch(
             "target_measured_at": target_measured_at.isoformat(),
             "strategy_code": strategy_code,
             "estimated_by": estimated_by,
+            "estimated_by_user_account_id": estimated_by_user_account_id,
         },
     )
 
@@ -909,6 +919,7 @@ def _create_synthetic_measurement_chain(
     estimated_value: Decimal,
     strategy_code: str,
     estimated_by: str,
+    estimated_by_user_account_id: int | None = None,
     ingest_batch: IngestBatch,
 ) -> InitialMeasurement:
     now = datetime.now(timezone.utc)
@@ -946,6 +957,7 @@ def _create_synthetic_measurement_chain(
             "source_slot_code": missing_slot_code,
             "strategy_code": strategy_code,
             "estimated_by": estimated_by,
+            "estimated_by_user_account_id": estimated_by_user_account_id,
         },
         source_slot_code=missing_slot_code,
         source_slot_index=int(missing_slot_code) // window_state.interval_size_minutes,
@@ -987,6 +999,7 @@ def _create_synthetic_measurement_chain(
             "source_slot_code": missing_slot_code,
             "strategy_code": strategy_code,
             "estimated_by": estimated_by,
+            "estimated_by_user_account_id": estimated_by_user_account_id,
         },
     )
     session.add(synthetic_initial)
@@ -1078,6 +1091,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
     *,
     strategy_code: str,
     estimated_by: str,
+    estimated_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
 ) -> EstimationSummary:
     if strategy_code not in SUPPORTED_ESTIMATION_STRATEGIES:
@@ -1119,6 +1133,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
             "initial_measurement_id": anchor_initial.id,
             "strategy_code": strategy_code,
             "estimated_by": estimated_by,
+            "estimated_by_user_account_id": estimated_by_user_account_id,
             "estimation_mode": ESTIMATION_MODE_SYNTHETIC_MISSING_INTERVAL,
         },
     )
@@ -1184,6 +1199,8 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
             raw_interval_window_state_id=window_state.id if window_state is not None else None,
             target_measured_at=target_measured_at,
             estimation_mode=ESTIMATION_MODE_SYNTHETIC_MISSING_INTERVAL,
+            estimated_by=estimated_by,
+            estimated_by_user_account_id=estimated_by_user_account_id,
             strategy_code=strategy_code,
             estimation_status="blocked" if result_code is not None else "applied",
             estimated_value=None if computation_result is None else computation_result.estimated_value,
@@ -1209,6 +1226,8 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
                     "severity": target_exception.severity,
                     "blocking_finalization": target_exception.blocking_finalization,
                 },
+                "estimated_by": estimated_by,
+                "estimated_by_user_account_id": estimated_by_user_account_id,
                 "original_initial_measurement_snapshot": _snapshot_initial_measurement(anchor_initial),
                 "source_previous_final_snapshot": (
                     None
@@ -1284,6 +1303,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
             target_measured_at=target_measured_at,
             strategy_code=strategy_code,
             estimated_by=estimated_by,
+            estimated_by_user_account_id=estimated_by_user_account_id,
         )
         session.add(synthetic_batch)
         session.flush()
@@ -1297,6 +1317,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
             estimated_value=computation_result.estimated_value,
             strategy_code=strategy_code,
             estimated_by=estimated_by,
+            estimated_by_user_account_id=estimated_by_user_account_id,
             ingest_batch=synthetic_batch,
         )
         synthetic_initial.details = {
@@ -1306,6 +1327,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
                 "strategy_code": strategy_code,
                 "estimated_at": datetime.now(timezone.utc).isoformat(),
                 "estimated_by": estimated_by,
+                "estimated_by_user_account_id": estimated_by_user_account_id,
             },
         }
 
@@ -1331,6 +1353,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
             target_exception.id,
             resolution_type="estimated",
             resolved_by=estimated_by,
+            resolved_by_user_account_id=estimated_by_user_account_id,
             operator_memo=operator_memo,
         )
 
@@ -1341,6 +1364,7 @@ def apply_synthetic_missing_interval_estimation_from_vee_exception(
                 session,
                 row.id,
                 reevaluated_by=estimated_by,
+                reevaluated_by_user_account_id=estimated_by_user_account_id,
                 operator_memo=operator_memo,
             )
             reevaluated_initial_measurement_ids.append(row.id)

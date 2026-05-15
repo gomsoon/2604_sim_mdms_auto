@@ -682,6 +682,8 @@ def test_vee_exception_estimate_via_web_applies_estimation_and_shows_result(sess
     service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
         session
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
     vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
     old_charge = session.scalar(
         select(BillCharge)
@@ -751,12 +753,18 @@ def test_vee_exception_estimate_via_web_applies_estimation_and_shows_result(sess
     assert updated_exception is not None
     assert updated_exception.exception_status == "resolved"
     assert updated_exception.resolution_type == "estimated"
+    assert updated_exception.resolved_by == actor.login_id
+    assert updated_exception.resolved_by_user_account_id == actor.id
+    assert audit_row.estimated_by == actor.login_id
+    assert audit_row.estimated_by_user_account_id == actor.id
 
 
 def test_vee_exception_synthetic_estimate_via_web_applies_repair_and_shows_result(session, client):
     service_point_id, _anchor_initial_id, anchor_exception_id = (
         _prepare_synthetic_missing_interval_environment(session)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
 
     response = client.post(
         f"/vee-exceptions/{anchor_exception_id}/estimate-synthetic-missing-interval?lang=ko",
@@ -806,6 +814,10 @@ def test_vee_exception_synthetic_estimate_via_web_applies_repair_and_shows_resul
     assert updated_exception is not None
     assert updated_exception.exception_status == "resolved"
     assert updated_exception.resolution_type == "estimated"
+    assert updated_exception.resolved_by == actor.login_id
+    assert updated_exception.resolved_by_user_account_id == actor.id
+    assert audit_row.estimated_by == actor.login_id
+    assert audit_row.estimated_by_user_account_id == actor.id
     assert current_determinant is not None
     assert current_charge is not None
     assert f"/estimation-audits/{audit_row.id}?lang=ko" in text

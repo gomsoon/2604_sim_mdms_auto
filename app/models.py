@@ -71,6 +71,10 @@ class UserAccount(TimestampMixin, Base):
         back_populates="resolved_by_user_account",
         foreign_keys="VeeException.resolved_by_user_account_id",
     )
+    estimated_estimation_audits: Mapped[list["EstimationAudit"]] = relationship(
+        back_populates="estimated_by_user_account",
+        foreign_keys="EstimationAudit.estimated_by_user_account_id",
+    )
 
 
 class AuthSessionAudit(Base):
@@ -1312,6 +1316,10 @@ class EstimationAudit(TimestampMixin, Base):
             "ix_estimation_audit_estimation_mode",
             "estimation_mode",
         ),
+        Index(
+            "ix_estimation_audit_estimated_by_user_account_id",
+            "estimated_by_user_account_id",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -1337,6 +1345,10 @@ class EstimationAudit(TimestampMixin, Base):
         String(40),
         nullable=False,
         default="substitution",
+    )
+    estimated_by: Mapped[str | None] = mapped_column(String(120))
+    estimated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id")
     )
     strategy_code: Mapped[str] = mapped_column(String(40), nullable=False)
     estimation_status: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -1371,6 +1383,10 @@ class EstimationAudit(TimestampMixin, Base):
     )
     raw_interval_window_state: Mapped["RawIntervalWindowState | None"] = relationship(
         back_populates="estimation_audits"
+    )
+    estimated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="estimated_estimation_audits",
+        foreign_keys=[estimated_by_user_account_id],
     )
     source_previous_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
         back_populates="previous_source_estimation_audits",
