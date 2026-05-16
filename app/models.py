@@ -75,6 +75,10 @@ class UserAccount(TimestampMixin, Base):
         back_populates="estimated_by_user_account",
         foreign_keys="EstimationAudit.estimated_by_user_account_id",
     )
+    edited_manual_edit_audits: Mapped[list["ManualEditAudit"]] = relationship(
+        back_populates="edited_by_user_account",
+        foreign_keys="ManualEditAudit.edited_by_user_account_id",
+    )
 
 
 class AuthSessionAudit(Base):
@@ -1442,6 +1446,10 @@ class ManualEditAudit(TimestampMixin, Base):
             "ix_manual_edit_audit_pipeline_run_id",
             "pipeline_run_id",
         ),
+        Index(
+            "ix_manual_edit_audit_edited_by_user_account_id",
+            "edited_by_user_account_id",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -1464,6 +1472,7 @@ class ManualEditAudit(TimestampMixin, Base):
     edited_quality_code: Mapped[str | None] = mapped_column(String(40))
     edited_status_code: Mapped[str | None] = mapped_column(String(40))
     edited_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    edited_by_user_account_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
     operator_memo: Mapped[str | None] = mapped_column(Text)
     superseded_final_measurement_id: Mapped[int | None] = mapped_column(
         ForeignKey("final_measurement.id")
@@ -1484,6 +1493,10 @@ class ManualEditAudit(TimestampMixin, Base):
     )
     related_vee_exception: Mapped["VeeException"] = relationship(
         back_populates="manual_edit_audits"
+    )
+    edited_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="edited_manual_edit_audits",
+        foreign_keys=[edited_by_user_account_id],
     )
     superseded_final_measurement: Mapped["FinalMeasurement | None"] = relationship(
         back_populates="superseded_manual_edit_audits",

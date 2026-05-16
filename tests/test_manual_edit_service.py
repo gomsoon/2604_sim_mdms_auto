@@ -15,6 +15,7 @@ from app.models import (
     ServicePoint,
     VeeException,
 )
+from app.services.auth import create_user_account
 from app.services.bill_charges import (
     BILL_CHARGE_TYPE_FLAT_ENERGY_CHARGE,
     calculate_bill_charges,
@@ -226,6 +227,13 @@ def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session)
     service_point_id, target_initial_id, measuring_component_id = _prepare_manual_edit_environment(
         session
     )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-actor",
+        password="secret-password",
+        display_name="Manual Edit Actor",
+        role_code="operator",
+    )
     old_final = session.scalar(
         select(FinalMeasurement)
         .where(FinalMeasurement.initial_measurement_id == target_initial_id)
@@ -251,7 +259,8 @@ def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session)
         edited_quality_code="MANUAL",
         edited_status_code="OVERRIDDEN",
         reason_code="operator_meter_correction",
-        edited_by="operator_ui",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
         operator_memo="correct the interval value",
     )
     session.commit()
@@ -309,8 +318,11 @@ def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session)
     assert current_charge.revision_reason_code == MANUAL_EDIT_REVISION_REASON_CODE
     assert resolved_exception.exception_status == "resolved"
     assert resolved_exception.resolution_type == "manually_corrected"
+    assert resolved_exception.resolved_by == actor.login_id
+    assert resolved_exception.resolved_by_user_account_id == actor.id
     assert audit_row.edit_status == "applied"
-    assert audit_row.edited_by == "operator_ui"
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
     assert audit_row.result_final_measurement_id == current_final.id
     assert audit_row.superseded_final_measurement_id == old_final.id
 
@@ -320,6 +332,13 @@ def test_apply_manual_edit_blocks_for_unsupported_exception_code(session):
         session,
         include_previous=False,
         include_next=False,
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-blocked",
+        password="secret-password",
+        display_name="Manual Edit Blocked",
+        role_code="operator",
     )
     old_final = session.scalar(
         select(FinalMeasurement)
@@ -336,7 +355,8 @@ def test_apply_manual_edit_blocks_for_unsupported_exception_code(session):
         vee_exception.id,
         edited_value=Decimal("14.2000"),
         reason_code="operator_source_override",
-        edited_by="operator_ui",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
     )
     session.commit()
 
@@ -361,11 +381,20 @@ def test_apply_manual_edit_blocks_for_unsupported_exception_code(session):
     assert refreshed_initial.value == Decimal("14.2000")
     assert current_final.id == old_final.id
     assert audit_row.edit_status == "blocked"
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
     assert audit_row.result_final_measurement_id is None
 
 
 def test_apply_manual_edit_blocks_when_no_effective_change(session):
     _, target_initial_id, _ = _prepare_manual_edit_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-nochange",
+        password="secret-password",
+        display_name="Manual Edit No Change",
+        role_code="operator",
+    )
     vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
 
     summary = apply_manual_edit_from_vee_exception(
@@ -373,7 +402,8 @@ def test_apply_manual_edit_blocks_when_no_effective_change(session):
         vee_exception.id,
         edited_value=Decimal("-1.0000"),
         reason_code="operator_data_entry_fix",
-        edited_by="operator_ui",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
     )
     session.commit()
 
@@ -389,11 +419,20 @@ def test_apply_manual_edit_blocks_when_no_effective_change(session):
     assert refreshed_initial.value == Decimal("-1.0000")
     assert refreshed_exception.exception_status == "open"
     assert audit_row.edit_status == "blocked"
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
 
 
 def test_apply_manual_edit_records_tamper_correction_policy_snapshot(session):
     _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
         session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-tamper",
+        password="secret-password",
+        display_name="Manual Edit Tamper",
+        role_code="operator",
     )
     vee_exception = _open_high_value_vee_exception_with_tamper(
         session,
@@ -405,7 +444,8 @@ def test_apply_manual_edit_records_tamper_correction_policy_snapshot(session):
         vee_exception.id,
         edited_value=Decimal("12.5000"),
         reason_code="operator_meter_correction",
-        edited_by="operator_ui",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
         operator_memo="tamper review complete",
     )
     session.commit()
@@ -422,3 +462,5 @@ def test_apply_manual_edit_records_tamper_correction_policy_snapshot(session):
         audit_row.details["correction_policy_snapshot"]["recommended_action"]
         == "operator_investigation_then_manual_edit"
     )
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id

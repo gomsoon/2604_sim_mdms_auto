@@ -125,7 +125,13 @@
             <td>{{ row.measuring_component.external_channel_id if row.measuring_component else t("common.none") }}</td>
             <td>{{ row.target_measured_at|dt }}</td>
             <td>{{ row.edited_value if row.edited_value is not none else t("common.none") }}</td>
-            <td>{{ row.edited_by }}</td>
+            <td>
+              {% if row.edited_by_user_account %}
+              {{ row.edited_by_user_account.display_name }} ({{ row.edited_by_user_account.login_id }})
+              {% else %}
+              {{ row.edited_by }}
+              {% endif %}
+            </td>
             <td>{{ t_or("manual_edit.reason_code." ~ row.reason_code, row.reason_code) }}</td>
             <td>{{ t_or("manual_edit.status." ~ row.edit_status, row.edit_status) }}</td>
             <td>

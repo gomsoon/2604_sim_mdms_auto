@@ -8,6 +8,7 @@ from app.models import (
     ManualEditAudit,
     PipelineRun,
     ServicePoint,
+    UserAccount,
     VeeException,
 )
 
@@ -28,6 +29,7 @@ def test_manual_edit_audit_columns_exist():
     assert "edited_quality_code" in mapper.columns
     assert "edited_status_code" in mapper.columns
     assert "edited_by" in mapper.columns
+    assert "edited_by_user_account_id" in mapper.columns
     assert "operator_memo" in mapper.columns
     assert "superseded_final_measurement_id" in mapper.columns
     assert "result_final_measurement_id" in mapper.columns
@@ -40,6 +42,7 @@ def test_manual_edit_audit_relationships_exist():
     vee_exception_mapper = inspect(VeeException)
     final_mapper = inspect(FinalMeasurement)
     pipeline_run_mapper = inspect(PipelineRun)
+    user_account_mapper = inspect(UserAccount)
 
     assert "manual_edit_audits" in service_point_mapper.relationships
     assert "manual_edit_audits" in initial_mapper.relationships
@@ -47,3 +50,4 @@ def test_manual_edit_audit_relationships_exist():
     assert "superseded_manual_edit_audits" in final_mapper.relationships
     assert "result_manual_edit_audits" in final_mapper.relationships
     assert "manual_edit_audits" in pipeline_run_mapper.relationships
+    assert "edited_manual_edit_audits" in user_account_mapper.relationships

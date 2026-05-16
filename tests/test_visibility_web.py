@@ -80,6 +80,13 @@ def _prepare_bill_charge_rows(session) -> None:
 
 def _prepare_manual_edit_audit_rows(session) -> int:
     seed_demo_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="manual-web-tester",
+        password="secret-password",
+        display_name="Manual Web Tester",
+        role_code="operator",
+    )
     session.commit()
     finalize_canonical_measurements(session, batch_id="demo-read-batch")
     session.commit()
@@ -140,7 +147,8 @@ def _prepare_manual_edit_audit_rows(session) -> int:
         edited_quality_code="MANUAL",
         edited_status_code="OVERRIDDEN",
         reason_code="operator_meter_correction",
-        edited_by="operator_ui",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
         operator_memo="manual-edit-web",
     )
     session.commit()
@@ -1845,7 +1853,7 @@ def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, sessi
     assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
     assert "downstream 재계산" in text
     assert "운영자 계량기 보정" in text
-    assert "operator_ui" in text
+    assert "Manual Web Tester (manual-web-tester)" in text
     assert "12.5000" in text
     assert f"/vee-exceptions/{audit_row.related_vee_exception_id}?lang=ko" in text
 

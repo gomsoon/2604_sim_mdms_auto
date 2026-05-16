@@ -51,7 +51,7 @@
           <dt class="col-sm-4">{{ t("field.edited_status_code") }}</dt>
           <dd class="col-sm-8">{{ detail.manual_edit_audit.edited_status_code or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.edited_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.manual_edit_audit.edited_by }}</dd>
+          <dd class="col-sm-8">{{ detail.edited_actor_display or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.reason_code") }}</dt>
           <dd class="col-sm-8">{{ t_or("manual_edit.reason_code." ~ detail.manual_edit_audit.reason_code, detail.manual_edit_audit.reason_code) }}</dd>
           <dt class="col-sm-4">{{ t("table.status") }}</dt>

@@ -277,6 +277,7 @@ def apply_manual_edit_from_vee_exception(
     edited_value: Decimal | int | float | str | None,
     reason_code: str,
     edited_by: str,
+    edited_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
     edited_quality_code: str | None = None,
     edited_status_code: str | None = None,
@@ -313,6 +314,7 @@ def apply_manual_edit_from_vee_exception(
             "initial_measurement_id": initial_row.id,
             "reason_code": normalized_reason_code,
             "edited_by": normalized_edited_by,
+            "edited_by_user_account_id": edited_by_user_account_id,
             "edited_value": None if normalized_edited_value is None else str(normalized_edited_value),
             "edited_quality_code": normalized_edited_quality_code,
             "edited_status_code": normalized_edited_status_code,
@@ -346,6 +348,7 @@ def apply_manual_edit_from_vee_exception(
             edited_quality_code=computation_result.edited_quality_code,
             edited_status_code=computation_result.edited_status_code,
             edited_by=normalized_edited_by,
+            edited_by_user_account_id=edited_by_user_account_id,
             operator_memo=operator_memo,
             superseded_final_measurement_id=None,
             result_final_measurement_id=None,
@@ -359,6 +362,8 @@ def apply_manual_edit_from_vee_exception(
                 "original_initial_measurement_snapshot": _snapshot_initial_measurement(initial_row),
                 "correction_policy_snapshot": correction_policy.to_snapshot(),
                 "manual_edit_result": computation_result.details,
+                "edited_by": normalized_edited_by,
+                "edited_by_user_account_id": edited_by_user_account_id,
             },
         )
         session.add(audit_row)
@@ -419,6 +424,7 @@ def apply_manual_edit_from_vee_exception(
             "reason_code": audit_row.reason_code,
             "edited_at": datetime.now(timezone.utc).isoformat(),
             "edited_by": normalized_edited_by,
+            "edited_by_user_account_id": edited_by_user_account_id,
         }
         initial_row.details = updated_details
 
@@ -427,6 +433,7 @@ def apply_manual_edit_from_vee_exception(
             target_exception.id,
             resolution_type="manually_corrected",
             resolved_by=normalized_edited_by,
+            resolved_by_user_account_id=edited_by_user_account_id,
             operator_memo=operator_memo,
         )
         execution, _ = evaluate_or_get_vee_baseline(

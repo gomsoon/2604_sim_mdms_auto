@@ -101,6 +101,13 @@ def _prepare_bill_charge_visibility(session) -> None:
 
 def _prepare_manual_edit_visibility(session) -> int:
     seed_demo_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="manual-visibility-tester",
+        password="secret-password",
+        display_name="Manual Visibility Tester",
+        role_code="operator",
+    )
     session.commit()
     finalize_canonical_measurements(session, batch_id="demo-read-batch")
     session.commit()
@@ -161,7 +168,8 @@ def _prepare_manual_edit_visibility(session) -> int:
         edited_quality_code="MANUAL",
         edited_status_code="OVERRIDDEN",
         reason_code="operator_meter_correction",
-        edited_by="operator_ui",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
         operator_memo="visibility-test",
     )
     session.commit()
@@ -1015,6 +1023,7 @@ def test_list_manual_edit_audits_filters_by_service_point_reason_and_status(sess
     assert matched_rows[0].measuring_component.external_channel_id == "CH-01"
     assert matched_rows[0].edit_status == "applied"
     assert matched_rows[0].reason_code == "operator_meter_correction"
+    assert matched_rows[0].edited_by_user_account is not None
     assert unmatched_rows == []
 
 
@@ -1030,6 +1039,7 @@ def test_get_manual_edit_audit_detail_context_loads_lineage_and_result_final(ses
     assert detail.target_initial_measurement is not None
     assert detail.superseded_final_measurement is not None
     assert detail.result_final_measurement is not None
+    assert detail.edited_actor_display == "Manual Visibility Tester (manual-visibility-tester)"
     assert detail.manual_edit_audit.details["original_initial_measurement_snapshot"]["value"] == "-1.0000"
     assert detail.manual_edit_audit.details["applied_initial_measurement_snapshot"]["value"] == "12.5000"
 

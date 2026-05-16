@@ -336,6 +336,11 @@ This document captures the staged backlog derived from the reference PDF backlog
   - actor column/filter on estimation audit list views
   - legacy estimation audit actor backfill
   - CLI or system-triggered estimation actor injection beyond web-session flows
+- manual edit actor-lineage follow-up should be deferred separately from the
+  first FK slice:
+  - actor column/filter on manual edit audit list views
+  - legacy manual edit actor backfill
+  - CLI or system-triggered manual edit actor injection beyond web-session flows
 - every actor-identity propagation slice should update regression tests in the
   same change set so the new user-account lineage is both written and visible
   in the affected feature area

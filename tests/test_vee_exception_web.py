@@ -860,6 +860,8 @@ def test_vee_exception_manual_edit_via_web_applies_edit_and_shows_result(session
         session
     )
     vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
     old_charge = session.scalar(
         select(BillCharge)
         .where(BillCharge.service_point_id == service_point_id)
@@ -930,7 +932,11 @@ def test_vee_exception_manual_edit_via_web_applies_edit_and_shows_result(session
     assert current_charge.id != old_charge.id
     assert current_charge.charge_amount == Decimal("4250.0000")
     assert audit_row is not None
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
     assert f"/manual-edit-audits/{audit_row.id}?lang=ko" in text
     assert updated_exception is not None
     assert updated_exception.exception_status == "resolved"
     assert updated_exception.resolution_type == "manually_corrected"
+    assert updated_exception.resolved_by == actor.login_id
+    assert updated_exception.resolved_by_user_account_id == actor.id

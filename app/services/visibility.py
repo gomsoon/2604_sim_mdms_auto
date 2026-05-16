@@ -289,6 +289,7 @@ class ManualEditAuditDetailContext:
     target_initial_measurement: InitialMeasurement | None = None
     superseded_final_measurement: FinalMeasurement | None = None
     result_final_measurement: FinalMeasurement | None = None
+    edited_actor_display: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1137,6 +1138,7 @@ def list_manual_edit_audits(
             selectinload(ManualEditAudit.service_point),
             selectinload(ManualEditAudit.measuring_component),
             selectinload(ManualEditAudit.device),
+            selectinload(ManualEditAudit.edited_by_user_account),
             selectinload(ManualEditAudit.related_vee_exception),
             selectinload(ManualEditAudit.target_initial_measurement),
             selectinload(ManualEditAudit.superseded_final_measurement),
@@ -1571,6 +1573,7 @@ def get_manual_edit_audit_detail_context(
             joinedload(ManualEditAudit.service_point),
             joinedload(ManualEditAudit.device),
             joinedload(ManualEditAudit.measuring_component),
+            joinedload(ManualEditAudit.edited_by_user_account),
             joinedload(ManualEditAudit.target_initial_measurement),
             joinedload(ManualEditAudit.related_vee_exception),
             joinedload(ManualEditAudit.superseded_final_measurement),
@@ -1588,6 +1591,10 @@ def get_manual_edit_audit_detail_context(
         target_initial_measurement=manual_edit_audit.target_initial_measurement,
         superseded_final_measurement=manual_edit_audit.superseded_final_measurement,
         result_final_measurement=manual_edit_audit.result_final_measurement,
+        edited_actor_display=_format_user_actor_display(
+            manual_edit_audit.edited_by_user_account,
+            manual_edit_audit.edited_by,
+        ),
     )
 
 

@@ -324,6 +324,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "edited_quality_code" in manual_edit_audit_columns
         assert "edited_status_code" in manual_edit_audit_columns
         assert "edited_by" in manual_edit_audit_columns
+        assert "edited_by_user_account_id" in manual_edit_audit_columns
         assert "operator_memo" in manual_edit_audit_columns
         assert "superseded_final_measurement_id" in manual_edit_audit_columns
         assert "result_final_measurement_id" in manual_edit_audit_columns
@@ -538,6 +539,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert manual_edit_audit_column_defs["reason_code"]["nullable"] is False
         assert manual_edit_audit_column_defs["edit_status"]["nullable"] is False
         assert manual_edit_audit_column_defs["edited_by"]["nullable"] is False
+        assert manual_edit_audit_column_defs["edited_by_user_account_id"]["nullable"] is True
         assert manual_edit_audit_column_defs["edited_value"]["type"].precision == 19
         assert manual_edit_audit_column_defs["edited_value"]["type"].scale == 4
         assert usage_transaction_column_defs["usage_value"]["type"].precision == 19
@@ -641,6 +643,7 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_manual_edit_audit_reason_code" in index_defs
         assert "ix_manual_edit_audit_service_point_target_measured_at" in index_defs
         assert "ix_manual_edit_audit_pipeline_run_id" in index_defs
+        assert "ix_manual_edit_audit_edited_by_user_account_id" in index_defs
         assert "ix_pipeline_run_vee_replay_request_id" in index_defs
         assert "uq_usage_transaction_scope" in index_defs
         assert "UNIQUE INDEX" in index_defs["uq_usage_transaction_scope"]
