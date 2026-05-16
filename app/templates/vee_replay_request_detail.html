@@ -49,7 +49,11 @@
           <dt class="col-sm-4">{{ t("table.status") }}</dt>
           <dd class="col-sm-8">{{ t_or("common.status." ~ detail.request.status, detail.request.status) }}</dd>
           <dt class="col-sm-4">{{ t("table.requested_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.request.requested_by }}</dd>
+          <dd class="col-sm-8">{{ detail.requested_actor_display or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.cancelled_by") }}</dt>
+          <dd class="col-sm-8">{{ detail.cancelled_actor_display or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.cancelled_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.cancelled_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("field.hes_system") }}</dt>
           <dd class="col-sm-8">
             {% if detail.request.hes_system %}

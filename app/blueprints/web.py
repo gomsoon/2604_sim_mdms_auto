@@ -481,6 +481,9 @@ def _build_vee_replay_request_prefill_from_request(replay_request) -> dict[str, 
 def new_vee_replay_request():
     session = get_session()
     form_data = _build_vee_replay_request_form_data(request.args)
+    current_user = get_current_user()
+    assert current_user is not None
+    form_data["requested_by"] = current_user.login_id
     hes_system_options = session.scalars(
         select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
     ).all()
@@ -495,6 +498,9 @@ def new_vee_replay_request():
 def create_vee_replay_request_view():
     session = get_session()
     form_data = _build_vee_replay_request_form_data(request.form)
+    current_user = get_current_user()
+    assert current_user is not None
+    form_data["requested_by"] = current_user.login_id
     hes_system_options = session.scalars(
         select(HesSystem).order_by(HesSystem.display_name.asc(), HesSystem.id.asc())
     ).all()
@@ -503,7 +509,8 @@ def create_vee_replay_request_view():
         result = create_vee_replay_request(
             session,
             request_scope=form_data["request_scope"],
-            requested_by=form_data["requested_by"] or "operator_ui",
+            requested_by=current_user.login_id,
+            requested_by_user_account_id=current_user.id,
             operator_memo=form_data["operator_memo"] or None,
             hes_system_id=_parse_optional_int(form_data["hes_system_id"]),
             ingest_batch_id=_parse_optional_int(form_data["ingest_batch_id"]),
@@ -583,11 +590,14 @@ def vee_replay_request_detail(request_id: int):
 @bp.post("/vee-replay-requests/<int:request_id>/cancel")
 def cancel_vee_replay_request_view(request_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         replay_request = cancel_vee_replay_request(
             session,
             request_id,
-            cancelled_by="operator_ui",
+            cancelled_by=current_user.login_id,
+            cancelled_by_user_account_id=current_user.id,
             operator_memo=request.form.get("operator_memo") or None,
         )
         session.commit()

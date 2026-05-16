@@ -13,6 +13,7 @@ from app.models import (
     VeeException,
     VeeExecutionLog,
 )
+from app.services.auth import create_user_account
 from app.services.hes_systems import ensure_hes_system
 from app.services.ingestion import ingest_reads
 from app.services.seeds import seed_master_data
@@ -134,6 +135,13 @@ def _attach_vee_exception(
 
 def test_create_vee_replay_request_for_hes_system_scope(session):
     hes_system_id = _prepare_replay_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="replay-request-actor",
+        password="secret-password",
+        display_name="Replay Request Actor",
+        role_code="operator",
+    )
     initial, _batch_id = _ingest_initial_measurement(
         session,
         hes_system_id=hes_system_id,
@@ -145,7 +153,8 @@ def test_create_vee_replay_request_for_hes_system_scope(session):
     result = create_vee_replay_request(
         session,
         request_scope="hes_system",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=hes_system_id,
         operator_memo="scope test",
     )
@@ -155,6 +164,8 @@ def test_create_vee_replay_request_for_hes_system_scope(session):
     assert result.created_item_count == 1
     assert request.request_scope == "hes_system"
     assert request.status == "queued"
+    assert request.requested_by == actor.login_id
+    assert request.requested_by_user_account_id == actor.id
     assert request.target_initial_count == 1
     assert request.hes_system_id == hes_system_id
     assert len(request.request_items) == 1
@@ -173,6 +184,7 @@ def test_create_vee_replay_request_for_hes_system_scope(session):
     assert requested_event is not None
     assert requested_event.details["request_scope"] == "hes_system"
     assert requested_event.details["target_initial_count"] == 1
+    assert requested_event.details["requested_by_user_account_id"] == actor.id
 
 
 def test_create_vee_replay_request_filters_by_ingest_batch_scope(session):
@@ -326,6 +338,13 @@ def test_create_vee_replay_request_rejects_duplicate_active_scope(session):
 
 def test_cancel_vee_replay_request_allows_only_queued_requests(session):
     hes_system_id = _prepare_replay_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="replay-cancel-actor",
+        password="secret-password",
+        display_name="Replay Cancel Actor",
+        role_code="operator",
+    )
     initial, _batch_id = _ingest_initial_measurement(
         session,
         hes_system_id=hes_system_id,
@@ -337,7 +356,8 @@ def test_cancel_vee_replay_request_allows_only_queued_requests(session):
     result = create_vee_replay_request(
         session,
         request_scope="hes_system",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=hes_system_id,
     )
     session.commit()
@@ -345,20 +365,25 @@ def test_cancel_vee_replay_request_allows_only_queued_requests(session):
     cancelled = cancel_vee_replay_request(
         session,
         result.request.id,
-        cancelled_by="operator_ui",
+        cancelled_by=actor.login_id,
+        cancelled_by_user_account_id=actor.id,
         operator_memo="stop before worker claim",
     )
     session.commit()
 
     assert cancelled.status == "cancelled"
-    assert cancelled.details["cancelled_by"] == "operator_ui"
+    assert cancelled.cancelled_by == actor.login_id
+    assert cancelled.cancelled_by_user_account_id == actor.id
+    assert cancelled.details["cancelled_by"] == actor.login_id
+    assert cancelled.details["cancelled_by_user_account_id"] == actor.id
     assert "cancelled_at" in cancelled.details
 
     with pytest.raises(VeeReplayRequestError) as exc_info:
         cancel_vee_replay_request(
             session,
             cancelled.id,
-            cancelled_by="operator_ui",
+            cancelled_by=actor.login_id,
+            cancelled_by_user_account_id=actor.id,
         )
 
     assert exc_info.value.error_code == "already_cancelled"

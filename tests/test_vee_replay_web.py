@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.models import (
     InitialMeasurement,
     PipelineRun,
+    UserAccount,
     VeeException,
     VeeExecutionLog,
     VeeReplayRequest,
@@ -116,6 +117,8 @@ def _attach_vee_exception(session, initial: InitialMeasurement) -> VeeException:
 
 def test_vee_replay_requests_page_renders_request_list_and_progress(client, session):
     hes_system_id = _prepare_replay_environment(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
     initial = _ingest_initial_measurement(
         session,
         hes_system_id=hes_system_id,
@@ -126,7 +129,8 @@ def test_vee_replay_requests_page_renders_request_list_and_progress(client, sess
     created = create_vee_replay_request(
         session,
         request_scope="hes_system",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=hes_system_id,
     )
     created.request.details = {
@@ -145,12 +149,14 @@ def test_vee_replay_requests_page_renders_request_list_and_progress(client, sess
     assert "VEE 재평가 요청" in text
     assert "Demo HES" in text
     assert "40.0%" in text
-    assert "operator_ui" in text
+    assert "Test Admin (admin)" in text
     assert "같은 범위 재평가" not in text
 
 
 def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, session):
     hes_system_id = _prepare_replay_environment(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
     initial_one = _ingest_initial_measurement(
         session,
         hes_system_id=hes_system_id,
@@ -168,7 +174,8 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
     created = create_vee_replay_request(
         session,
         request_scope="hes_system",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=hes_system_id,
     )
 
@@ -226,6 +233,7 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
 
     assert response.status_code == 200
     assert "VEE 재평가 요청 상세" in text
+    assert "Test Admin (admin)" in text
     assert "50.0%" in text
     assert "자동으로 새로고침" in text
     assert "forced replay failure" in text
@@ -235,12 +243,14 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
     assert "/usage-transactions/88?lang=ko" in text
     assert "/vee-replay-requests/new?lang=ko" in text
     assert "request_scope=hes_system" in text
-    assert "requested_by=operator_ui" in text
+    assert "requested_by=admin" in text
     assert f"hes_system_id={hes_system_id}" in text
 
 
 def test_vee_replay_requests_page_offers_repeat_shortcut_for_completed_scope(client, session):
     hes_system_id = _prepare_replay_environment(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
     initial = _ingest_initial_measurement(
         session,
         hes_system_id=hes_system_id,
@@ -251,7 +261,8 @@ def test_vee_replay_requests_page_offers_repeat_shortcut_for_completed_scope(cli
     created = create_vee_replay_request(
         session,
         request_scope="hes_system",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=hes_system_id,
     )
     created.request.status = "completed"
@@ -266,11 +277,13 @@ def test_vee_replay_requests_page_offers_repeat_shortcut_for_completed_scope(cli
 
     assert response.status_code == 200
     assert "같은 범위 재평가" in text
-    assert f"/vee-replay-requests/new?lang=ko&amp;request_scope=hes_system&amp;requested_by=operator_ui&amp;hes_system_id={hes_system_id}" in text
+    assert f"/vee-replay-requests/new?lang=ko&amp;request_scope=hes_system&amp;requested_by=admin&amp;hes_system_id={hes_system_id}" in text
 
 
 def test_cancel_queued_vee_replay_request_via_web(client, session):
     hes_system_id = _prepare_replay_environment(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
     initial = _ingest_initial_measurement(
         session,
         hes_system_id=hes_system_id,
@@ -281,7 +294,8 @@ def test_cancel_queued_vee_replay_request_via_web(client, session):
     created = create_vee_replay_request(
         session,
         request_scope="hes_system",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=hes_system_id,
     )
     session.commit()
@@ -298,6 +312,8 @@ def test_cancel_queued_vee_replay_request_via_web(client, session):
     assert "VEE 재평가 요청이 처리 시작 전에 취소되었습니다." in text
     assert refreshed is not None
     assert refreshed.status == "cancelled"
+    assert refreshed.cancelled_by == actor.login_id
+    assert refreshed.cancelled_by_user_account_id == actor.id
 
 
 def test_new_vee_replay_request_page_prefills_hes_system_scope(client, session):
@@ -339,10 +355,12 @@ def test_create_vee_replay_request_via_web_redirects_to_detail(client, session):
     text = response.get_data(as_text=True)
     created = session.scalar(
         select(VeeReplayRequest)
-        .where(VeeReplayRequest.requested_by == "operator_ui")
+        .where(VeeReplayRequest.requested_by == "admin")
         .order_by(VeeReplayRequest.id.desc())
         .limit(1)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
 
     assert response.status_code == 200
     assert "VEE 재평가 요청이 대기열에 등록되었습니다." in text
@@ -350,3 +368,4 @@ def test_create_vee_replay_request_via_web_redirects_to_detail(client, session):
     assert created is not None
     assert created.request_scope == "hes_system"
     assert created.hes_system_id == hes_system_id
+    assert created.requested_by_user_account_id == actor.id

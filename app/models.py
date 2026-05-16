@@ -79,6 +79,14 @@ class UserAccount(TimestampMixin, Base):
         back_populates="edited_by_user_account",
         foreign_keys="ManualEditAudit.edited_by_user_account_id",
     )
+    requested_vee_replay_requests: Mapped[list["VeeReplayRequest"]] = relationship(
+        back_populates="requested_by_user_account",
+        foreign_keys="VeeReplayRequest.requested_by_user_account_id",
+    )
+    cancelled_vee_replay_requests: Mapped[list["VeeReplayRequest"]] = relationship(
+        back_populates="cancelled_by_user_account",
+        foreign_keys="VeeReplayRequest.cancelled_by_user_account_id",
+    )
 
 
 class AuthSessionAudit(Base):
@@ -977,6 +985,14 @@ class VeeReplayRequest(TimestampMixin, Base):
         Index("ix_vee_replay_request_hes_system_id", "hes_system_id"),
         Index("ix_vee_replay_request_ingest_batch_id", "ingest_batch_id"),
         Index("ix_vee_replay_request_requested_by", "requested_by"),
+        Index(
+            "ix_vee_replay_request_requested_by_user_account_id",
+            "requested_by_user_account_id",
+        ),
+        Index(
+            "ix_vee_replay_request_cancelled_by_user_account_id",
+            "cancelled_by_user_account_id",
+        ),
         Index("ix_vee_replay_request_created_at", "created_at"),
     )
 
@@ -984,6 +1000,7 @@ class VeeReplayRequest(TimestampMixin, Base):
     request_scope: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
     requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    requested_by_user_account_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
     operator_memo: Mapped[str | None] = mapped_column(Text)
     hes_system_id: Mapped[int | None] = mapped_column(ForeignKey("hes_system.id"))
     ingest_batch_id: Mapped[int | None] = mapped_column(ForeignKey("ingest_batch.id"))
@@ -998,6 +1015,9 @@ class VeeReplayRequest(TimestampMixin, Base):
     cleared_exception_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     final_superseded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     usage_recalculated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cancelled_by: Mapped[str | None] = mapped_column(String(120))
+    cancelled_by_user_account_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
@@ -1005,6 +1025,14 @@ class VeeReplayRequest(TimestampMixin, Base):
 
     hes_system: Mapped["HesSystem | None"] = relationship(back_populates="vee_replay_requests")
     ingest_batch: Mapped["IngestBatch | None"] = relationship(back_populates="vee_replay_requests")
+    requested_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="requested_vee_replay_requests",
+        foreign_keys=[requested_by_user_account_id],
+    )
+    cancelled_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="cancelled_vee_replay_requests",
+        foreign_keys=[cancelled_by_user_account_id],
+    )
     request_items: Mapped[list["VeeReplayRequestItem"]] = relationship(
         back_populates="vee_replay_request"
     )

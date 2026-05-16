@@ -14,6 +14,7 @@ from app.models import (
     VeeReplayRequest,
     VeeReplayRequestItem,
 )
+from app.services.auth import create_user_account
 from app.services.seeds import seed_demo_environment
 
 
@@ -67,11 +68,19 @@ def _seed_replay_context(session) -> tuple[InitialMeasurement, VeeException]:
 
 def test_vee_replay_request_links_scope_entities_and_pipeline_runs(session):
     initial, vee_exception = _seed_replay_context(session)
+    actor = create_user_account(
+        session,
+        login_id="replay-model-actor",
+        password="secret-password",
+        display_name="Replay Model Actor",
+        role_code="operator",
+    )
 
     request = VeeReplayRequest(
         request_scope="hes_system",
         status="queued",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=initial.canonical_measurement.hes_read_raw.hes_system_id,
         details={"source": "test"},
     )
@@ -102,6 +111,8 @@ def test_vee_replay_request_links_scope_entities_and_pipeline_runs(session):
     refreshed = session.get(VeeReplayRequest, request.id)
     assert refreshed is not None
     assert refreshed.hes_system is not None
+    assert refreshed.requested_by_user_account is not None
+    assert refreshed.requested_by_user_account.login_id == actor.login_id
     assert len(refreshed.request_items) == 1
     assert len(refreshed.pipeline_runs) == 1
     assert refreshed.request_items[0].initial_measurement_id == initial.id
@@ -111,11 +122,19 @@ def test_vee_replay_request_links_scope_entities_and_pipeline_runs(session):
 
 def test_vee_replay_request_item_allows_only_one_initial_per_request(session):
     initial, vee_exception = _seed_replay_context(session)
+    actor = create_user_account(
+        session,
+        login_id="replay-item-actor",
+        password="secret-password",
+        display_name="Replay Item Actor",
+        role_code="operator",
+    )
 
     request = VeeReplayRequest(
         request_scope="hes_system",
         status="queued",
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
         hes_system_id=initial.canonical_measurement.hes_read_raw.hes_system_id,
         details={"source": "test"},
     )

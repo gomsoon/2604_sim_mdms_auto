@@ -130,6 +130,10 @@ def test_alembic_upgrade_creates_expected_tables():
             column["name"]
             for column in inspector.get_columns("vee_replay_request", schema=schema_name)
         }
+        vee_replay_request_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("vee_replay_request", schema=schema_name)
+        }
         vee_replay_request_item_columns = {
             column["name"]
             for column in inspector.get_columns("vee_replay_request_item", schema=schema_name)
@@ -278,11 +282,19 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "request_scope" in vee_replay_request_columns
         assert "status" in vee_replay_request_columns
         assert "requested_by" in vee_replay_request_columns
+        assert "requested_by_user_account_id" in vee_replay_request_columns
+        assert "cancelled_by" in vee_replay_request_columns
+        assert "cancelled_by_user_account_id" in vee_replay_request_columns
+        assert "cancelled_at" in vee_replay_request_columns
         assert "hes_system_id" in vee_replay_request_columns
         assert "ingest_batch_id" in vee_replay_request_columns
         assert "target_initial_count" in vee_replay_request_columns
         assert "processed_count" in vee_replay_request_columns
         assert "usage_recalculated_count" in vee_replay_request_columns
+        assert vee_replay_request_column_defs["requested_by"]["nullable"] is False
+        assert vee_replay_request_column_defs["requested_by_user_account_id"]["nullable"] is True
+        assert vee_replay_request_column_defs["cancelled_by"]["nullable"] is True
+        assert vee_replay_request_column_defs["cancelled_by_user_account_id"]["nullable"] is True
         assert "vee_replay_request_id" in vee_replay_request_item_columns
         assert "initial_measurement_id" in vee_replay_request_item_columns
         assert "representative_vee_exception_id" in vee_replay_request_item_columns
@@ -619,6 +631,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_vee_replay_request_hes_system_id" in index_defs
         assert "ix_vee_replay_request_ingest_batch_id" in index_defs
         assert "ix_vee_replay_request_requested_by" in index_defs
+        assert "ix_vee_replay_request_requested_by_user_account_id" in index_defs
+        assert "ix_vee_replay_request_cancelled_by_user_account_id" in index_defs
         assert "ix_vee_replay_request_created_at" in index_defs
         assert "uq_vee_replay_request_item_scope" in index_defs
         assert "UNIQUE INDEX" in index_defs["uq_vee_replay_request_item_scope"]

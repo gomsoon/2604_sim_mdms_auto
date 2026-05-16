@@ -199,6 +199,8 @@ class VeeReplayRequestDetailContext:
     current_item: VeeReplayRequestItem | None = None
     recent_items: list[VeeReplayRequestItem] = ()
     failed_items: list[VeeReplayRequestItem] = ()
+    requested_actor_display: str | None = None
+    cancelled_actor_display: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1666,6 +1668,8 @@ def list_vee_replay_requests(
     statement: Select[tuple[VeeReplayRequest]] = select(VeeReplayRequest).options(
         selectinload(VeeReplayRequest.hes_system),
         selectinload(VeeReplayRequest.ingest_batch),
+        selectinload(VeeReplayRequest.requested_by_user_account),
+        selectinload(VeeReplayRequest.cancelled_by_user_account),
         selectinload(VeeReplayRequest.pipeline_runs),
         selectinload(VeeReplayRequest.request_items),
     )
@@ -1739,6 +1743,8 @@ def get_vee_replay_request_detail_context(
         .options(
             joinedload(VeeReplayRequest.hes_system),
             joinedload(VeeReplayRequest.ingest_batch),
+            joinedload(VeeReplayRequest.requested_by_user_account),
+            joinedload(VeeReplayRequest.cancelled_by_user_account),
             selectinload(VeeReplayRequest.pipeline_runs),
             selectinload(VeeReplayRequest.request_items).joinedload(
                 VeeReplayRequestItem.representative_vee_exception
@@ -1795,6 +1801,14 @@ def get_vee_replay_request_detail_context(
         current_item=current_item,
         recent_items=recent_items,
         failed_items=failed_items,
+        requested_actor_display=_format_user_actor_display(
+            request.requested_by_user_account,
+            request.requested_by,
+        ),
+        cancelled_actor_display=_format_user_actor_display(
+            request.cancelled_by_user_account,
+            request.cancelled_by or (request.details or {}).get("cancelled_by"),
+        ),
     )
 
 

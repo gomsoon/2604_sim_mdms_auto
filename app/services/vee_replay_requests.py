@@ -179,6 +179,8 @@ def _build_request_details(
     measured_at_from: datetime | None,
     measured_at_to: datetime | None,
     window_timezone_name: str | None,
+    requested_by: str,
+    requested_by_user_account_id: int | None,
 ) -> dict[str, object]:
     return {
         "request_scope": request_scope,
@@ -187,6 +189,8 @@ def _build_request_details(
         "measured_at_from": measured_at_from.isoformat() if measured_at_from else None,
         "measured_at_to": measured_at_to.isoformat() if measured_at_to else None,
         "window_timezone_name": window_timezone_name,
+        "requested_by": requested_by,
+        "requested_by_user_account_id": requested_by_user_account_id,
     }
 
 
@@ -208,6 +212,7 @@ def create_vee_replay_request(
     *,
     request_scope: str,
     requested_by: str,
+    requested_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
     hes_system_id: int | None = None,
     ingest_batch_id: int | None = None,
@@ -256,6 +261,7 @@ def create_vee_replay_request(
         request_scope=request_scope,
         status="queued",
         requested_by=requested_by,
+        requested_by_user_account_id=requested_by_user_account_id,
         operator_memo=operator_memo,
         hes_system_id=hes_system_id,
         ingest_batch_id=ingest_batch_id,
@@ -277,6 +283,8 @@ def create_vee_replay_request(
             measured_at_from=measured_at_from,
             measured_at_to=measured_at_to,
             window_timezone_name=window_timezone_name,
+            requested_by=requested_by,
+            requested_by_user_account_id=requested_by_user_account_id,
         ),
     )
     session.add(request)
@@ -308,6 +316,7 @@ def create_vee_replay_request(
             "request_scope": request.request_scope,
             "target_initial_count": request.target_initial_count,
             "requested_by": request.requested_by,
+            "requested_by_user_account_id": request.requested_by_user_account_id,
         },
         request_id=request.id,
         request_scope=request.request_scope,
@@ -326,6 +335,7 @@ def cancel_vee_replay_request(
     request_id: int,
     *,
     cancelled_by: str,
+    cancelled_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
 ) -> VeeReplayRequest:
     request = session.get(VeeReplayRequest, request_id)
@@ -345,13 +355,18 @@ def cancel_vee_replay_request(
             "Only queued VEE replay requests can be cancelled.",
         )
 
+    cancelled_at = datetime.now(timezone.utc)
     details = dict(request.details or {})
     details["cancelled_by"] = cancelled_by
-    details["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+    details["cancelled_by_user_account_id"] = cancelled_by_user_account_id
+    details["cancelled_at"] = cancelled_at.isoformat()
     if operator_memo:
         details["cancellation_memo"] = operator_memo
 
     request.status = "cancelled"
+    request.cancelled_by = cancelled_by
+    request.cancelled_by_user_account_id = cancelled_by_user_account_id
+    request.cancelled_at = cancelled_at
     if operator_memo is not None:
         request.operator_memo = operator_memo
     request.details = details
