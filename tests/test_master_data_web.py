@@ -11,6 +11,7 @@ from app.models import (
     ServicePoint,
     ServicePointBillingContext,
     ServicePointTariffAssignment,
+    UserAccount,
 )
 from app.services.billing_contexts import create_billing_context
 from app.services.hes_systems import sync_hes_meter_reference_alerts
@@ -35,10 +36,14 @@ def test_create_service_point_via_web_creates_record(client, session):
     service_point = session.scalar(
         select(ServicePoint).where(ServicePoint.external_id == "SP-WEB-1001").limit(1)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "Service point created successfully." in response.get_data(as_text=True)
     assert service_point is not None
+    assert actor is not None
+    assert service_point.created_by_user_account_id == actor.id
+    assert service_point.updated_by_user_account_id == actor.id
 
 
 def test_master_data_page_prefills_device_and_component_forms_from_query(client, session):
@@ -120,12 +125,16 @@ def test_create_billing_context_via_web_creates_record(client, session):
         .where(ServicePointBillingContext.service_point_id == service_point.id)
         .limit(1)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "Billing context created successfully." in response.get_data(as_text=True)
     assert row is not None
+    assert actor is not None
     assert row.timezone_name == "Asia/Seoul"
     assert row.is_current is True
+    assert row.created_by_user_account_id == actor.id
+    assert row.updated_by_user_account_id == actor.id
 
 
 def test_master_data_page_shows_billing_context_rows(client, session):
@@ -190,12 +199,16 @@ def test_create_tariff_assignment_via_web_creates_record(client, session):
         .where(ServicePointTariffAssignment.service_point_id == service_point.id)
         .limit(1)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "Tariff assignment created successfully." in response.get_data(as_text=True)
     assert row is not None
+    assert actor is not None
     assert row.tariff_plan_code == "RES-A"
     assert row.is_current is True
+    assert row.created_by_user_account_id == actor.id
+    assert row.updated_by_user_account_id == actor.id
 
 
 def test_master_data_page_shows_tariff_assignment_rows(client, session):
@@ -339,12 +352,15 @@ def test_update_device_via_web_supports_korean_feedback(client, session):
     )
 
     updated_device = session.get(Device, device.id)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "장치가 수정되었습니다." in response.get_data(as_text=True)
     assert updated_device is not None
+    assert actor is not None
     assert updated_device.serial_number == "SER-WEB-UPDATED"
     assert updated_device.status == "inactive"
+    assert updated_device.updated_by_user_account_id == actor.id
 
 
 def test_create_service_point_via_web_rejects_empty_external_id_in_korean(client, session):
@@ -408,11 +424,15 @@ def test_create_installation_history_via_web_creates_record(client, session):
         .order_by(InstallationHistory.id.desc())
         .limit(1)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "Installation history created successfully." in response.get_data(as_text=True)
     assert installation is not None
+    assert actor is not None
     assert installation.status == "installed"
+    assert installation.created_by_user_account_id == actor.id
+    assert installation.updated_by_user_account_id == actor.id
 
 
 def test_create_installation_history_via_web_rejects_missing_removed_time_in_korean(client, session):

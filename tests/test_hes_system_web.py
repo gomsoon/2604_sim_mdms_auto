@@ -12,6 +12,7 @@ from app.models import (
     InitialMeasurement,
     OperationalEvent,
     UsageTransaction,
+    UserAccount,
     VeeException,
     VeeReplayRequest,
 )
@@ -57,12 +58,16 @@ def test_create_hes_system_via_web_creates_registry_entry(client, session):
     hes_system = session.scalar(
         select(HesSystem).where(HesSystem.hes_code == "AIMIR_OVERSEAS").limit(1)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "HES system created successfully." in response.get_data(as_text=True)
     assert hes_system is not None
+    assert actor is not None
     assert hes_system.display_name == "AIMIR Overseas HES"
     assert hes_system.default_delivery_mode == "poll"
+    assert hes_system.created_by_user_account_id == actor.id
+    assert hes_system.updated_by_user_account_id == actor.id
 
 
 def test_create_hes_system_via_web_rejects_invalid_json_in_korean(client, session):
@@ -360,12 +365,15 @@ def test_update_hes_system_via_web_updates_registry(client, session):
     )
 
     updated = session.get(HesSystem, hes_system.id)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "HES system updated successfully." in response.get_data(as_text=True)
     assert updated is not None
+    assert actor is not None
     assert updated.display_name == "Updated Demo HES"
     assert updated.status == "inactive"
+    assert updated.updated_by_user_account_id == actor.id
 
 
 def test_adapters_page_shows_parent_hes_link(client, session):

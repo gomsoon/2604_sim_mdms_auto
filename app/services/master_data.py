@@ -140,6 +140,7 @@ def create_service_point(
     service_type: str | None,
     name: str | None,
     status: str | None,
+    created_by_user_account_id: int | None = None,
 ) -> ServicePoint:
     normalized_source_system = _require_text(
         source_system, "missing_source_system", "Source system is required."
@@ -160,6 +161,8 @@ def create_service_point(
         service_type=normalized_service_type,
         name=_normalize_text(name),
         status=normalized_status,
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(service_point)
     session.flush()
@@ -175,6 +178,7 @@ def update_service_point(
     service_type: str | None,
     name: str | None,
     status: str | None,
+    updated_by_user_account_id: int | None = None,
 ) -> ServicePoint:
     normalized_source_system = _require_text(
         source_system, "missing_source_system", "Source system is required."
@@ -196,6 +200,7 @@ def update_service_point(
     service_point.service_type = normalized_service_type
     service_point.name = _normalize_text(name)
     service_point.status = normalized_status
+    service_point.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return service_point
 
@@ -208,6 +213,7 @@ def create_device(
     serial_number: str | None,
     service_point_id: int | str | None,
     status: str | None,
+    created_by_user_account_id: int | None = None,
 ) -> Device:
     normalized_source_system = _require_text(
         source_system, "missing_source_system", "Source system is required."
@@ -231,6 +237,8 @@ def create_device(
         serial_number=_normalize_text(serial_number),
         status=normalized_status,
         service_point_id=service_point.id,
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(device)
     session.flush()
@@ -246,6 +254,7 @@ def update_device(
     serial_number: str | None,
     service_point_id: int | str | None,
     status: str | None,
+    updated_by_user_account_id: int | None = None,
 ) -> Device:
     normalized_source_system = _require_text(
         source_system, "missing_source_system", "Source system is required."
@@ -278,6 +287,7 @@ def update_device(
     device.serial_number = _normalize_text(serial_number)
     device.service_point_id = service_point.id
     device.status = normalized_status
+    device.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return device
 
@@ -292,6 +302,7 @@ def create_measuring_component(
     status: str | None,
     device_id: int | str | None,
     service_point_id: int | str | None,
+    created_by_user_account_id: int | None = None,
 ) -> MeasuringComponent:
     normalized_source_system = _require_text(
         source_system, "missing_source_system", "Source system is required."
@@ -336,6 +347,8 @@ def create_measuring_component(
         status=normalized_status,
         device_id=device.id,
         service_point_id=service_point.id,
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(component)
     session.flush()
@@ -353,6 +366,7 @@ def update_measuring_component(
     status: str | None,
     device_id: int | str | None,
     service_point_id: int | str | None,
+    updated_by_user_account_id: int | None = None,
 ) -> MeasuringComponent:
     normalized_source_system = _require_text(
         source_system, "missing_source_system", "Source system is required."
@@ -397,5 +411,6 @@ def update_measuring_component(
     component.status = normalized_status
     component.device_id = device.id
     component.service_point_id = service_point.id
+    component.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return component

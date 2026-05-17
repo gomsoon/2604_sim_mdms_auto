@@ -18,6 +18,7 @@ from app.services.adapters import (
     sync_adapter_health_alerts,
     update_adapter_admin_state,
 )
+from app.services.auth import create_user_account
 from app.services.operational_events import EVENT_SPECS
 from app.services.seeds import seed_demo_environment
 
@@ -193,6 +194,13 @@ def test_queue_adapter_run_once_rejects_duplicate_waiting_run(session):
 def test_create_adapter_instance_creates_enabled_poll_runtime(session):
     seed_demo_environment(session)
     session.commit()
+    actor = create_user_account(
+        session,
+        login_id="adapter-actor",
+        password="secret-password",
+        display_name="Adapter Actor",
+        role_code="admin",
+    )
 
     definition = session.scalar(select(AdapterDefinition).limit(1))
     assert definition is not None
@@ -208,6 +216,7 @@ def test_create_adapter_instance_creates_enabled_poll_runtime(session):
         landing_enabled=True,
         secret_ref="env://SECONDARY",
         connection_config_masked='{"host": "hes-db-2.internal"}',
+        created_by_user_account_id=actor.id,
     )
     session.commit()
 
@@ -219,10 +228,36 @@ def test_create_adapter_instance_creates_enabled_poll_runtime(session):
     assert instance.secret_ref == "env://SECONDARY"
     assert instance.connection_config_masked == {"host": "hes-db-2.internal"}
     assert instance.next_run_at is not None
+    assert instance.created_by_user_account_id == actor.id
+    assert instance.updated_by_user_account_id == actor.id
     assert instance.hes_system_id is not None
     hes_system = session.get(HesSystem, instance.hes_system_id)
     assert hes_system is not None
     assert hes_system.hes_code == "HES"
+
+
+def test_update_adapter_admin_state_records_updated_actor_lineage(session):
+    seed_demo_environment(session)
+    session.commit()
+    actor = create_user_account(
+        session,
+        login_id="adapter-updater",
+        password="secret-password",
+        display_name="Adapter Updater",
+        role_code="admin",
+    )
+
+    instance = session.scalar(select(AdapterInstance).limit(1))
+    assert instance is not None
+
+    update_adapter_admin_state(
+        session,
+        instance,
+        "paused",
+        updated_by_user_account_id=actor.id,
+    )
+
+    assert instance.updated_by_user_account_id == actor.id
 
 
 def test_create_adapter_instance_under_existing_hes_system_uses_parent_hes_code(session):

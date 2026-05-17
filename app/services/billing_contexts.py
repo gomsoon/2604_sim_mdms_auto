@@ -237,6 +237,7 @@ def _close_existing_current_context(
     *,
     service_point_id: int,
     new_effective_from: datetime,
+    updated_by_user_account_id: int | None = None,
 ) -> ServicePointBillingContext | None:
     current_row = session.scalar(
         select(ServicePointBillingContext)
@@ -259,6 +260,7 @@ def _close_existing_current_context(
     current_row.is_current = False
     if current_row.effective_to is None or current_row.effective_to > new_effective_from:
         current_row.effective_to = new_effective_from
+    current_row.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return current_row
 
@@ -275,6 +277,7 @@ def create_billing_context(
     effective_to: str | datetime | None,
     source_system: str | None,
     source_reference: str | None,
+    created_by_user_account_id: int | None = None,
 ) -> ServicePointBillingContext:
     payload = _build_payload(
         session,
@@ -293,6 +296,7 @@ def create_billing_context(
         session,
         service_point_id=payload.service_point.id,
         new_effective_from=payload.effective_from,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     _ensure_no_overlapping_context(
         session,
@@ -313,6 +317,8 @@ def create_billing_context(
         source_system=payload.source_system,
         source_reference=payload.source_reference,
         details={},
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(row)
     session.flush()
@@ -331,6 +337,7 @@ def update_billing_context(
     effective_to: str | datetime | None,
     source_system: str | None,
     source_reference: str | None,
+    updated_by_user_account_id: int | None = None,
 ) -> ServicePointBillingContext:
     payload = _build_payload(
         session,
@@ -361,5 +368,6 @@ def update_billing_context(
     billing_context.effective_to = payload.effective_to
     billing_context.source_system = payload.source_system
     billing_context.source_reference = payload.source_reference
+    billing_context.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return billing_context

@@ -136,6 +136,7 @@ def create_installation_history(
     installed_at: str | datetime | None,
     removed_at: str | datetime | None,
     status: str | None,
+    created_by_user_account_id: int | None = None,
 ) -> InstallationHistory:
     if device_id in (None, ""):
         raise InstallationValidationError("missing_device_id", "Device selection is required.")
@@ -179,6 +180,8 @@ def create_installation_history(
         installed_at=normalized_installed_at,
         removed_at=normalized_removed_at,
         status=normalized_status,
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(installation)
     session.flush()
@@ -194,6 +197,7 @@ def update_installation_history(
     installed_at: str | datetime | None,
     removed_at: str | datetime | None,
     status: str | None,
+    updated_by_user_account_id: int | None = None,
 ) -> InstallationHistory:
     if device_id in (None, ""):
         raise InstallationValidationError("missing_device_id", "Device selection is required.")
@@ -237,5 +241,6 @@ def update_installation_history(
     installation.installed_at = normalized_installed_at
     installation.removed_at = normalized_removed_at
     installation.status = normalized_status
+    installation.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return installation

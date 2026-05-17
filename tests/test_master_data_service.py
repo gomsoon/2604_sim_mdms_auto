@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from app.services.auth import create_user_account
 from app.services.master_data import (
     MasterDataValidationError,
+    update_device,
+    update_measuring_component,
+    update_service_point,
     create_device,
     create_measuring_component,
     create_service_point,
@@ -11,6 +15,7 @@ from app.services.master_data import (
 from app.services.installations import (
     InstallationValidationError,
     create_installation_history,
+    update_installation_history,
 )
 
 
@@ -184,3 +189,106 @@ def test_create_installation_history_rejects_second_open_installation_for_same_d
         )
 
     assert exc_info.value.error_code == "overlapping_open_installation"
+
+
+def test_master_data_services_record_actor_lineage(session):
+    actor = create_user_account(
+        session,
+        login_id="master-data-actor",
+        password="secret-password",
+        display_name="Master Data Actor",
+        role_code="admin",
+    )
+
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-ACTOR-1001",
+        service_type="electric",
+        name="Actor Site",
+        status="active",
+        created_by_user_account_id=actor.id,
+    )
+    update_service_point(
+        session,
+        service_point,
+        source_system="HES",
+        external_id="SP-ACTOR-1001",
+        service_type="electric",
+        name="Actor Site Updated",
+        status="inactive",
+        updated_by_user_account_id=actor.id,
+    )
+
+    device = create_device(
+        session,
+        source_system="HES",
+        external_meter_id="MTR-ACTOR-1001",
+        serial_number="SER-ACTOR-1001",
+        service_point_id=service_point.id,
+        status="active",
+        created_by_user_account_id=actor.id,
+    )
+    update_device(
+        session,
+        device,
+        source_system="HES",
+        external_meter_id="MTR-ACTOR-1001",
+        serial_number="SER-ACTOR-UPDATED",
+        service_point_id=service_point.id,
+        status="inactive",
+        updated_by_user_account_id=actor.id,
+    )
+
+    component = create_measuring_component(
+        session,
+        source_system="HES",
+        external_channel_id="CH-ACTOR-01",
+        unit_of_measure="kWh",
+        multiplier=1,
+        status="active",
+        device_id=device.id,
+        service_point_id=service_point.id,
+        created_by_user_account_id=actor.id,
+    )
+    update_measuring_component(
+        session,
+        component,
+        source_system="HES",
+        external_channel_id="CH-ACTOR-01",
+        unit_of_measure="kWh",
+        multiplier=2,
+        status="inactive",
+        device_id=device.id,
+        service_point_id=service_point.id,
+        updated_by_user_account_id=actor.id,
+    )
+
+    installation = create_installation_history(
+        session,
+        device_id=device.id,
+        service_point_id=service_point.id,
+        installed_at="2026-04-19T10:00:00+09:00",
+        removed_at=None,
+        status="installed",
+        created_by_user_account_id=actor.id,
+    )
+    update_installation_history(
+        session,
+        installation,
+        device_id=device.id,
+        service_point_id=service_point.id,
+        installed_at="2026-04-19T10:00:00+09:00",
+        removed_at="2026-04-20T10:00:00+09:00",
+        status="removed",
+        updated_by_user_account_id=actor.id,
+    )
+
+    assert service_point.created_by_user_account_id == actor.id
+    assert service_point.updated_by_user_account_id == actor.id
+    assert device.created_by_user_account_id == actor.id
+    assert device.updated_by_user_account_id == actor.id
+    assert component.created_by_user_account_id == actor.id
+    assert component.updated_by_user_account_id == actor.id
+    assert installation.created_by_user_account_id == actor.id
+    assert installation.updated_by_user_account_id == actor.id

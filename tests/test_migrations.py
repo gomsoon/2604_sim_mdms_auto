@@ -85,6 +85,47 @@ def test_alembic_upgrade_creates_expected_tables():
         adapter_instance_columns = {
             column["name"] for column in inspector.get_columns("adapter_instance", schema=schema_name)
         }
+        adapter_instance_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("adapter_instance", schema=schema_name)
+        }
+        hes_system_columns = {
+            column["name"] for column in inspector.get_columns("hes_system", schema=schema_name)
+        }
+        hes_system_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("hes_system", schema=schema_name)
+        }
+        service_point_columns = {
+            column["name"] for column in inspector.get_columns("service_point", schema=schema_name)
+        }
+        service_point_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("service_point", schema=schema_name)
+        }
+        device_columns = {
+            column["name"] for column in inspector.get_columns("device", schema=schema_name)
+        }
+        device_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("device", schema=schema_name)
+        }
+        measuring_component_columns = {
+            column["name"]
+            for column in inspector.get_columns("measuring_component", schema=schema_name)
+        }
+        measuring_component_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("measuring_component", schema=schema_name)
+        }
+        installation_history_columns = {
+            column["name"]
+            for column in inspector.get_columns("installation_history", schema=schema_name)
+        }
+        installation_history_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("installation_history", schema=schema_name)
+        }
         hes_meter_reference_columns = {
             column["name"]
             for column in inspector.get_columns("hes_meter_reference", schema=schema_name)
@@ -250,6 +291,22 @@ def test_alembic_upgrade_creates_expected_tables():
 
         assert "hes_system_id" in ingest_batch_columns
         assert "hes_system_id" in adapter_instance_columns
+        assert "created_by_user_account_id" in hes_system_columns
+        assert "updated_by_user_account_id" in hes_system_columns
+        assert "created_by_user_account_id" in adapter_instance_columns
+        assert "updated_by_user_account_id" in adapter_instance_columns
+        assert "created_by_user_account_id" in service_point_columns
+        assert "updated_by_user_account_id" in service_point_columns
+        assert "created_by_user_account_id" in billing_context_columns
+        assert "updated_by_user_account_id" in billing_context_columns
+        assert "created_by_user_account_id" in tariff_assignment_columns
+        assert "updated_by_user_account_id" in tariff_assignment_columns
+        assert "created_by_user_account_id" in device_columns
+        assert "updated_by_user_account_id" in device_columns
+        assert "created_by_user_account_id" in measuring_component_columns
+        assert "updated_by_user_account_id" in measuring_component_columns
+        assert "created_by_user_account_id" in installation_history_columns
+        assert "updated_by_user_account_id" in installation_history_columns
         assert "hes_system_id" in hes_meter_reference_columns
         assert "source_meter_id" in hes_meter_reference_columns
         assert "source_meter_key" in hes_meter_reference_columns
@@ -492,6 +549,18 @@ def test_alembic_upgrade_creates_expected_tables():
         assert user_action_audit_column_defs["outcome_code"]["nullable"] is False
         assert user_action_audit_column_defs["details"]["nullable"] is False
         assert user_action_audit_column_defs["occurred_at"]["nullable"] is False
+        assert hes_system_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert hes_system_column_defs["updated_by_user_account_id"]["nullable"] is True
+        assert adapter_instance_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert adapter_instance_column_defs["updated_by_user_account_id"]["nullable"] is True
+        assert service_point_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert service_point_column_defs["updated_by_user_account_id"]["nullable"] is True
+        assert device_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert device_column_defs["updated_by_user_account_id"]["nullable"] is True
+        assert measuring_component_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert measuring_component_column_defs["updated_by_user_account_id"]["nullable"] is True
+        assert installation_history_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert installation_history_column_defs["updated_by_user_account_id"]["nullable"] is True
         assert "service_point_id" in billing_context_columns
         assert "timezone_name" in billing_context_columns
         assert "billing_cycle_mode" in billing_context_columns
@@ -507,6 +576,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert billing_context_column_defs["billing_cycle_mode"]["nullable"] is False
         assert billing_context_column_defs["effective_from"]["nullable"] is False
         assert billing_context_column_defs["is_current"]["nullable"] is False
+        assert billing_context_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert billing_context_column_defs["updated_by_user_account_id"]["nullable"] is True
         assert "service_point_id" in tariff_assignment_columns
         assert "tariff_plan_code" in tariff_assignment_columns
         assert "tariff_version_code" in tariff_assignment_columns
@@ -519,6 +590,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert tariff_assignment_column_defs["tariff_plan_code"]["nullable"] is False
         assert tariff_assignment_column_defs["effective_from"]["nullable"] is False
         assert tariff_assignment_column_defs["is_current"]["nullable"] is False
+        assert tariff_assignment_column_defs["created_by_user_account_id"]["nullable"] is True
+        assert tariff_assignment_column_defs["updated_by_user_account_id"]["nullable"] is True
         assert "initial_measurement_id" in final_column_defs
         assert "revision_number" in final_column_defs
         assert "revision_reason_code" in final_column_defs

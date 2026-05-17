@@ -167,6 +167,7 @@ def _close_existing_current_assignment(
     *,
     service_point_id: int,
     new_effective_from: datetime,
+    updated_by_user_account_id: int | None = None,
 ) -> ServicePointTariffAssignment | None:
     current_row = session.scalar(
         select(ServicePointTariffAssignment)
@@ -189,6 +190,7 @@ def _close_existing_current_assignment(
     current_row.is_current = False
     if current_row.effective_to is None or current_row.effective_to > new_effective_from:
         current_row.effective_to = new_effective_from
+    current_row.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return current_row
 
@@ -203,6 +205,7 @@ def create_tariff_assignment(
     effective_to: str | datetime | None,
     source_system: str | None,
     source_reference: str | None,
+    created_by_user_account_id: int | None = None,
 ) -> ServicePointTariffAssignment:
     payload = _build_payload(
         session,
@@ -219,6 +222,7 @@ def create_tariff_assignment(
         session,
         service_point_id=payload.service_point.id,
         new_effective_from=payload.effective_from,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     _ensure_no_overlapping_assignment(
         session,
@@ -237,6 +241,8 @@ def create_tariff_assignment(
         source_system=payload.source_system,
         source_reference=payload.source_reference,
         details={},
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(row)
     session.flush()
@@ -253,6 +259,7 @@ def update_tariff_assignment(
     effective_to: str | datetime | None,
     source_system: str | None,
     source_reference: str | None,
+    updated_by_user_account_id: int | None = None,
 ) -> ServicePointTariffAssignment:
     payload = _build_payload(
         session,
@@ -279,6 +286,7 @@ def update_tariff_assignment(
     tariff_assignment.effective_to = payload.effective_to
     tariff_assignment.source_system = payload.source_system
     tariff_assignment.source_reference = payload.source_reference
+    tariff_assignment.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return tariff_assignment
 

@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import ServicePointTariffAssignment
+from app.services.auth import create_user_account
 from app.services.master_data import MasterDataValidationError, create_service_point
 from app.services.tariff_assignments import (
     create_tariff_assignment,
@@ -15,6 +16,13 @@ from app.services.tariff_assignments import (
 
 
 def test_create_tariff_assignment_auto_closes_previous_current_row(session):
+    actor = create_user_account(
+        session,
+        login_id="tariff-actor",
+        password="secret-password",
+        display_name="Tariff Actor",
+        role_code="admin",
+    )
     service_point = create_service_point(
         session,
         source_system="HES",
@@ -22,6 +30,7 @@ def test_create_tariff_assignment_auto_closes_previous_current_row(session):
         service_type="electric",
         name="Tariff Site",
         status="active",
+        created_by_user_account_id=actor.id,
     )
 
     first = create_tariff_assignment(
@@ -33,6 +42,7 @@ def test_create_tariff_assignment_auto_closes_previous_current_row(session):
         effective_to=None,
         source_system="manual",
         source_reference="tariff-1",
+        created_by_user_account_id=actor.id,
     )
     second = create_tariff_assignment(
         session,
@@ -43,6 +53,7 @@ def test_create_tariff_assignment_auto_closes_previous_current_row(session):
         effective_to=None,
         source_system="manual",
         source_reference="tariff-2",
+        created_by_user_account_id=actor.id,
     )
 
     session.commit()
@@ -56,6 +67,9 @@ def test_create_tariff_assignment_auto_closes_previous_current_row(session):
     assert first.is_current is False
     assert first.effective_to == second.effective_from
     assert second.is_current is True
+    assert first.updated_by_user_account_id == actor.id
+    assert second.created_by_user_account_id == actor.id
+    assert second.updated_by_user_account_id == actor.id
 
 
 def test_create_tariff_assignment_rejects_overlap(session):
@@ -187,3 +201,47 @@ def test_find_applicable_tariff_assignment_uses_half_open_window(session):
     assert before_boundary.id == first.id
     assert at_boundary is not None
     assert at_boundary.id == second.id
+
+
+def test_update_tariff_assignment_records_updated_actor_lineage(session):
+    actor = create_user_account(
+        session,
+        login_id="tariff-updater",
+        password="secret-password",
+        display_name="Tariff Updater",
+        role_code="admin",
+    )
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-TARIFF-5001",
+        service_type="electric",
+        name="Tariff Actor Site",
+        status="active",
+        created_by_user_account_id=actor.id,
+    )
+    row = create_tariff_assignment(
+        session,
+        service_point_id=service_point.id,
+        tariff_plan_code="RES-C",
+        tariff_version_code="v1",
+        effective_from="2026-03-01T00:00:00+00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="tariff-update",
+        created_by_user_account_id=actor.id,
+    )
+
+    update_tariff_assignment(
+        session,
+        row,
+        tariff_plan_code="RES-D",
+        tariff_version_code="v2",
+        effective_from="2026-03-01T00:00:00+00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="tariff-update-2",
+        updated_by_user_account_id=actor.id,
+    )
+
+    assert row.updated_by_user_account_id == actor.id

@@ -1319,6 +1319,8 @@ def hes_systems():
 @admin_required
 def create_hes_system_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     form_data = _hes_system_form_values()
     try:
         hes_system = create_hes_system(
@@ -1332,6 +1334,7 @@ def create_hes_system_view():
             timezone_name=form_data["timezone_name"],
             description=form_data["description"],
             connection_config_masked=form_data["connection_config_masked"],
+            created_by_user_account_id=current_user.id,
         )
         session.commit()
         flash(translate("hes_system.flash.created"), "success")
@@ -1391,6 +1394,8 @@ def hes_meter_references(hes_system_id: int):
 @admin_required
 def update_hes_system_view(hes_system_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     hes_system = session.get(HesSystem, hes_system_id)
     if hes_system is None:
         abort(404)
@@ -1409,6 +1414,7 @@ def update_hes_system_view(hes_system_id: int):
             timezone_name=form_data["timezone_name"],
             description=form_data["description"],
             connection_config_masked=form_data["connection_config_masked"],
+            updated_by_user_account_id=current_user.id,
         )
         session.commit()
         flash(translate("hes_system.flash.updated"), "success")
@@ -1457,6 +1463,8 @@ def new_adapter(hes_system_id: int | None = None):
 @admin_required
 def create_adapter_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     definitions = list_active_adapter_definitions(session)
     form_data = _adapter_form_values()
     selected_hes_system = _resolve_selected_hes_system(session, form_data["hes_system_id"])
@@ -1474,6 +1482,7 @@ def create_adapter_view():
             landing_enabled=request.form.get("landing_enabled") == "on",
             secret_ref=form_data["secret_ref"],
             connection_config_masked=form_data["connection_config_masked"],
+            created_by_user_account_id=current_user.id,
         )
         session.commit()
         flash(translate("adapter.flash.created"), "success")
@@ -1502,12 +1511,19 @@ def adapter_detail(adapter_instance_id: int):
 @admin_required
 def enable_adapter_view(adapter_instance_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     instance = session.get(AdapterInstance, adapter_instance_id)
     if instance is None:
         abort(404)
 
     try:
-        update_adapter_admin_state(session, instance, "enabled")
+        update_adapter_admin_state(
+            session,
+            instance,
+            "enabled",
+            updated_by_user_account_id=current_user.id,
+        )
         session.commit()
         flash(translate("adapter.flash.enabled"), "success")
     except AdapterValidationError as exc:
@@ -1521,12 +1537,19 @@ def enable_adapter_view(adapter_instance_id: int):
 @admin_required
 def pause_adapter_view(adapter_instance_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     instance = session.get(AdapterInstance, adapter_instance_id)
     if instance is None:
         abort(404)
 
     try:
-        update_adapter_admin_state(session, instance, "paused")
+        update_adapter_admin_state(
+            session,
+            instance,
+            "paused",
+            updated_by_user_account_id=current_user.id,
+        )
         session.commit()
         flash(translate("adapter.flash.paused"), "success")
     except AdapterValidationError as exc:
@@ -1656,6 +1679,8 @@ def _flash_installation_error(exc: InstallationValidationError) -> None:
 @admin_required
 def create_service_point_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         create_service_point(
             session,
@@ -1664,6 +1689,7 @@ def create_service_point_view():
             service_type=request.form.get("service_type"),
             name=request.form.get("name"),
             status=request.form.get("status"),
+            created_by_user_account_id=current_user.id,
         )
         session.commit()
         _flash_master_data_success("master_data.flash.service_point_created")
@@ -1678,6 +1704,8 @@ def create_service_point_view():
 @admin_required
 def update_service_point_view(service_point_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     service_point = session.get(ServicePoint, service_point_id)
     if service_point is None:
         flash(
@@ -1697,6 +1725,7 @@ def update_service_point_view(service_point_id: int):
             service_type=request.form.get("service_type"),
             name=request.form.get("name"),
             status=request.form.get("status"),
+            updated_by_user_account_id=current_user.id,
         )
         session.commit()
         _flash_master_data_success("master_data.flash.service_point_updated")
@@ -1711,6 +1740,8 @@ def update_service_point_view(service_point_id: int):
 @admin_required
 def create_device_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         device = create_device(
             session,
@@ -1719,6 +1750,7 @@ def create_device_view():
             serial_number=request.form.get("serial_number"),
             service_point_id=request.form.get("service_point_id"),
             status=request.form.get("status"),
+            created_by_user_account_id=current_user.id,
         )
         _sync_hes_meter_reference_alerts_for_source_system(session, device.source_system)
         session.commit()
@@ -1734,6 +1766,8 @@ def create_device_view():
 @admin_required
 def update_device_view(device_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     device = session.get(Device, device_id)
     if device is None:
         flash(
@@ -1751,6 +1785,7 @@ def update_device_view(device_id: int):
             serial_number=request.form.get("serial_number"),
             service_point_id=request.form.get("service_point_id"),
             status=request.form.get("status"),
+            updated_by_user_account_id=current_user.id,
         )
         _sync_hes_meter_reference_alerts_for_source_system(session, device.source_system)
         session.commit()
@@ -1766,6 +1801,8 @@ def update_device_view(device_id: int):
 @admin_required
 def create_component_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         component = create_measuring_component(
             session,
@@ -1776,6 +1813,7 @@ def create_component_view():
             status=request.form.get("status"),
             device_id=request.form.get("device_id"),
             service_point_id=request.form.get("service_point_id"),
+            created_by_user_account_id=current_user.id,
         )
         _sync_hes_meter_reference_alerts_for_source_system(session, component.source_system)
         session.commit()
@@ -1791,6 +1829,8 @@ def create_component_view():
 @admin_required
 def update_component_view(component_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     component = session.get(MeasuringComponent, component_id)
     if component is None:
         flash(
@@ -1812,6 +1852,7 @@ def update_component_view(component_id: int):
             status=request.form.get("status"),
             device_id=request.form.get("device_id"),
             service_point_id=request.form.get("service_point_id"),
+            updated_by_user_account_id=current_user.id,
         )
         _sync_hes_meter_reference_alerts_for_source_system(session, component.source_system)
         session.commit()
@@ -1827,6 +1868,8 @@ def update_component_view(component_id: int):
 @admin_required
 def create_installation_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         installation = create_installation_history(
             session,
@@ -1835,6 +1878,7 @@ def create_installation_view():
             installed_at=request.form.get("installed_at"),
             removed_at=request.form.get("removed_at"),
             status=request.form.get("status"),
+            created_by_user_account_id=current_user.id,
         )
         _sync_hes_meter_reference_alerts_for_source_system(
             session, installation.device.source_system
@@ -1852,6 +1896,8 @@ def create_installation_view():
 @admin_required
 def update_installation_view(installation_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     installation = session.get(InstallationHistory, installation_id)
     if installation is None:
         flash(
@@ -1871,6 +1917,7 @@ def update_installation_view(installation_id: int):
             installed_at=request.form.get("installed_at"),
             removed_at=request.form.get("removed_at"),
             status=request.form.get("status"),
+            updated_by_user_account_id=current_user.id,
         )
         _sync_hes_meter_reference_alerts_for_source_system(
             session, installation.device.source_system
@@ -1888,6 +1935,8 @@ def update_installation_view(installation_id: int):
 @admin_required
 def create_billing_context_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         create_billing_context(
             session,
@@ -1900,6 +1949,7 @@ def create_billing_context_view():
             effective_to=request.form.get("effective_to"),
             source_system=request.form.get("source_system"),
             source_reference=request.form.get("source_reference"),
+            created_by_user_account_id=current_user.id,
         )
         session.commit()
         _flash_master_data_success("master_data.flash.billing_context_created")
@@ -1914,6 +1964,8 @@ def create_billing_context_view():
 @admin_required
 def update_billing_context_view(billing_context_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     billing_context = session.get(ServicePointBillingContext, billing_context_id)
     if billing_context is None:
         flash(
@@ -1937,6 +1989,7 @@ def update_billing_context_view(billing_context_id: int):
             effective_to=request.form.get("effective_to"),
             source_system=request.form.get("source_system"),
             source_reference=request.form.get("source_reference"),
+            updated_by_user_account_id=current_user.id,
         )
         session.commit()
         _flash_master_data_success("master_data.flash.billing_context_updated")
@@ -1951,6 +2004,8 @@ def update_billing_context_view(billing_context_id: int):
 @admin_required
 def create_tariff_assignment_view():
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         create_tariff_assignment(
             session,
@@ -1961,6 +2016,7 @@ def create_tariff_assignment_view():
             effective_to=request.form.get("effective_to"),
             source_system=request.form.get("source_system"),
             source_reference=request.form.get("source_reference"),
+            created_by_user_account_id=current_user.id,
         )
         session.commit()
         _flash_master_data_success("master_data.flash.tariff_assignment_created")
@@ -1975,6 +2031,8 @@ def create_tariff_assignment_view():
 @admin_required
 def update_tariff_assignment_view(tariff_assignment_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     tariff_assignment = session.get(ServicePointTariffAssignment, tariff_assignment_id)
     if tariff_assignment is None:
         flash(
@@ -1996,6 +2054,7 @@ def update_tariff_assignment_view(tariff_assignment_id: int):
             effective_to=request.form.get("effective_to"),
             source_system=request.form.get("source_system"),
             source_reference=request.form.get("source_reference"),
+            updated_by_user_account_id=current_user.id,
         )
         session.commit()
         _flash_master_data_success("master_data.flash.tariff_assignment_updated")

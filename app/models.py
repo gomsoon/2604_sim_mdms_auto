@@ -95,6 +95,70 @@ class UserAccount(TimestampMixin, Base):
         back_populates="cancelled_by_user_account",
         foreign_keys="BillingExportRequest.cancelled_by_user_account_id",
     )
+    created_hes_systems: Mapped[list["HesSystem"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="HesSystem.created_by_user_account_id",
+    )
+    updated_hes_systems: Mapped[list["HesSystem"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="HesSystem.updated_by_user_account_id",
+    )
+    created_adapter_instances: Mapped[list["AdapterInstance"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="AdapterInstance.created_by_user_account_id",
+    )
+    updated_adapter_instances: Mapped[list["AdapterInstance"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="AdapterInstance.updated_by_user_account_id",
+    )
+    created_service_points: Mapped[list["ServicePoint"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="ServicePoint.created_by_user_account_id",
+    )
+    updated_service_points: Mapped[list["ServicePoint"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="ServicePoint.updated_by_user_account_id",
+    )
+    created_billing_context_rows: Mapped[list["ServicePointBillingContext"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="ServicePointBillingContext.created_by_user_account_id",
+    )
+    updated_billing_context_rows: Mapped[list["ServicePointBillingContext"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="ServicePointBillingContext.updated_by_user_account_id",
+    )
+    created_tariff_assignment_rows: Mapped[list["ServicePointTariffAssignment"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="ServicePointTariffAssignment.created_by_user_account_id",
+    )
+    updated_tariff_assignment_rows: Mapped[list["ServicePointTariffAssignment"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="ServicePointTariffAssignment.updated_by_user_account_id",
+    )
+    created_devices: Mapped[list["Device"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="Device.created_by_user_account_id",
+    )
+    updated_devices: Mapped[list["Device"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="Device.updated_by_user_account_id",
+    )
+    created_measuring_components: Mapped[list["MeasuringComponent"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="MeasuringComponent.created_by_user_account_id",
+    )
+    updated_measuring_components: Mapped[list["MeasuringComponent"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="MeasuringComponent.updated_by_user_account_id",
+    )
+    created_installation_history_rows: Mapped[list["InstallationHistory"]] = relationship(
+        back_populates="created_by_user_account",
+        foreign_keys="InstallationHistory.created_by_user_account_id",
+    )
+    updated_installation_history_rows: Mapped[list["InstallationHistory"]] = relationship(
+        back_populates="updated_by_user_account",
+        foreign_keys="InstallationHistory.updated_by_user_account_id",
+    )
 
 
 class AuthSessionAudit(Base):
@@ -198,7 +262,23 @@ class HesSystem(TimestampMixin, Base):
     timezone_name: Mapped[str | None] = mapped_column(String(50))
     description: Mapped[str | None] = mapped_column(Text)
     connection_config_masked: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_hes_systems",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_hes_systems",
+        foreign_keys=[updated_by_user_account_id],
+    )
     adapter_instances: Mapped[list["AdapterInstance"]] = relationship(back_populates="hes_system")
     ingest_batches: Mapped[list["IngestBatch"]] = relationship(back_populates="hes_system")
     hes_read_rows: Mapped[list["HesReadRaw"]] = relationship(back_populates="hes_system")
@@ -285,9 +365,25 @@ class AdapterInstance(TimestampMixin, Base):
     landing_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     connection_config_masked: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     secret_ref: Mapped[str | None] = mapped_column(String(200))
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
     hes_system: Mapped["HesSystem | None"] = relationship(back_populates="adapter_instances")
     adapter_definition: Mapped[AdapterDefinition] = relationship(back_populates="adapter_instances")
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_adapter_instances",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_adapter_instances",
+        foreign_keys=[updated_by_user_account_id],
+    )
     adapter_runs: Mapped[list["AdapterRun"]] = relationship(back_populates="adapter_instance")
     adapter_watermarks: Mapped[list["AdapterWatermark"]] = relationship(
         back_populates="adapter_instance"
@@ -459,7 +555,23 @@ class ServicePoint(TimestampMixin, Base):
     service_type: Mapped[str] = mapped_column(String(30), nullable=False, default="electric")
     name: Mapped[str | None] = mapped_column(String(120))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="active")
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_service_points",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_service_points",
+        foreign_keys=[updated_by_user_account_id],
+    )
     devices: Mapped[list["Device"]] = relationship(back_populates="service_point")
     installation_history: Mapped[list["InstallationHistory"]] = relationship(
         back_populates="service_point"
@@ -554,8 +666,24 @@ class ServicePointBillingContext(TimestampMixin, Base):
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
     source_reference: Mapped[str | None] = mapped_column(String(200))
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
     service_point: Mapped["ServicePoint"] = relationship(back_populates="billing_context_rows")
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_billing_context_rows",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_billing_context_rows",
+        foreign_keys=[updated_by_user_account_id],
+    )
 
 
 class ServicePointTariffAssignment(TimestampMixin, Base):
@@ -608,8 +736,24 @@ class ServicePointTariffAssignment(TimestampMixin, Base):
     source_system: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
     source_reference: Mapped[str | None] = mapped_column(String(200))
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
     service_point: Mapped["ServicePoint"] = relationship(back_populates="tariff_assignment_rows")
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_tariff_assignment_rows",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_tariff_assignment_rows",
+        foreign_keys=[updated_by_user_account_id],
+    )
 
 
 class Device(TimestampMixin, Base):
@@ -621,8 +765,24 @@ class Device(TimestampMixin, Base):
     serial_number: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="active")
     service_point_id: Mapped[int | None] = mapped_column(ForeignKey("service_point.id"))
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
     service_point: Mapped[ServicePoint | None] = relationship(back_populates="devices")
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_devices",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_devices",
+        foreign_keys=[updated_by_user_account_id],
+    )
     measuring_components: Mapped[list["MeasuringComponent"]] = relationship(back_populates="device")
     installation_history: Mapped[list["InstallationHistory"]] = relationship(
         back_populates="device"
@@ -656,9 +816,25 @@ class MeasuringComponent(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="active")
     device_id: Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
     service_point_id: Mapped[int] = mapped_column(ForeignKey("service_point.id"), nullable=False)
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
     device: Mapped[Device] = relationship(back_populates="measuring_components")
     service_point: Mapped[ServicePoint] = relationship(back_populates="measuring_components")
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_measuring_components",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_measuring_components",
+        foreign_keys=[updated_by_user_account_id],
+    )
     canonical_measurements: Mapped[list["CanonicalMeasurement"]] = relationship(
         back_populates="measuring_component"
     )
@@ -691,9 +867,25 @@ class InstallationHistory(TimestampMixin, Base):
     installed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="installed")
+    created_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
+    updated_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
 
     device: Mapped[Device] = relationship(back_populates="installation_history")
     service_point: Mapped[ServicePoint] = relationship(back_populates="installation_history")
+    created_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="created_installation_history_rows",
+        foreign_keys=[created_by_user_account_id],
+    )
+    updated_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="updated_installation_history_rows",
+        foreign_keys=[updated_by_user_account_id],
+    )
 
 
 class HesReadRaw(TimestampMixin, Base):

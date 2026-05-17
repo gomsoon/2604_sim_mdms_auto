@@ -492,6 +492,7 @@ def create_adapter_instance(
     landing_enabled: bool,
     secret_ref: str | None,
     connection_config_masked: str | None,
+    created_by_user_account_id: int | None = None,
 ) -> AdapterInstance:
     definition_id = _parse_definition_id(adapter_definition_id)
     definition = session.get(AdapterDefinition, definition_id)
@@ -578,6 +579,7 @@ def create_adapter_instance(
         display_name=normalized_source_system,
         source_family=definition.source_family,
         default_delivery_mode=definition.delivery_mode,
+        created_by_user_account_id=created_by_user_account_id,
     )
 
     instance = AdapterInstance(
@@ -594,6 +596,8 @@ def create_adapter_instance(
         landing_enabled=landing_enabled,
         connection_config_masked=parsed_masked_config,
         secret_ref=normalized_secret_ref,
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(instance)
     session.flush()
@@ -601,7 +605,11 @@ def create_adapter_instance(
 
 
 def update_adapter_admin_state(
-    session: Session, instance: AdapterInstance, target_state: str
+    session: Session,
+    instance: AdapterInstance,
+    target_state: str,
+    *,
+    updated_by_user_account_id: int | None = None,
 ) -> AdapterInstance:
     current_state = instance.admin_state
     if current_state == target_state:
@@ -620,6 +628,7 @@ def update_adapter_admin_state(
 
     instance.admin_state = target_state
     instance.status_reason = f"manual_{target_state}"
+    instance.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     event_code = "adapter_enabled" if target_state == "enabled" else "adapter_paused"
     record_operational_event(

@@ -591,6 +591,7 @@ def ensure_hes_system(
     timezone_name: str | None = None,
     description: str | None = None,
     connection_config_masked: dict[str, Any] | None = None,
+    created_by_user_account_id: int | None = None,
 ) -> HesSystem:
     normalized_hes_code = _normalize_required_hes_code(hes_code)
     existing = session.scalar(
@@ -609,6 +610,8 @@ def ensure_hes_system(
         timezone_name=(timezone_name or "").strip() or None,
         description=(description or "").strip() or None,
         connection_config_masked=connection_config_masked,
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(hes_system)
     session.flush()
@@ -680,6 +683,7 @@ def create_hes_system(
     timezone_name: str | None,
     description: str | None,
     connection_config_masked: str | None,
+    created_by_user_account_id: int | None = None,
 ) -> HesSystem:
     normalized_hes_code = _normalize_required_hes_code(hes_code)
     duplicate = session.scalar(select(HesSystem.id).where(HesSystem.hes_code == normalized_hes_code).limit(1))
@@ -707,6 +711,8 @@ def create_hes_system(
         timezone_name=_normalize_optional_text(timezone_name),
         description=_normalize_optional_text(description),
         connection_config_masked=_parse_masked_config(connection_config_masked),
+        created_by_user_account_id=created_by_user_account_id,
+        updated_by_user_account_id=created_by_user_account_id,
     )
     session.add(hes_system)
     session.flush()
@@ -726,6 +732,7 @@ def update_hes_system(
     timezone_name: str | None,
     description: str | None,
     connection_config_masked: str | None,
+    updated_by_user_account_id: int | None = None,
 ) -> HesSystem:
     normalized_hes_code = _normalize_required_hes_code(hes_code)
     duplicate = session.scalar(
@@ -756,6 +763,7 @@ def update_hes_system(
     hes_system.timezone_name = _normalize_optional_text(timezone_name)
     hes_system.description = _normalize_optional_text(description)
     hes_system.connection_config_masked = _parse_masked_config(connection_config_masked)
+    hes_system.updated_by_user_account_id = updated_by_user_account_id
     session.flush()
     return hes_system
 

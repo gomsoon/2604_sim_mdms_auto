@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun, HesSystem
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun, HesSystem, UserAccount
 from app.services.seeds import seed_demo_environment
 
 
@@ -40,13 +40,16 @@ def test_pause_and_enable_adapter_via_web_updates_admin_state(client, session):
     )
 
     updated = session.get(AdapterInstance, instance.id)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert pause_response.status_code == 200
     assert "Adapter instance paused successfully." in pause_response.get_data(as_text=True)
     assert enable_response.status_code == 200
     assert "Adapter instance enabled successfully." in enable_response.get_data(as_text=True)
     assert updated is not None
+    assert actor is not None
     assert updated.admin_state == "enabled"
+    assert updated.updated_by_user_account_id == actor.id
 
 
 def test_run_adapter_once_via_web_creates_waiting_run_in_korean(client, session):
@@ -150,12 +153,16 @@ def test_create_adapter_via_web_creates_runtime_instance(client, session):
     instance = session.scalar(
         select(AdapterInstance).where(AdapterInstance.instance_code == "company_hes_poll_web").limit(1)
     )
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
 
     assert response.status_code == 200
     assert "Adapter instance created successfully." in response.get_data(as_text=True)
     assert instance is not None
+    assert actor is not None
     assert instance.landing_enabled is True
     assert instance.poll_interval_minutes == 15
+    assert instance.created_by_user_account_id == actor.id
+    assert instance.updated_by_user_account_id == actor.id
 
 
 def test_create_adapter_via_hes_context_keeps_parent_hes_lineage(client, session):

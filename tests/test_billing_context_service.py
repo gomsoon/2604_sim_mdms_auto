@@ -4,11 +4,19 @@ import pytest
 from sqlalchemy import select
 
 from app.models import ServicePointBillingContext
+from app.services.auth import create_user_account
 from app.services.billing_contexts import create_billing_context, update_billing_context
 from app.services.master_data import MasterDataValidationError, create_service_point
 
 
 def test_create_billing_context_auto_closes_previous_current_row(session):
+    actor = create_user_account(
+        session,
+        login_id="billing-context-actor",
+        password="secret-password",
+        display_name="Billing Context Actor",
+        role_code="admin",
+    )
     service_point = create_service_point(
         session,
         source_system="HES",
@@ -16,6 +24,7 @@ def test_create_billing_context_auto_closes_previous_current_row(session):
         service_type="electric",
         name="Billing Site",
         status="active",
+        created_by_user_account_id=actor.id,
     )
 
     first = create_billing_context(
@@ -29,6 +38,7 @@ def test_create_billing_context_auto_closes_previous_current_row(session):
         effective_to=None,
         source_system="manual",
         source_reference="ctx-1",
+        created_by_user_account_id=actor.id,
     )
     second = create_billing_context(
         session,
@@ -41,6 +51,7 @@ def test_create_billing_context_auto_closes_previous_current_row(session):
         effective_to=None,
         source_system="manual",
         source_reference="ctx-2",
+        created_by_user_account_id=actor.id,
     )
 
     session.commit()
@@ -54,6 +65,9 @@ def test_create_billing_context_auto_closes_previous_current_row(session):
     assert first.is_current is False
     assert first.effective_to == second.effective_from
     assert second.is_current is True
+    assert first.updated_by_user_account_id == actor.id
+    assert second.created_by_user_account_id == actor.id
+    assert second.updated_by_user_account_id == actor.id
 
 
 def test_create_billing_context_rejects_invalid_anchor_day(session):
@@ -134,3 +148,51 @@ def test_update_billing_context_rejects_overlapping_period(session):
 
     assert exc_info.value.error_code == "overlapping_billing_context"
     assert current_row.is_current is False
+
+
+def test_update_billing_context_records_updated_actor_lineage(session):
+    actor = create_user_account(
+        session,
+        login_id="billing-context-updater",
+        password="secret-password",
+        display_name="Billing Context Updater",
+        role_code="admin",
+    )
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-BCTX-4001",
+        service_type="electric",
+        name="Update Actor Site",
+        status="active",
+        created_by_user_account_id=actor.id,
+    )
+    row = create_billing_context(
+        session,
+        service_point_id=service_point.id,
+        timezone_name="Asia/Seoul",
+        billing_cycle_mode="calendar_month",
+        billing_cycle_anchor_day=None,
+        currency_code="KRW",
+        effective_from="2026-01-01T00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="ctx-update",
+        created_by_user_account_id=actor.id,
+    )
+
+    update_billing_context(
+        session,
+        row,
+        timezone_name="UTC",
+        billing_cycle_mode="calendar_month",
+        billing_cycle_anchor_day=None,
+        currency_code="USD",
+        effective_from="2026-01-01T00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="ctx-update-2",
+        updated_by_user_account_id=actor.id,
+    )
+
+    assert row.updated_by_user_account_id == actor.id

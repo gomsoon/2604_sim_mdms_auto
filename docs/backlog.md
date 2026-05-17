@@ -331,6 +331,9 @@ This document captures the staged backlog derived from the reference PDF backlog
   - phase C: billing export request and recovery actor FKs
   - phase D: master-data and system-administration `created_by/updated_by`
     fields
+  - phase D should be delivered in two slices:
+    - row-level lineage on master-data and admin-managed reference tables
+    - runtime action lineage for adapter enable/pause and manual run-once flows
 - estimation actor-lineage follow-up should be deferred separately from the
   first FK slice:
   - actor column/filter on estimation audit list views
@@ -353,6 +356,14 @@ This document captures the staged backlog derived from the reference PDF backlog
   - item-level billing export actor lineage
   - worker/runtime actor registry beyond the current `claimed_by` string
   - CLI or system-triggered export actor injection beyond web-session flows
+- phase D master-data and system-administration follow-up should be deferred
+  separately from the first row-lineage slice:
+  - legacy master-data row actor backfill
+  - actor column/filter on master-data and HES/admin list views
+  - adapter manual run-once actor lineage on `adapter_run`
+  - adapter enable/pause action actor snapshot expansion in
+    `operational_event.details`
+  - worker/runtime registry beyond current string-based runtime identity
 - every actor-identity propagation slice should update regression tests in the
   same change set so the new user-account lineage is both written and visible
   in the affected feature area
