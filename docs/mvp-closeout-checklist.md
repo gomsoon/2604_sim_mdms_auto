@@ -33,6 +33,11 @@ The remaining work is mostly:
 - known operating limitations
 - later hardening and usability polish
 
+Recommended decision:
+
+- proceed with MVP close-out after one bounded smoke pass
+- do not open new subsystems before first internal operator feedback
+
 ## Close-out required baseline
 
 The following are treated as required for MVP close-out.
@@ -147,6 +152,11 @@ internal use.
 
 The following operator checks should pass before declaring close-out.
 
+See also:
+
+- [mvp-smoke-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/mvp-smoke-runbook.md)
+- [mvp-known-limitations.md](/home/tprover/2604_sim_mdms_auto/docs/mvp-known-limitations.md)
+
 1. Login as `admin` and as `operator`.
 2. Ingest raw reads and raw events successfully.
 3. Confirm canonical and final measurement lineage.
@@ -163,6 +173,15 @@ The following operator checks should pass before declaring close-out.
    - rerun or recreate on a failed request
 9. Confirm master-data admin mutation records actor lineage.
 10. Confirm adapter pause/enable/run-once records actor lineage.
+
+## Short hardening and operating polish before close-out
+
+The following short items are recommended before close-out.
+
+1. Run the bounded smoke pass once in operator order.
+2. Share the accepted limitations with internal operators before first use.
+3. Prefer bug fix, policy clarification, and visibility polish over new
+   subsystem expansion.
 
 ## Post-close-out operating mode
 
