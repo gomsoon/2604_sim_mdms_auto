@@ -1522,6 +1522,7 @@ def enable_adapter_view(adapter_instance_id: int):
             session,
             instance,
             "enabled",
+            acted_by=current_user.login_id,
             updated_by_user_account_id=current_user.id,
         )
         session.commit()
@@ -1548,6 +1549,7 @@ def pause_adapter_view(adapter_instance_id: int):
             session,
             instance,
             "paused",
+            acted_by=current_user.login_id,
             updated_by_user_account_id=current_user.id,
         )
         session.commit()
@@ -1563,12 +1565,19 @@ def pause_adapter_view(adapter_instance_id: int):
 @admin_required
 def run_adapter_once_view(adapter_instance_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     instance = session.get(AdapterInstance, adapter_instance_id)
     if instance is None:
         abort(404)
 
     try:
-        queue_adapter_run_once(session, instance)
+        queue_adapter_run_once(
+            session,
+            instance,
+            requested_by=current_user.login_id,
+            requested_by_user_account_id=current_user.id,
+        )
         session.commit()
         flash(translate("adapter.flash.run_queued"), "success")
     except AdapterValidationError as exc:

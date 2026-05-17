@@ -355,6 +355,8 @@ def seed_adapter_runtime(session: Session) -> bool:
 
     run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="scheduler",
+        requested_by_user_account_id=None,
         trigger_type="schedule",
         run_status="completed",
         requested_at=datetime.now(timezone.utc) - timedelta(minutes=3),
@@ -365,7 +367,12 @@ def seed_adapter_runtime(session: Session) -> bool:
         ingest_records_created=3,
         watermark_before="2026-04-17T23:45:00+09:00",
         watermark_after="2026-04-18T00:15:00+09:00",
-        details={"record_type": "hes_read_raw"},
+        details={
+            "record_type": "hes_read_raw",
+            "requested_by": "scheduler",
+            "requested_by_user_account_id": None,
+            "requested_via": "scheduler",
+        },
     )
     session.add(run)
 

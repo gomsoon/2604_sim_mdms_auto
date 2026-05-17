@@ -45,6 +45,8 @@ def _create_adapter_runtime(session) -> tuple[AdapterInstance, AdapterRun]:
 
     run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="operator_ui",
+        requested_by_user_account_id=None,
         trigger_type="manual",
         run_status="completed",
         requested_at=datetime.now(timezone.utc),

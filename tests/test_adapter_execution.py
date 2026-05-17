@@ -303,6 +303,8 @@ def test_execute_adapter_run_marks_failed_for_unknown_implementation(session):
 
     run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="operator_ui",
+        requested_by_user_account_id=None,
         trigger_type="manual",
         run_status="waiting",
         details={"requested_via": "test"},
@@ -418,6 +420,8 @@ def test_process_waiting_adapter_runs_leaves_waiting_run_queued_when_instance_is
 
     running_run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="scheduler",
+        requested_by_user_account_id=None,
         trigger_type="schedule",
         run_status="running",
         requested_at=datetime.now(timezone.utc) - timedelta(minutes=2),
@@ -426,6 +430,8 @@ def test_process_waiting_adapter_runs_leaves_waiting_run_queued_when_instance_is
     )
     waiting_run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="operator_ui",
+        requested_by_user_account_id=None,
         trigger_type="manual",
         run_status="waiting",
         requested_at=datetime.now(timezone.utc),
@@ -462,6 +468,8 @@ def test_process_waiting_adapter_runs_skips_blocked_instance_and_claims_next_ava
 
     running_run = AdapterRun(
         adapter_instance_id=primary_instance.id,
+        requested_by="scheduler",
+        requested_by_user_account_id=None,
         trigger_type="schedule",
         run_status="running",
         requested_at=datetime.now(timezone.utc) - timedelta(minutes=4),
@@ -470,6 +478,8 @@ def test_process_waiting_adapter_runs_skips_blocked_instance_and_claims_next_ava
     )
     blocked_waiting_run = AdapterRun(
         adapter_instance_id=primary_instance.id,
+        requested_by="operator_ui",
+        requested_by_user_account_id=None,
         trigger_type="manual",
         run_status="waiting",
         requested_at=datetime.now(timezone.utc) - timedelta(minutes=2),
@@ -477,6 +487,8 @@ def test_process_waiting_adapter_runs_skips_blocked_instance_and_claims_next_ava
     )
     claimable_waiting_run = AdapterRun(
         adapter_instance_id=secondary_instance.id,
+        requested_by="operator_ui",
+        requested_by_user_account_id=None,
         trigger_type="manual",
         run_status="waiting",
         requested_at=datetime.now(timezone.utc) - timedelta(minutes=1),

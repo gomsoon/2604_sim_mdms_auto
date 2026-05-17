@@ -127,6 +127,13 @@ def test_sync_adapter_health_alerts_opens_overdue_and_stale_alerts_without_dupli
 def test_update_adapter_admin_state_closes_health_alerts_when_instance_pauses(session):
     seed_demo_environment(session)
     session.commit()
+    actor = create_user_account(
+        session,
+        login_id="adapter-admin-state-actor",
+        password="secret-password",
+        display_name="Adapter Admin State Actor",
+        role_code="admin",
+    )
 
     instance = session.scalar(select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary"))
     assert instance is not None
@@ -138,7 +145,13 @@ def test_update_adapter_admin_state_closes_health_alerts_when_instance_pauses(se
     sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id], as_of=as_of)
     session.flush()
 
-    update_adapter_admin_state(session, instance, "paused")
+    update_adapter_admin_state(
+        session,
+        instance,
+        "paused",
+        updated_by_user_account_id=actor.id,
+        acted_by=actor.login_id,
+    )
     session.commit()
 
     alerts = session.scalars(
@@ -153,19 +166,55 @@ def test_update_adapter_admin_state_closes_health_alerts_when_instance_pauses(se
     assert len(alerts) == 2
     assert all(row.alert_status == "closed" for row in alerts)
     assert all(row.closed_at is not None for row in alerts)
+    latest_event = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.adapter_instance_id == instance.id,
+            OperationalEvent.event_code == "adapter_paused",
+        )
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert latest_event is not None
+    assert latest_event.details["acted_by"] == actor.login_id
+    assert latest_event.details["acted_by_user_account_id"] == actor.id
+    assert latest_event.details["previous_admin_state"] == "enabled"
+    assert latest_event.details["target_admin_state"] == "paused"
 
 
 def test_queue_adapter_run_once_allows_paused_instance(session):
     seed_demo_environment(session)
     session.commit()
+    actor = create_user_account(
+        session,
+        login_id="adapter-run-requester",
+        password="secret-password",
+        display_name="Adapter Run Requester",
+        role_code="admin",
+    )
 
     instance = session.scalar(select(AdapterInstance).limit(1))
     assert instance is not None
 
-    update_adapter_admin_state(session, instance, "paused")
-    run = queue_adapter_run_once(session, instance)
+    update_adapter_admin_state(
+        session,
+        instance,
+        "paused",
+        updated_by_user_account_id=actor.id,
+        acted_by=actor.login_id,
+    )
+    run = queue_adapter_run_once(
+        session,
+        instance,
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
+    )
     session.commit()
 
+    assert run.requested_by == actor.login_id
+    assert run.requested_by_user_account_id == actor.id
+    assert run.details["requested_by"] == actor.login_id
+    assert run.details["requested_by_user_account_id"] == actor.id
     assert run.trigger_type == "manual"
     assert run.run_status == "waiting"
     assert session.scalar(select(func.count()).select_from(AdapterRun)) == 2
@@ -174,6 +223,8 @@ def test_queue_adapter_run_once_allows_paused_instance(session):
     )
     assert latest_event is not None
     assert latest_event.event_code == "adapter_run_queued"
+    assert latest_event.details["requested_by"] == actor.login_id
+    assert latest_event.details["requested_by_user_account_id"] == actor.id
 
 
 def test_queue_adapter_run_once_rejects_duplicate_waiting_run(session):
@@ -255,9 +306,22 @@ def test_update_adapter_admin_state_records_updated_actor_lineage(session):
         instance,
         "paused",
         updated_by_user_account_id=actor.id,
+        acted_by=actor.login_id,
     )
 
     assert instance.updated_by_user_account_id == actor.id
+    latest_event = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.adapter_instance_id == instance.id,
+            OperationalEvent.event_code == "adapter_paused",
+        )
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert latest_event is not None
+    assert latest_event.details["acted_by"] == actor.login_id
+    assert latest_event.details["acted_by_user_account_id"] == actor.id
 
 
 def test_create_adapter_instance_under_existing_hes_system_uses_parent_hes_code(session):
@@ -416,7 +480,11 @@ def test_enqueue_scheduled_adapter_runs_creates_waiting_schedule_run_for_due_pol
     assert summary.skipped_due_to_active_run == 0
     assert len(summary.run_ids) == 1
     assert scheduled_run is not None
+    assert scheduled_run.requested_by == "scheduler"
+    assert scheduled_run.requested_by_user_account_id is None
     assert scheduled_run.run_status == "waiting"
+    assert scheduled_run.details["requested_by"] == "scheduler"
+    assert scheduled_run.details["requested_by_user_account_id"] is None
     assert scheduled_run.details["requested_via"] == "scheduler"
     latest_event = session.scalar(
         select(OperationalEvent).order_by(OperationalEvent.id.desc()).limit(1)

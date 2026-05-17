@@ -69,6 +69,8 @@ def test_adapter_runtime_models_link_instances_runs_watermarks_and_batches(sessi
     instance = _create_adapter_instance(session, definition, instance_code="company_hes_primary")
     run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="operator_ui",
+        requested_by_user_account_id=None,
         trigger_type="manual",
         run_status="completed",
         requested_at=datetime.now(timezone.utc),
@@ -173,6 +175,8 @@ def test_adapter_run_allows_only_one_running_row_per_instance(session):
 
     first = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="scheduler",
+        requested_by_user_account_id=None,
         trigger_type="schedule",
         run_status="running",
         requested_at=datetime.now(timezone.utc),
@@ -181,6 +185,8 @@ def test_adapter_run_allows_only_one_running_row_per_instance(session):
     )
     second = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="operator_ui",
+        requested_by_user_account_id=None,
         trigger_type="manual",
         run_status="running",
         requested_at=datetime.now(timezone.utc),

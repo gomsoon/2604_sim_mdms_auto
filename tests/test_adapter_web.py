@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
-from app.models import AdapterDefinition, AdapterInstance, AdapterRun, HesSystem, UserAccount
+from app.models import AdapterDefinition, AdapterInstance, AdapterRun, HesSystem, OperationalEvent, UserAccount
 from app.services.seeds import seed_demo_environment
 
 
@@ -50,6 +50,18 @@ def test_pause_and_enable_adapter_via_web_updates_admin_state(client, session):
     assert actor is not None
     assert updated.admin_state == "enabled"
     assert updated.updated_by_user_account_id == actor.id
+    latest_event = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.adapter_instance_id == instance.id,
+            OperationalEvent.event_code == "adapter_enabled",
+        )
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert latest_event is not None
+    assert latest_event.details["acted_by"] == actor.login_id
+    assert latest_event.details["acted_by_user_account_id"] == actor.id
 
 
 def test_run_adapter_once_via_web_creates_waiting_run_in_korean(client, session):
@@ -66,10 +78,17 @@ def test_run_adapter_once_via_web_creates_waiting_run_in_korean(client, session)
         follow_redirects=True,
     )
     text = response.get_data(as_text=True)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    run = session.scalar(select(AdapterRun).order_by(AdapterRun.id.desc()).limit(1))
 
     assert response.status_code == 200
     assert "수동 어댑터 실행 요청이 대기열에 등록되었습니다." in text
     assert "대기" in text
+    assert actor is not None
+    assert run is not None
+    assert run.requested_by == actor.login_id
+    assert run.requested_by_user_account_id == actor.id
+    assert actor.login_id in text
     assert session.scalar(select(func.count()).select_from(AdapterRun)) == 2
 
 

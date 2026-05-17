@@ -89,6 +89,13 @@ def test_alembic_upgrade_creates_expected_tables():
             column["name"]: column
             for column in inspector.get_columns("adapter_instance", schema=schema_name)
         }
+        adapter_run_columns = {
+            column["name"] for column in inspector.get_columns("adapter_run", schema=schema_name)
+        }
+        adapter_run_column_defs = {
+            column["name"]: column
+            for column in inspector.get_columns("adapter_run", schema=schema_name)
+        }
         hes_system_columns = {
             column["name"] for column in inspector.get_columns("hes_system", schema=schema_name)
         }
@@ -295,6 +302,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "updated_by_user_account_id" in hes_system_columns
         assert "created_by_user_account_id" in adapter_instance_columns
         assert "updated_by_user_account_id" in adapter_instance_columns
+        assert "requested_by" in adapter_run_columns
+        assert "requested_by_user_account_id" in adapter_run_columns
         assert "created_by_user_account_id" in service_point_columns
         assert "updated_by_user_account_id" in service_point_columns
         assert "created_by_user_account_id" in billing_context_columns
@@ -553,6 +562,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert hes_system_column_defs["updated_by_user_account_id"]["nullable"] is True
         assert adapter_instance_column_defs["created_by_user_account_id"]["nullable"] is True
         assert adapter_instance_column_defs["updated_by_user_account_id"]["nullable"] is True
+        assert adapter_run_column_defs["requested_by"]["nullable"] is False
+        assert adapter_run_column_defs["requested_by_user_account_id"]["nullable"] is True
         assert service_point_column_defs["created_by_user_account_id"]["nullable"] is True
         assert service_point_column_defs["updated_by_user_account_id"]["nullable"] is True
         assert device_column_defs["created_by_user_account_id"]["nullable"] is True

@@ -196,6 +196,8 @@ def test_dashboard_snapshot_derives_integration_card_from_adapter_runtime_states
     session.add(
         AdapterRun(
             adapter_instance_id=running_instance.id,
+            requested_by="operator_ui",
+            requested_by_user_account_id=None,
             trigger_type="manual",
             run_status="running",
             requested_at=datetime.now(timezone.utc),
@@ -206,6 +208,8 @@ def test_dashboard_snapshot_derives_integration_card_from_adapter_runtime_states
     session.add(
         AdapterRun(
             adapter_instance_id=paused_instance.id,
+            requested_by="operator_ui",
+            requested_by_user_account_id=None,
             trigger_type="manual",
             run_status="waiting",
             requested_at=datetime.now(timezone.utc),

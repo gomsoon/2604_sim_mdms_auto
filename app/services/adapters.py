@@ -610,6 +610,7 @@ def update_adapter_admin_state(
     target_state: str,
     *,
     updated_by_user_account_id: int | None = None,
+    acted_by: str | None = None,
 ) -> AdapterInstance:
     current_state = instance.admin_state
     if current_state == target_state:
@@ -635,14 +636,27 @@ def update_adapter_admin_state(
         session,
         event_code,
         adapter_instance=instance,
-        details={"admin_state": target_state, "status_reason": instance.status_reason},
+        details={
+            "acted_by": acted_by,
+            "acted_by_user_account_id": updated_by_user_account_id,
+            "admin_state": target_state,
+            "previous_admin_state": current_state,
+            "status_reason": instance.status_reason,
+            "target_admin_state": target_state,
+        },
         instance_code=instance.instance_code,
     )
     sync_adapter_health_alerts(session, adapter_instance_ids=[instance.id])
     return instance
 
 
-def queue_adapter_run_once(session: Session, instance: AdapterInstance) -> AdapterRun:
+def queue_adapter_run_once(
+    session: Session,
+    instance: AdapterInstance,
+    *,
+    requested_by: str = "operator_ui",
+    requested_by_user_account_id: int | None = None,
+) -> AdapterRun:
     if instance.admin_state == "retired":
         raise AdapterValidationError(
             "retired_instance_not_runnable",
@@ -664,12 +678,23 @@ def queue_adapter_run_once(session: Session, instance: AdapterInstance) -> Adapt
             "A waiting or running adapter execution already exists for this instance.",
         )
 
+    normalized_requested_by = _normalize_required_text(
+        requested_by,
+        "missing_requested_by",
+        "Adapter run requests require a requested_by value.",
+    )
     run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by=normalized_requested_by,
+        requested_by_user_account_id=requested_by_user_account_id,
         trigger_type="manual",
         run_status="waiting",
         requested_at=datetime.now(timezone.utc),
-        details={"requested_via": "operator_ui"},
+        details={
+            "requested_by": normalized_requested_by,
+            "requested_by_user_account_id": requested_by_user_account_id,
+            "requested_via": "operator_ui",
+        },
     )
     session.add(run)
     session.flush()
@@ -729,10 +754,14 @@ def enqueue_scheduled_adapter_runs(
 
         run = AdapterRun(
             adapter_instance_id=instance.id,
+            requested_by="scheduler",
+            requested_by_user_account_id=None,
             trigger_type="schedule",
             run_status="waiting",
             requested_at=effective_as_of,
             details={
+                "requested_by": "scheduler",
+                "requested_by_user_account_id": None,
                 "requested_via": "scheduler",
                 "scheduled_for": instance.next_run_at.isoformat()
                 if instance.next_run_at is not None

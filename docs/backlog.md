@@ -360,9 +360,11 @@ This document captures the staged backlog derived from the reference PDF backlog
   separately from the first row-lineage slice:
   - legacy master-data row actor backfill
   - actor column/filter on master-data and HES/admin list views
-  - adapter manual run-once actor lineage on `adapter_run`
-  - adapter enable/pause action actor snapshot expansion in
-    `operational_event.details`
+  - legacy `adapter_run` requester backfill
+  - actor column/filter on adapter runtime views beyond the first
+    `requested_by` visibility slice
+  - richer typed actor columns on `operational_event` beyond the first
+    action-snapshot expansion in `details`
   - worker/runtime registry beyond current string-based runtime identity
 - every actor-identity propagation slice should update regression tests in the
   same change set so the new user-account lineage is both written and visible

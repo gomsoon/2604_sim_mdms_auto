@@ -111,6 +111,10 @@ class UserAccount(TimestampMixin, Base):
         back_populates="updated_by_user_account",
         foreign_keys="AdapterInstance.updated_by_user_account_id",
     )
+    requested_adapter_runs: Mapped[list["AdapterRun"]] = relationship(
+        back_populates="requested_by_user_account",
+        foreign_keys="AdapterRun.requested_by_user_account_id",
+    )
     created_service_points: Mapped[list["ServicePoint"]] = relationship(
         back_populates="created_by_user_account",
         foreign_keys="ServicePoint.created_by_user_account_id",
@@ -409,6 +413,11 @@ class AdapterRun(TimestampMixin, Base):
     adapter_instance_id: Mapped[int] = mapped_column(
         ForeignKey("adapter_instance.id"), nullable=False, index=True
     )
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    requested_by_user_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_account.id"),
+        index=True,
+    )
     trigger_type: Mapped[str] = mapped_column(String(30), nullable=False)
     run_status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -424,6 +433,10 @@ class AdapterRun(TimestampMixin, Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     adapter_instance: Mapped[AdapterInstance] = relationship(back_populates="adapter_runs")
+    requested_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="requested_adapter_runs",
+        foreign_keys=[requested_by_user_account_id],
+    )
     ingest_batches: Mapped[list[IngestBatch]] = relationship(back_populates="adapter_run")
     landing_lp_em_read_blocks: Mapped[list["LandingLpEmReadBlock"]] = relationship(
         back_populates="adapter_run"

@@ -135,6 +135,8 @@ def _start_receive_run(
 ) -> AdapterRun:
     run = AdapterRun(
         adapter_instance_id=instance.id,
+        requested_by="receive_adapter",
+        requested_by_user_account_id=None,
         trigger_type="receive",
         run_status="running",
         requested_at=requested_at,
@@ -142,6 +144,9 @@ def _start_receive_run(
         details={
             "record_type": record_type,
             "delivery_mode": instance.adapter_definition.delivery_mode,
+            "requested_by": "receive_adapter",
+            "requested_by_user_account_id": None,
+            "requested_via": "receive_adapter",
         },
     )
     session.add(run)
