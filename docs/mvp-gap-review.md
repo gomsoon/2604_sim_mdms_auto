@@ -31,7 +31,14 @@ Current repository baseline now includes:
 - async bulk `re-VEE` request and worker baseline
 - operator-triggered estimation
 - operator-triggered manual edit
+- single-slot synthetic missing-interval estimation
 - event-linked VEE baseline for outage and tamper context
+- human-user `login_id + password` authentication
+- `admin` versus `operator`
+- `auth_session_audit`
+- `user_action_audit`
+- `user_account` actor lineage on sensitive correction, replay, export,
+  master-data, and adapter admin actions
 - broad operator visibility across dashboard, HES detail, usage, determinant,
   charge, and replay flows
 
@@ -97,13 +104,13 @@ Current state:
 - substitution-only estimation exists
 - `linear_interpolation` exists
 - `previous_value_based` exists
+- single-slot synthetic missing-interval estimation exists
 - explicit `estimation_audit` persistence exists
 - operator-visible estimation handling exists
 - update flow into current `final_measurement` exists
 
 What is still missing:
 
-- synthetic missing-interval estimation
 - bulk estimation
 - preview and approval workflow
 - broader exception-code coverage
@@ -198,19 +205,25 @@ Important distinction:
 
 ## Cross-cutting MVP observations
 
-### MVP close-out still needs a human-user auth baseline
+### MVP close-out now has a usable human-user auth baseline
 
-Even with the current strong operator and billing-lite baseline, the repository
-still does not have:
+The repository now has:
 
 - `login_id + password` human-user authentication
 - `admin` versus `operator` authorization
 - append-only login and logout history
-- consistent user-account audit lineage on sensitive mutations
+- broad authenticated route activity audit
+- consistent `user_account` lineage on sensitive mutations
 
-That means MVP feature breadth is now strong enough to use, but MVP close-out
-should still require a first auth baseline before the system is treated as a
-real internal operator product.
+That means auth is no longer the first MVP close-out blocker.
+
+The remaining auth-side limitations are now mostly maturity items:
+
+- user-management UI
+- password reset or account recovery
+- token auth for non-browser clients
+- richer RBAC than the first two-role split
+- older-row backfill and actor-filter polish
 
 ### The repository is ahead in downstream billing-lite
 
@@ -243,27 +256,23 @@ the core processing loop rather than going deeper into billing first.
 
 ## Recommended next priorities
 
-### Priority 1. Auth close-out baseline
+### Priority 1. Policy-depth and known-limitation review
 
-Recommended first next step:
+Recommended next step:
 
-- add `user_account`
-- add login and logout
-- add append-only auth audit
-- add `admin` versus `operator`
-- propagate user-account identity into sensitive actions in grouped feature
-  slices
+- review known limitations around estimation, manual edit, event-aware policy,
+  and source-aware VEE
+- confirm the first production-facing operating guidance for those limitations
 
 Why first:
 
-- the repository is already broad enough that human-user attribution is now a
-  real product requirement
-- the remaining gaps are increasingly about safe operation, not basic feature
-  existence
+- the repository is now broad enough to use
+- the most important remaining MVP gaps are about safe operating boundaries and
+  policy depth, not missing foundational subsystems
 
 ### Priority 2. Event-aware correction policy
 
-Recommended first next step:
+Recommended next step:
 
 - introduce a small correction-policy layer that reuses outage and tamper
   context to guide or constrain estimation and manual-edit actions
@@ -292,7 +301,7 @@ Why second:
 - the remaining VEE work is more about policy depth than first-class rule
   presence
 
-### Priority 3. Usage API refinement only if consumers need more
+### Priority 4. Usage API refinement only if consumers need more
 
 Recommended third next step:
 
@@ -312,6 +321,7 @@ Why third:
 
 The following can remain deferred while the MVP gap is being closed:
 
+- auth maturity features beyond the first two-role session baseline
 - TOU determinants
 - demand determinants
 - advanced tariff engine

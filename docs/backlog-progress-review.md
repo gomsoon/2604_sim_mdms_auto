@@ -49,7 +49,13 @@ The repository now has all of the following practical baselines:
 - async bulk `re-VEE`
 - operator-triggered estimation
 - operator-triggered manual edit
+- single-slot synthetic missing-interval estimation
 - event-linked VEE baseline for outage and tamper context
+- human-user `login_id + password` authentication
+- `admin` versus `operator` authorization
+- append-only `auth_session_audit` and broad `user_action_audit`
+- `user_account` actor lineage across VEE, estimation, manual edit, replay,
+  billing export, master data, and adapter runtime admin actions
 - broad operator visibility across batch, HES, VEE, usage, determinant, charge,
   replay, estimation, and manual edit flows
 
@@ -451,28 +457,31 @@ Recommendation:
 
 ### P6. Security and authorization
 
-- Status: `lightly addressed`
+- Status: `substantially implemented`
 - Importance: `high`
 - Impact: `high`
 
 Current baseline:
 
-- there is not yet a human-user login baseline
-- there is not yet a strong RBAC or sensitive-action isolation layer
-- many sensitive actions are still attributable only to free-form actor strings
-- there is not yet a broad account-level user activity audit for existing read,
-  create, update, delete, and execute flows
+- human-user session login exists
+- `admin` versus `operator` separation exists
+- append-only login/logout/session history exists through `auth_session_audit`
+- broad authenticated route usage is recorded through `user_action_audit`
+- sensitive correction, replay, export, master-data, and adapter admin actions
+  now carry `user_account` lineage instead of only free-form actor strings
+
+Main remaining work:
+
+- user-management UI
+- password reset and stronger account recovery
+- token or PAT baseline for non-browser clients
+- richer RBAC than the first `admin` versus `operator` split
+- actor filter/backfill polish on older rows and list views
 
 Recommendation:
 
-- now important enough to act as an MVP close-out gate
-- first slice should stay small:
-  - `user_account`
-  - login and logout
-  - append-only auth audit
-  - broad `user_action_audit` for authenticated feature usage
-  - `admin` versus `operator`
-  - staged actor-FK propagation by functional unit
+- auth is no longer the MVP close-out blocker
+- the next auth work should be coverage review, hardening, and usability polish
 
 ### P7. Operability and reprocessing
 
@@ -514,19 +523,17 @@ are concentrated in:
 - richer source-aware VEE policy only after stronger business context exists
 - later service-facing refinement beyond the first usage API slice
 
-### The next best work is probably not a brand-new subsystem
+### MVP close-out is now mostly a documentation and hardening exercise
 
-At this point, the highest-leverage next step is likely not another new
-downstream module, but a tighter review of service-facing boundaries and the
-next policy-depth slice.
+At this point, the repository has enough breadth and control surface to be used
+as an early internal operator product.
 
 Recommended order:
 
-1. choose the next policy-depth slice across estimation, manual edit, and
-   event-linked decisioning
-2. revisit richer VEE policy only where source-aware context exists
-3. refine service-facing usage or billing-lite APIs only when real consumers
-   need more
+1. confirm broad audit coverage and known limitations
+2. refresh MVP close-out documentation against the current implementation
+3. continue with usage-driven policy depth or bug-fix work instead of opening a
+   brand-new subsystem
 
 ## Recommended near-term sequence
 

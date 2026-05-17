@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import AuthSessionAudit, UserActionAudit
+from app.models import AdapterInstance, AuthSessionAudit, UserActionAudit
 from app.services.auth import create_user_account
+from app.services.seeds import seed_demo_environment
 
 
 def test_web_routes_require_login(anonymous_client):
@@ -102,10 +103,75 @@ def test_authenticated_read_creates_user_action_audit(client, session):
     assert user_actions[-1].outcome_code == "success"
 
 
+def test_authenticated_api_read_creates_user_action_audit(client, session):
+    response = client.get("/api/v1/raw-reads")
+
+    assert response.status_code == 200
+
+    user_actions = session.scalars(
+        select(UserActionAudit)
+        .where(
+            UserActionAudit.action_type == "read",
+            UserActionAudit.resource_type == "list_raw_reads",
+        )
+        .order_by(UserActionAudit.id.asc())
+    ).all()
+    assert user_actions
+    assert user_actions[-1].request_method == "GET"
+    assert user_actions[-1].outcome_code == "success"
+
+
+def test_admin_execute_action_creates_user_action_audit(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    instance = session.scalar(select(AdapterInstance).limit(1))
+    assert instance is not None
+
+    response = client.post(
+        f"/adapters/{instance.id}/pause",
+        data={"next": f"/adapters/{instance.id}"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+
+    user_actions = session.scalars(
+        select(UserActionAudit)
+        .where(
+            UserActionAudit.action_type == "execute",
+            UserActionAudit.resource_type == "pause_adapter_view",
+        )
+        .order_by(UserActionAudit.id.asc())
+    ).all()
+    assert user_actions
+    assert user_actions[-1].resource_id == str(instance.id)
+    assert user_actions[-1].status_code == 302
+    assert user_actions[-1].outcome_code == "redirect"
+
+
 def test_operator_cannot_call_admin_web_action(operator_client):
     response = operator_client.post("/hes-systems", data={})
 
     assert response.status_code == 403
+
+
+def test_forbidden_admin_web_action_creates_user_action_audit(operator_client, session):
+    response = operator_client.post("/hes-systems", data={})
+
+    assert response.status_code == 403
+
+    user_actions = session.scalars(
+        select(UserActionAudit)
+        .where(
+            UserActionAudit.action_type == "execute",
+            UserActionAudit.resource_type == "create_hes_system_view",
+        )
+        .order_by(UserActionAudit.id.asc())
+    ).all()
+    assert user_actions
+    assert user_actions[-1].status_code == 403
+    assert user_actions[-1].outcome_code == "client_error"
 
 
 def test_operator_cannot_call_admin_api_action(operator_client):
