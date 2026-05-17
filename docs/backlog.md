@@ -346,6 +346,13 @@ This document captures the staged backlog derived from the reference PDF backlog
   - actor column/filter on replay request list views
   - legacy replay request actor backfill
   - item-level replay actor lineage and processor/system-triggered actor injection
+- billing export actor-lineage follow-up should be deferred separately from the
+  first FK slice:
+  - actor column/filter on billing export list views
+  - legacy billing export request actor backfill
+  - item-level billing export actor lineage
+  - worker/runtime actor registry beyond the current `claimed_by` string
+  - CLI or system-triggered export actor injection beyond web-session flows
 - every actor-identity propagation slice should update regression tests in the
   same change set so the new user-account lineage is both written and visible
   in the affected feature area

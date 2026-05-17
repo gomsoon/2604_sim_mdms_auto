@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.db import check_database_connection, get_session
 from app.i18n import get_locale, translate, translate_visibility_error
 from app.models import HesEventRaw, HesReadRaw, ServicePoint
-from app.services.auth import admin_required
+from app.services.auth import admin_required, get_current_user
 from app.services.exception_queue import (
     build_exception_filters,
     get_exception_batch_id,
@@ -303,6 +303,18 @@ def _is_processing_heartbeat_stale(status: str, last_heartbeat_at) -> bool:
 
 def _serialize_billing_export_request_row(row) -> dict[str, object]:
     details = row.details or {}
+    requested_actor_display = row.requested_by
+    if row.requested_by_user_account is not None:
+        requested_actor_display = (
+            f"{row.requested_by_user_account.display_name} ({row.requested_by_user_account.login_id})"
+        )
+
+    cancelled_actor_display = row.cancelled_by or details.get("cancelled_by")
+    if row.cancelled_by_user_account is not None:
+        cancelled_actor_display = (
+            f"{row.cancelled_by_user_account.display_name} ({row.cancelled_by_user_account.login_id})"
+        )
+
     return {
         "id": row.id,
         "request_scope": row.request_scope,
@@ -316,6 +328,8 @@ def _serialize_billing_export_request_row(row) -> dict[str, object]:
         "target_system_code": row.target_system_code,
         "payload_format": row.payload_format,
         "requested_by": row.requested_by,
+        "requested_by_user_account_id": row.requested_by_user_account_id,
+        "requested_actor_display": requested_actor_display,
         "operator_memo": row.operator_memo,
         "item_count": row.item_count,
         "processed_count": row.processed_count,
@@ -323,8 +337,12 @@ def _serialize_billing_export_request_row(row) -> dict[str, object]:
         "failed_count": row.failed_count,
         "skipped_count": row.skipped_count,
         "claimed_by": row.claimed_by,
+        "cancelled_by": row.cancelled_by or details.get("cancelled_by"),
+        "cancelled_by_user_account_id": row.cancelled_by_user_account_id,
+        "cancelled_actor_display": cancelled_actor_display,
         "started_at": row.started_at.isoformat() if row.started_at else None,
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+        "cancelled_at": row.cancelled_at.isoformat() if row.cancelled_at else None,
         "last_heartbeat_at": row.last_heartbeat_at.isoformat() if row.last_heartbeat_at else None,
         "last_error": row.last_error,
         "progress_percent": details.get("progress_percent"),
@@ -1004,11 +1022,14 @@ def cancel_billing_export_request_endpoint(request_id: int):
         return error_response("json_payload_required", 400)
 
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         export_request = cancel_billing_export_request(
             session,
             request_id,
-            cancelled_by="api",
+            cancelled_by=current_user.login_id,
+            cancelled_by_user_account_id=current_user.id,
             operator_memo=(payload or {}).get("operator_memo") or None,
         )
         session.commit()
@@ -1041,11 +1062,14 @@ def rerun_billing_export_request_endpoint(request_id: int):
         return error_response("json_payload_required", 400)
 
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         result = rerun_billing_export_request(
             session,
             request_id,
-            requested_by="api",
+            requested_by=current_user.login_id,
+            requested_by_user_account_id=current_user.id,
             operator_memo=(payload or {}).get("operator_memo") or None,
         )
         session.commit()
@@ -1084,11 +1108,14 @@ def recreate_billing_export_request_endpoint(request_id: int):
         return error_response("json_payload_required", 400)
 
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         result = recreate_billing_export_request(
             session,
             request_id,
-            requested_by="api",
+            requested_by=current_user.login_id,
+            requested_by_user_account_id=current_user.id,
             operator_memo=(payload or {}).get("operator_memo") or None,
         )
         session.commit()

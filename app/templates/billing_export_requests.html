@@ -72,6 +72,7 @@
             <th>{{ t("table.request_scope") }}</th>
             <th>{{ t("table.service_point") }}</th>
             <th>{{ t("table.status") }}</th>
+            <th>{{ t("table.requested_by") }}</th>
             <th>{{ t("table.target_count") }}</th>
             <th>{{ t("table.progress") }}</th>
             <th>{{ t("field.claimed_by") }}</th>
@@ -92,6 +93,13 @@
               <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
               {% if row.id in stale_request_ids %}
               <div class="small text-warning mt-1">{{ t("billing_export.runtime_state.stale") }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.requested_by_user_account %}
+              {{ row.requested_by_user_account.display_name }} ({{ row.requested_by_user_account.login_id }})
+              {% else %}
+              {{ row.requested_by }}
               {% endif %}
             </td>
             <td>{{ row.item_count }}</td>
@@ -118,7 +126,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="11" class="text-secondary">{{ t("page.billing_export_requests.empty") }}</td>
+            <td colspan="12" class="text-secondary">{{ t("page.billing_export_requests.empty") }}</td>
           </tr>
           {% endfor %}
         </tbody>

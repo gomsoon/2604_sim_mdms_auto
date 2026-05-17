@@ -55,7 +55,11 @@
           <dt class="col-sm-4">{{ t("field.payload_format") }}</dt>
           <dd class="col-sm-8">{{ detail.request.payload_format }}</dd>
           <dt class="col-sm-4">{{ t("table.requested_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.request.requested_by }}</dd>
+          <dd class="col-sm-8">{{ detail.requested_actor_display or detail.request.requested_by }}</dd>
+          <dt class="col-sm-4">{{ t("field.cancelled_by") }}</dt>
+          <dd class="col-sm-8">{{ detail.cancelled_actor_display or t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.cancelled_at") }}</dt>
+          <dd class="col-sm-8">{{ detail.request.cancelled_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
           <dd class="col-sm-8">{{ detail.request.operator_memo or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.billing_period_from") }}</dt>

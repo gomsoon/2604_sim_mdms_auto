@@ -15,12 +15,17 @@ def test_billing_export_request_columns_exist():
     assert "service_point_id" in mapper.columns
     assert "target_system_code" in mapper.columns
     assert "payload_format" in mapper.columns
+    assert "requested_by" in mapper.columns
+    assert "requested_by_user_account_id" in mapper.columns
     assert "item_count" in mapper.columns
     assert "processed_count" in mapper.columns
     assert "succeeded_count" in mapper.columns
     assert "failed_count" in mapper.columns
     assert "skipped_count" in mapper.columns
     assert "claimed_by" in mapper.columns
+    assert "cancelled_by" in mapper.columns
+    assert "cancelled_by_user_account_id" in mapper.columns
+    assert "cancelled_at" in mapper.columns
     assert "last_heartbeat_at" in mapper.columns
     assert "details" in mapper.columns
 

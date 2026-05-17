@@ -185,6 +185,8 @@ def _build_request_details(
     billing_period_to: datetime,
     target_system_code: str,
     payload_format: str,
+    requested_by: str,
+    requested_by_user_account_id: int | None,
 ) -> dict[str, object]:
     return {
         "request_scope": request_scope,
@@ -194,6 +196,8 @@ def _build_request_details(
         "billing_period_to": billing_period_to.isoformat(),
         "target_system_code": target_system_code,
         "payload_format": payload_format,
+        "requested_by": requested_by,
+        "requested_by_user_account_id": requested_by_user_account_id,
     }
 
 
@@ -217,6 +221,7 @@ def _build_request_context_snapshot(
         "target_system_code": request.target_system_code,
         "payload_format": request.payload_format,
         "requested_by": request.requested_by,
+        "requested_by_user_account_id": request.requested_by_user_account_id,
         "requested_at": request.created_at.isoformat(),
     }
     if source_request is not None:
@@ -350,6 +355,8 @@ def _record_billing_export_requested_event(
             "request_id": request.id,
             "request_scope": request.request_scope,
             "status": request.status,
+            "requested_by": request.requested_by,
+            "requested_by_user_account_id": request.requested_by_user_account_id,
             "service_point_id": request.service_point_id,
             "billing_period_from": (
                 request.billing_period_from.isoformat()
@@ -392,6 +399,8 @@ def _record_billing_export_completed_event(
             "request_id": request.id,
             "request_scope": request.request_scope,
             "status": request.status,
+            "requested_by": request.requested_by,
+            "requested_by_user_account_id": request.requested_by_user_account_id,
             "item_count": request.item_count,
             "processed_count": request.processed_count,
             "succeeded_count": request.succeeded_count,
@@ -513,6 +522,7 @@ def _create_recovery_request(
     *,
     source_request: BillingExportRequest,
     requested_by: str,
+    requested_by_user_account_id: int | None,
     recovery_action_code: str,
     operator_memo: str | None,
 ) -> tuple[BillingExportRequest, ServicePoint]:
@@ -538,6 +548,7 @@ def _create_recovery_request(
         target_system_code=source_request.target_system_code,
         payload_format=source_request.payload_format,
         requested_by=requested_by.strip(),
+        requested_by_user_account_id=requested_by_user_account_id,
         operator_memo=operator_memo,
         item_count=0,
         processed_count=0,
@@ -552,6 +563,8 @@ def _create_recovery_request(
                 billing_period_to=source_request.billing_period_to,
                 target_system_code=source_request.target_system_code,
                 payload_format=source_request.payload_format,
+                requested_by=requested_by.strip(),
+                requested_by_user_account_id=requested_by_user_account_id,
             ),
             "source_billing_export_request_id": source_request.id,
             "recovery_action_code": recovery_action_code,
@@ -591,6 +604,7 @@ def create_billing_export_request(
     billing_period_from: datetime | None,
     billing_period_to: datetime | None,
     requested_by: str,
+    requested_by_user_account_id: int | None = None,
     target_system_code: str = "generic_json",
     payload_format: str = "generic_json",
     operator_memo: str | None = None,
@@ -680,6 +694,7 @@ def create_billing_export_request(
         target_system_code=target_system_code,
         payload_format=payload_format,
         requested_by=requested_by.strip(),
+        requested_by_user_account_id=requested_by_user_account_id,
         operator_memo=operator_memo,
         item_count=0,
         processed_count=0,
@@ -693,6 +708,8 @@ def create_billing_export_request(
             billing_period_to=normalized_to,
             target_system_code=target_system_code,
             payload_format=payload_format,
+            requested_by=requested_by.strip(),
+            requested_by_user_account_id=requested_by_user_account_id,
         ),
     )
     session.add(request)
@@ -794,6 +811,7 @@ def rerun_billing_export_request(
     request_id: int,
     *,
     requested_by: str,
+    requested_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
 ) -> BillingExportRequestCreationResult:
     if not requested_by.strip():
@@ -817,6 +835,7 @@ def rerun_billing_export_request(
         session,
         source_request=source_request,
         requested_by=requested_by,
+        requested_by_user_account_id=requested_by_user_account_id,
         recovery_action_code="rerun",
         operator_memo=operator_memo,
     )
@@ -900,6 +919,7 @@ def recreate_billing_export_request(
     request_id: int,
     *,
     requested_by: str,
+    requested_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
 ) -> BillingExportRequestCreationResult:
     if not requested_by.strip():
@@ -923,6 +943,7 @@ def recreate_billing_export_request(
         session,
         source_request=source_request,
         requested_by=requested_by,
+        requested_by_user_account_id=requested_by_user_account_id,
         recovery_action_code="recreate",
         operator_memo=operator_memo,
     )
@@ -1128,6 +1149,7 @@ def cancel_billing_export_request(
     request_id: int,
     *,
     cancelled_by: str,
+    cancelled_by_user_account_id: int | None = None,
     operator_memo: str | None = None,
 ) -> BillingExportRequest:
     request = session.get(BillingExportRequest, request_id)
@@ -1149,11 +1171,15 @@ def cancel_billing_export_request(
 
     cancelled_at = _utcnow()
     request.status = "cancelled"
+    request.cancelled_by = cancelled_by
+    request.cancelled_by_user_account_id = cancelled_by_user_account_id
+    request.cancelled_at = cancelled_at
     request.completed_at = cancelled_at
     if operator_memo is not None:
         request.operator_memo = operator_memo
     details = dict(request.details or {})
     details["cancelled_by"] = cancelled_by
+    details["cancelled_by_user_account_id"] = cancelled_by_user_account_id
     details["cancelled_at"] = cancelled_at.isoformat()
     if operator_memo:
         details["cancellation_memo"] = operator_memo
@@ -1169,6 +1195,11 @@ def cancel_billing_export_request(
         details={
             "request_id": request.id,
             "status": request.status,
+            "cancelled_by": request.cancelled_by,
+            "cancelled_by_user_account_id": request.cancelled_by_user_account_id,
+            "cancelled_at": request.cancelled_at.isoformat()
+            if request.cancelled_at is not None
+            else None,
             "item_count": request.item_count,
             "processed_count": request.processed_count,
             "skipped_count": request.skipped_count,

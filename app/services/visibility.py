@@ -224,6 +224,8 @@ class BillingExportRequestDetailContext:
     recent_items: list[BillingExportItem] = ()
     failed_items: list[BillingExportItem] = ()
     heartbeat_is_stale: bool = False
+    requested_actor_display: str | None = None
+    cancelled_actor_display: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1700,6 +1702,8 @@ def list_billing_export_requests(
         selectinload(BillingExportRequest.service_point),
         selectinload(BillingExportRequest.pipeline_runs),
         selectinload(BillingExportRequest.request_items),
+        selectinload(BillingExportRequest.requested_by_user_account),
+        selectinload(BillingExportRequest.cancelled_by_user_account),
     )
 
     if filters.request_scope:
@@ -1835,6 +1839,8 @@ def get_billing_export_request_detail_context(
         .where(BillingExportRequest.id == request_id)
         .options(
             joinedload(BillingExportRequest.service_point),
+            joinedload(BillingExportRequest.requested_by_user_account),
+            joinedload(BillingExportRequest.cancelled_by_user_account),
             selectinload(BillingExportRequest.pipeline_runs),
             selectinload(BillingExportRequest.request_items),
         )
@@ -1883,6 +1889,14 @@ def get_billing_export_request_detail_context(
         heartbeat_is_stale=_is_processing_heartbeat_stale(
             status=request.status,
             last_heartbeat_at=request.last_heartbeat_at,
+        ),
+        requested_actor_display=_format_user_actor_display(
+            request.requested_by_user_account,
+            request.requested_by,
+        ),
+        cancelled_actor_display=_format_user_actor_display(
+            request.cancelled_by_user_account,
+            request.cancelled_by or (request.details or {}).get("cancelled_by"),
         ),
     )
 

@@ -17,6 +17,7 @@ from app.models import (
     PipelineRun,
     RawIntervalWindowState,
     ServicePoint,
+    UserAccount,
     VeeException,
 )
 from app.services.billing_export_processor import process_queued_billing_export_requests
@@ -429,6 +430,19 @@ def _prepare_billing_export_visibility(
     process_request: bool = False,
     make_stale: bool = False,
 ) -> int:
+    actor = session.scalar(
+        select(UserAccount).where(UserAccount.login_id == "billing-export-visibility").limit(1)
+    )
+    if actor is None:
+        actor = create_user_account(
+            session,
+            login_id="billing-export-visibility",
+            display_name="Billing Export Visibility",
+            role_code="admin",
+            password="test-password",
+        )
+        session.flush()
+
     existing_charge = session.scalar(
         select(BillCharge)
         .where(BillCharge.is_current.is_(True))
@@ -527,7 +541,8 @@ def _prepare_billing_export_visibility(
         service_point_id=charge_row.service_point_id,
         billing_period_from=charge_row.billing_period_start_at,
         billing_period_to=charge_row.billing_period_end_at,
-        requested_by="visibility_tester",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
     )
     session.commit()
 
@@ -1132,7 +1147,7 @@ def test_list_billing_export_requests_filters_by_status_service_point_and_target
                 "status": "queued",
                 "service_point": request.service_point.external_id,
                 "target_system_code": "generic_json",
-                "requested_by": "visibility_tester",
+                "requested_by": "billing-export-visibility",
             }
         ),
     )
@@ -1157,11 +1172,17 @@ def test_get_billing_export_request_detail_context_loads_pipeline_items_and_stal
     assert detail.focus_item.payload_snapshot["worker_result"]["delivery_mode"] == "staged_only"
     assert detail.recent_items
     assert detail.heartbeat_is_stale is False
+    assert detail.requested_actor_display == "Billing Export Visibility (billing-export-visibility)"
+    assert detail.cancelled_actor_display is None
 
     assert stale_detail is not None
     assert stale_detail.request.id == stale_request_id
     assert stale_detail.current_item is not None
     assert stale_detail.heartbeat_is_stale is True
+    assert (
+        stale_detail.requested_actor_display
+        == "Billing Export Visibility (billing-export-visibility)"
+    )
 
 
 def test_build_operational_event_filters_rejects_invalid_stream_type():

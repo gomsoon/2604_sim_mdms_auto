@@ -25,6 +25,7 @@ from app.services.billing_export_requests import (
     recreate_billing_export_request,
     rerun_billing_export_request,
 )
+from app.services.auth import create_user_account
 from app.services.seeds import seed_master_data
 
 
@@ -146,6 +147,8 @@ def _create_failed_billing_export_request(
     quantity_value: Decimal,
     unit_rate_value: Decimal,
     charge_amount: Decimal,
+    requested_by: str = "operator_ui",
+    requested_by_user_account_id: int | None = None,
 ) -> int:
     _create_current_bill_charge(
         session,
@@ -166,7 +169,8 @@ def _create_failed_billing_export_request(
         service_point_id=service_point_id,
         billing_period_from=period_start_at,
         billing_period_to=period_end_at,
-        requested_by="operator_ui",
+        requested_by=requested_by,
+        requested_by_user_account_id=requested_by_user_account_id,
     )
     session.commit()
 
@@ -183,6 +187,13 @@ def _create_failed_billing_export_request(
 
 def test_create_billing_export_request_creates_pending_and_skipped_items(session):
     service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="billing-export-create-actor",
+        display_name="Billing Export Create Actor",
+        role_code="admin",
+        password="test-password",
+    )
     _create_current_bill_charge(
         session,
         service_point_id=service_point_id,
@@ -216,7 +227,8 @@ def test_create_billing_export_request_creates_pending_and_skipped_items(session
         service_point_id=service_point_id,
         billing_period_from=datetime(2026, 4, 1, tzinfo=timezone.utc),
         billing_period_to=datetime(2026, 6, 1, tzinfo=timezone.utc),
-        requested_by="operator_ui",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
     )
     session.commit()
 
@@ -238,11 +250,15 @@ def test_create_billing_export_request_creates_pending_and_skipped_items(session
     assert result.eligible_item_count == 1
     assert result.skipped_item_count == 1
     assert request.status == "queued"
+    assert request.requested_by == actor.login_id
+    assert request.requested_by_user_account_id == actor.id
     assert request.item_count == 2
     assert request.processed_count == 1
     assert request.skipped_count == 1
     assert request.details["progress_percent"] == 50.0
     assert request.details["eligible_item_count"] == 1
+    assert request.details["requested_by"] == actor.login_id
+    assert request.details["requested_by_user_account_id"] == actor.id
     assert len(items) == 2
     assert items[0].status == "pending"
     assert items[0].payload_snapshot["invoice_summary_snapshot"]["export_eligible"] is True
@@ -253,6 +269,8 @@ def test_create_billing_export_request_creates_pending_and_skipped_items(session
         "summary_not_exportable"
     )
     assert requested_event is not None
+    assert requested_event.details["requested_by"] == actor.login_id
+    assert requested_event.details["requested_by_user_account_id"] == actor.id
     assert requested_event.details["skipped_count"] == 1
 
 
@@ -474,6 +492,20 @@ def test_process_queued_billing_export_requests_marks_request_failed_when_item_e
 
 def test_cancel_billing_export_request_allows_only_queued_requests(session):
     service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    request_actor = create_user_account(
+        session,
+        login_id="billing-export-request-actor",
+        display_name="Billing Export Request Actor",
+        role_code="admin",
+        password="test-password",
+    )
+    cancel_actor = create_user_account(
+        session,
+        login_id="billing-export-cancel-actor",
+        display_name="Billing Export Cancel Actor",
+        role_code="admin",
+        password="test-password",
+    )
     _create_current_bill_charge(
         session,
         service_point_id=service_point_id,
@@ -493,13 +525,15 @@ def test_cancel_billing_export_request_allows_only_queued_requests(session):
         service_point_id=service_point_id,
         billing_period_from=datetime(2026, 11, 1, tzinfo=timezone.utc),
         billing_period_to=datetime(2026, 12, 1, tzinfo=timezone.utc),
-        requested_by="operator_ui",
+        requested_by=request_actor.login_id,
+        requested_by_user_account_id=request_actor.id,
     )
 
     cancelled = cancel_billing_export_request(
         session,
         created.request.id,
-        cancelled_by="operator_ui",
+        cancelled_by=cancel_actor.login_id,
+        cancelled_by_user_account_id=cancel_actor.id,
         operator_memo="cancel test",
     )
     session.commit()
@@ -514,14 +548,21 @@ def test_cancel_billing_export_request_allows_only_queued_requests(session):
 
     assert cancelled.status == "cancelled"
     assert cancelled.completed_at is not None
-    assert cancelled.details["cancelled_by"] == "operator_ui"
+    assert cancelled.cancelled_by == cancel_actor.login_id
+    assert cancelled.cancelled_by_user_account_id == cancel_actor.id
+    assert cancelled.cancelled_at is not None
+    assert cancelled.details["cancelled_by"] == cancel_actor.login_id
+    assert cancelled.details["cancelled_by_user_account_id"] == cancel_actor.id
     assert cancelled_event is not None
+    assert cancelled_event.details["cancelled_by"] == cancel_actor.login_id
+    assert cancelled_event.details["cancelled_by_user_account_id"] == cancel_actor.id
 
     with pytest.raises(BillingExportRequestError) as exc_info:
         cancel_billing_export_request(
             session,
             created.request.id,
-            cancelled_by="operator_ui",
+            cancelled_by=cancel_actor.login_id,
+            cancelled_by_user_account_id=cancel_actor.id,
         )
 
     assert exc_info.value.error_code == "already_cancelled"
@@ -532,6 +573,20 @@ def test_rerun_billing_export_request_creates_lineaged_pending_items_from_failed
     monkeypatch,
 ):
     service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    source_actor = create_user_account(
+        session,
+        login_id="billing-export-source-actor",
+        display_name="Billing Export Source Actor",
+        role_code="admin",
+        password="test-password",
+    )
+    recovery_actor = create_user_account(
+        session,
+        login_id="billing-export-retry-actor",
+        display_name="Billing Export Retry Actor",
+        role_code="admin",
+        password="test-password",
+    )
     source_request_id = _create_failed_billing_export_request(
         session,
         monkeypatch,
@@ -543,12 +598,15 @@ def test_rerun_billing_export_request_creates_lineaged_pending_items_from_failed
         quantity_value=Decimal("81.0000"),
         unit_rate_value=Decimal("100.00000000"),
         charge_amount=Decimal("8100.0000"),
+        requested_by=source_actor.login_id,
+        requested_by_user_account_id=source_actor.id,
     )
 
     result = rerun_billing_export_request(
         session,
         source_request_id,
-        requested_by="operator_retry",
+        requested_by=recovery_actor.login_id,
+        requested_by_user_account_id=recovery_actor.id,
         operator_memo="rerun failed export",
     )
     session.commit()
@@ -572,6 +630,8 @@ def test_rerun_billing_export_request_creates_lineaged_pending_items_from_failed
     assert source_item is not None
     assert recovery_request.source_billing_export_request_id == source_request_id
     assert recovery_request.recovery_action_code == "rerun"
+    assert recovery_request.requested_by == recovery_actor.login_id
+    assert recovery_request.requested_by_user_account_id == recovery_actor.id
     assert recovery_request.status == "queued"
     assert recovery_request.processed_count == 0
     assert result.created_item_count == 1
@@ -595,6 +655,9 @@ def test_rerun_billing_export_request_creates_lineaged_pending_items_from_failed
     assert recovery_items[0].payload_snapshot["request_context_snapshot"]["request_id"] == (
         recovery_request.id
     )
+    assert recovery_items[0].payload_snapshot["request_context_snapshot"][
+        "requested_by_user_account_id"
+    ] == recovery_actor.id
 
 
 def test_recreate_billing_export_request_uses_current_invoice_summary_state(
@@ -602,6 +665,20 @@ def test_recreate_billing_export_request_uses_current_invoice_summary_state(
     monkeypatch,
 ):
     service_point_id, device_id, measuring_component_id = _prepare_export_environment(session)
+    source_actor = create_user_account(
+        session,
+        login_id="billing-export-recreate-source",
+        display_name="Billing Export Recreate Source",
+        role_code="admin",
+        password="test-password",
+    )
+    recovery_actor = create_user_account(
+        session,
+        login_id="billing-export-recreate-actor",
+        display_name="Billing Export Recreate Actor",
+        role_code="admin",
+        password="test-password",
+    )
     source_request_id = _create_failed_billing_export_request(
         session,
         monkeypatch,
@@ -613,6 +690,8 @@ def test_recreate_billing_export_request_uses_current_invoice_summary_state(
         quantity_value=Decimal("82.0000"),
         unit_rate_value=Decimal("100.00000000"),
         charge_amount=Decimal("8200.0000"),
+        requested_by=source_actor.login_id,
+        requested_by_user_account_id=source_actor.id,
     )
 
     current_charge = session.scalar(
@@ -630,7 +709,8 @@ def test_recreate_billing_export_request_uses_current_invoice_summary_state(
     result = recreate_billing_export_request(
         session,
         source_request_id,
-        requested_by="operator_recreate",
+        requested_by=recovery_actor.login_id,
+        requested_by_user_account_id=recovery_actor.id,
         operator_memo="recreate with current summary",
     )
     session.commit()
@@ -644,6 +724,8 @@ def test_recreate_billing_export_request_uses_current_invoice_summary_state(
 
     assert recovery_request.source_billing_export_request_id == source_request_id
     assert recovery_request.recovery_action_code == "recreate"
+    assert recovery_request.requested_by == recovery_actor.login_id
+    assert recovery_request.requested_by_user_account_id == recovery_actor.id
     assert recovery_request.status == "queued"
     assert result.created_item_count == 1
     assert result.eligible_item_count == 1
@@ -655,6 +737,9 @@ def test_recreate_billing_export_request_uses_current_invoice_summary_state(
         recovery_item.payload_snapshot["recovery_lineage_snapshot"]["recovery_action_code"]
         == "recreate"
     )
+    assert recovery_item.payload_snapshot["request_context_snapshot"][
+        "requested_by_user_account_id"
+    ] == recovery_actor.id
 
 
 def test_rerun_billing_export_request_rejects_non_failed_request(session):

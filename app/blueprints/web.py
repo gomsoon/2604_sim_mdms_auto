@@ -661,11 +661,14 @@ def billing_export_request_detail(request_id: int):
 @admin_required
 def cancel_billing_export_request_view(request_id: int):
     session = get_session()
+    current_user = get_current_user()
+    assert current_user is not None
     try:
         export_request = cancel_billing_export_request(
             session,
             request_id,
-            cancelled_by="operator_ui",
+            cancelled_by=current_user.login_id,
+            cancelled_by_user_account_id=current_user.id,
             operator_memo=request.form.get("operator_memo") or None,
         )
         session.commit()

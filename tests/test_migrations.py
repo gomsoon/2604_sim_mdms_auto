@@ -405,12 +405,16 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "target_system_code" in billing_export_request_columns
         assert "payload_format" in billing_export_request_columns
         assert "requested_by" in billing_export_request_columns
+        assert "requested_by_user_account_id" in billing_export_request_columns
         assert "item_count" in billing_export_request_columns
         assert "processed_count" in billing_export_request_columns
         assert "succeeded_count" in billing_export_request_columns
         assert "failed_count" in billing_export_request_columns
         assert "skipped_count" in billing_export_request_columns
         assert "claimed_by" in billing_export_request_columns
+        assert "cancelled_by" in billing_export_request_columns
+        assert "cancelled_by_user_account_id" in billing_export_request_columns
+        assert "cancelled_at" in billing_export_request_columns
         assert "last_heartbeat_at" in billing_export_request_columns
         assert "details" in billing_export_request_columns
         assert billing_export_request_column_defs["request_scope"]["nullable"] is False
@@ -418,7 +422,11 @@ def test_alembic_upgrade_creates_expected_tables():
         assert billing_export_request_column_defs["target_system_code"]["nullable"] is False
         assert billing_export_request_column_defs["payload_format"]["nullable"] is False
         assert billing_export_request_column_defs["requested_by"]["nullable"] is False
+        assert billing_export_request_column_defs["requested_by_user_account_id"]["nullable"] is True
         assert billing_export_request_column_defs["item_count"]["nullable"] is False
+        assert billing_export_request_column_defs["cancelled_by"]["nullable"] is True
+        assert billing_export_request_column_defs["cancelled_by_user_account_id"]["nullable"] is True
+        assert billing_export_request_column_defs["cancelled_at"]["nullable"] is True
         assert "billing_export_request_id" in billing_export_item_columns
         assert "source_billing_export_item_id" in billing_export_item_columns
         assert "service_point_id" in billing_export_item_columns
@@ -689,6 +697,8 @@ def test_alembic_upgrade_creates_expected_tables():
         assert "ix_billing_export_request_target_system_code" in index_defs
         assert "ix_billing_export_request_payload_format" in index_defs
         assert "ix_billing_export_request_requested_by" in index_defs
+        assert "ix_billing_export_request_requested_by_user_account_id" in index_defs
+        assert "ix_billing_export_request_cancelled_by_user_account_id" in index_defs
         assert "ix_billing_export_request_created_at" in index_defs
         assert "ix_billing_export_item_billing_export_request_id" in index_defs
         assert "ix_billing_export_item_source_billing_export_item_id" in index_defs

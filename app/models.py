@@ -87,6 +87,14 @@ class UserAccount(TimestampMixin, Base):
         back_populates="cancelled_by_user_account",
         foreign_keys="VeeReplayRequest.cancelled_by_user_account_id",
     )
+    requested_billing_export_requests: Mapped[list["BillingExportRequest"]] = relationship(
+        back_populates="requested_by_user_account",
+        foreign_keys="BillingExportRequest.requested_by_user_account_id",
+    )
+    cancelled_billing_export_requests: Mapped[list["BillingExportRequest"]] = relationship(
+        back_populates="cancelled_by_user_account",
+        foreign_keys="BillingExportRequest.cancelled_by_user_account_id",
+    )
 
 
 class AuthSessionAudit(Base):
@@ -1114,6 +1122,11 @@ class BillingExportRequest(TimestampMixin, Base):
         Index("ix_billing_export_request_target_system_code", "target_system_code"),
         Index("ix_billing_export_request_payload_format", "payload_format"),
         Index("ix_billing_export_request_requested_by", "requested_by"),
+        Index(
+            "ix_billing_export_request_requested_by_user_account_id",
+            "requested_by_user_account_id",
+        ),
+        Index("ix_billing_export_request_cancelled_by_user_account_id", "cancelled_by_user_account_id"),
         Index("ix_billing_export_request_created_at", "created_at"),
     )
 
@@ -1130,6 +1143,7 @@ class BillingExportRequest(TimestampMixin, Base):
     target_system_code: Mapped[str] = mapped_column(String(60), nullable=False)
     payload_format: Mapped[str] = mapped_column(String(40), nullable=False)
     requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    requested_by_user_account_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
     operator_memo: Mapped[str | None] = mapped_column(Text)
     item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     processed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -1137,8 +1151,11 @@ class BillingExportRequest(TimestampMixin, Base):
     failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     skipped_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     claimed_by: Mapped[str | None] = mapped_column(String(120))
+    cancelled_by: Mapped[str | None] = mapped_column(String(120))
+    cancelled_by_user_account_id: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
@@ -1151,6 +1168,14 @@ class BillingExportRequest(TimestampMixin, Base):
     )
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
         back_populates="billing_export_request"
+    )
+    requested_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="requested_billing_export_requests",
+        foreign_keys=[requested_by_user_account_id],
+    )
+    cancelled_by_user_account: Mapped["UserAccount | None"] = relationship(
+        back_populates="cancelled_billing_export_requests",
+        foreign_keys=[cancelled_by_user_account_id],
     )
     source_billing_export_request: Mapped["BillingExportRequest | None"] = relationship(
         remote_side=[id],

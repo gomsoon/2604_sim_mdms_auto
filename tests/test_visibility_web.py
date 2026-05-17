@@ -34,6 +34,7 @@ from app.models import (
     PipelineRun,
     RawIntervalWindowState,
     ServicePoint,
+    UserAccount,
     UsageTransaction,
     VeeException,
 )
@@ -408,6 +409,19 @@ def _prepare_billing_export_request_rows(
     process_request: bool = False,
     make_stale: bool = False,
 ) -> int:
+    actor = session.scalar(
+        select(UserAccount).where(UserAccount.login_id == "billing-export-web-tester").limit(1)
+    )
+    if actor is None:
+        actor = create_user_account(
+            session,
+            login_id="billing-export-web-tester",
+            display_name="Billing Export Web Tester",
+            role_code="admin",
+            password="test-password",
+        )
+        session.flush()
+
     existing_charge = session.scalar(
         select(BillCharge)
         .where(BillCharge.is_current.is_(True))
@@ -506,7 +520,8 @@ def _prepare_billing_export_request_rows(
         service_point_id=charge_row.service_point_id,
         billing_period_from=charge_row.billing_period_start_at,
         billing_period_to=charge_row.billing_period_end_at,
-        requested_by="web_tester",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
     )
     session.commit()
 
@@ -1187,7 +1202,7 @@ def test_billing_export_requests_api_returns_filtered_rows(client, session):
         "/api/v1/billing-export-requests"
         f"?status=processing&service_point={request.service_point.external_id}"
         "&target_system_code=generic_json"
-        "&requested_by=web_tester"
+        "&requested_by=billing-export-web-tester"
         "&limit=10"
     )
 
@@ -1199,7 +1214,7 @@ def test_billing_export_requests_api_returns_filtered_rows(client, session):
         "service_point_id": None,
         "service_point": request.service_point.external_id,
         "target_system_code": "generic_json",
-        "requested_by": "web_tester",
+        "requested_by": "billing-export-web-tester",
         "date_from": None,
         "date_to": None,
         "limit": 10,
@@ -1210,6 +1225,8 @@ def test_billing_export_requests_api_returns_filtered_rows(client, session):
     assert row["status"] == "processing"
     assert row["service_point_external_id"] == request.service_point.external_id
     assert row["target_system_code"] == "generic_json"
+    assert row["requested_by"] == "billing-export-web-tester"
+    assert row["requested_actor_display"] == "Billing Export Web Tester (billing-export-web-tester)"
     assert row["claimed_by"] == "web_worker"
     assert row["heartbeat_is_stale"] is True
     assert row["progress_percent"] == 50.0
@@ -1235,6 +1252,10 @@ def test_billing_export_request_detail_api_returns_runtime_and_payload(client, s
     payload = response.get_json()
     assert payload["request"]["id"] == request_id
     assert payload["request"]["status"] == "completed"
+    assert (
+        payload["request"]["requested_actor_display"]
+        == "Billing Export Web Tester (billing-export-web-tester)"
+    )
     assert payload["latest_pipeline_run"] is not None
     assert payload["latest_pipeline_run"]["pipeline_name"] == "billing_export"
     assert payload["focus_item"] is not None
@@ -1256,6 +1277,8 @@ def test_billing_export_request_detail_api_returns_404_for_missing_request(clien
 
 def test_cancel_billing_export_request_api_cancels_queued_request(client, session):
     request_id = _prepare_billing_export_request_rows(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
 
     response = client.post(
         f"/api/v1/billing-export-requests/{request_id}/cancel",
@@ -1267,11 +1290,16 @@ def test_cancel_billing_export_request_api_cancels_queued_request(client, sessio
     assert payload["result"] == "cancelled"
     assert payload["request"]["id"] == request_id
     assert payload["request"]["status"] == "cancelled"
+    assert payload["request"]["cancelled_by"] == actor.login_id
+    assert payload["request"]["cancelled_by_user_account_id"] == actor.id
 
     refreshed = session.get(BillingExportRequest, request_id)
     assert refreshed is not None
     assert refreshed.status == "cancelled"
-    assert refreshed.details["cancelled_by"] == "api"
+    assert refreshed.cancelled_by == actor.login_id
+    assert refreshed.cancelled_by_user_account_id == actor.id
+    assert refreshed.details["cancelled_by"] == actor.login_id
+    assert refreshed.details["cancelled_by_user_account_id"] == actor.id
     assert refreshed.details["cancellation_memo"] == "cancel from api"
 
 
@@ -1322,6 +1350,8 @@ def test_cancel_billing_export_request_api_rejects_processing_request(client, se
 
 def test_rerun_billing_export_request_api_creates_recovery_request(client, session):
     request_id = _prepare_failed_billing_export_request_rows(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
 
     response = client.post(
         f"/api/v1/billing-export-requests/{request_id}/rerun",
@@ -1338,16 +1368,22 @@ def test_rerun_billing_export_request_api_creates_recovery_request(client, sessi
     assert payload["recovery_request"]["status"] == "queued"
     assert payload["recovery_request"]["source_billing_export_request_id"] == request_id
     assert payload["recovery_request"]["recovery_action_code"] == "rerun"
+    assert payload["recovery_request"]["requested_by"] == actor.login_id
+    assert payload["recovery_request"]["requested_by_user_account_id"] == actor.id
 
     recovery_request = session.get(BillingExportRequest, payload["recovery_request"]["id"])
     assert recovery_request is not None
     assert recovery_request.operator_memo == "rerun from api"
     assert recovery_request.source_billing_export_request_id == request_id
     assert recovery_request.recovery_action_code == "rerun"
+    assert recovery_request.requested_by == actor.login_id
+    assert recovery_request.requested_by_user_account_id == actor.id
 
 
 def test_recreate_billing_export_request_api_creates_recovery_request(client, session):
     request_id = _prepare_failed_billing_export_request_rows(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
 
     response = client.post(
         f"/api/v1/billing-export-requests/{request_id}/recreate",
@@ -1364,12 +1400,16 @@ def test_recreate_billing_export_request_api_creates_recovery_request(client, se
     assert payload["recovery_request"]["status"] == "queued"
     assert payload["recovery_request"]["source_billing_export_request_id"] == request_id
     assert payload["recovery_request"]["recovery_action_code"] == "recreate"
+    assert payload["recovery_request"]["requested_by"] == actor.login_id
+    assert payload["recovery_request"]["requested_by_user_account_id"] == actor.id
 
     recovery_request = session.get(BillingExportRequest, payload["recovery_request"]["id"])
     assert recovery_request is not None
     assert recovery_request.operator_memo == "recreate from api"
     assert recovery_request.source_billing_export_request_id == request_id
     assert recovery_request.recovery_action_code == "recreate"
+    assert recovery_request.requested_by == actor.login_id
+    assert recovery_request.requested_by_user_account_id == actor.id
 
 
 def test_rerun_billing_export_request_api_returns_404_for_missing_request(client):
@@ -1808,13 +1848,14 @@ def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(cl
     assert request.service_point is not None
 
     response = client.get(
-        f"/billing-export-requests?lang=ko&status=processing&service_point={request.service_point.external_id}&target_system_code=generic_json&requested_by=web_tester"
+        f"/billing-export-requests?lang=ko&status=processing&service_point={request.service_point.external_id}&target_system_code=generic_json&requested_by=billing-export-web-tester"
     )
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
     assert "청구 내보내기 요청" in text
     assert request.service_point.external_id in text
+    assert "Billing Export Web Tester (billing-export-web-tester)" in text
     assert "worker heartbeat 지연" in text
     assert f"/billing-export-requests/{request_id}?lang=ko" in text
 
@@ -1832,6 +1873,7 @@ def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(
     assert "선택된 payload 스냅샷" in text
     assert "generic_json" in text
     assert "staged_only" in text
+    assert "Billing Export Web Tester (billing-export-web-tester)" in text
     assert "web_worker" in text
 
 
