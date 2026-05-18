@@ -84,6 +84,25 @@ Recommended validation discipline:
 2. targeted web or API regression if user-facing
 3. full `pytest --cov-fail-under=80` for cross-cutting fixes
 
+### 5. Testing hardening for high-risk decision logic
+
+Strengthen testing in the `mdms-preproduct` phase by:
+
+- expanding boundary value analysis into robustness testing
+- applying selective worst-case testing where the decision space stays small
+- applying MC/DC-style strengthening to value-changing and state-changing logic
+
+Priority targets:
+
+- `VEE`
+- `estimation`
+- `manual edit`
+
+See:
+
+- [testing-strategy.md](/home/tprover/2604_sim_mdms_auto/docs/testing-strategy.md)
+- [mdms-preproduct-testing-hardening.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-testing-hardening.md)
+
 ## Recommended first execution slices
 
 ### Slice 1. Close-out smoke pass review

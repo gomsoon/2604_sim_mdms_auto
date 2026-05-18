@@ -16,6 +16,24 @@ This document defines the minimum testing expectations for all code changes in t
 - Unit test cases must be designed using boundary value analysis wherever applicable.
 - Test authors should explicitly consider minimum, maximum, empty, null, duplicate, malformed, and just-inside or just-outside valid ranges.
 
+### Robustness testing should extend boundary testing
+
+- Boundary value analysis is the floor, not the ceiling.
+- Test design should expand into robustness testing when behavior is safety- or
+  decision-sensitive.
+- Robustness-oriented cases should explicitly include:
+  - invalid but near-valid values
+  - null or empty variants beyond the normal happy path
+  - malformed combinations of otherwise valid fields
+  - unexpected state combinations near supported operating boundaries
+
+### Worst-case testing should be selective
+
+- Worst-case combinational testing is valuable for small, decision-heavy logic.
+- It should not be applied blindly to the whole repository.
+- It should be concentrated where the input space is small enough to stay
+  understandable and where the decision outcome is operationally important.
+
 ### Regression testing is mandatory
 
 - Whenever code changes, regression testing must be executed.
@@ -26,6 +44,22 @@ This document defines the minimum testing expectations for all code changes in t
 - The repository should measure branch coverage, not line coverage only.
 - The current baseline should enforce a minimum `80%` branch coverage threshold for the application package.
 - Thresholds should continue to increase gradually toward higher confidence instead of jumping unrealistically to `100%` all at once.
+- The repository should prefer a dual policy:
+  - gradual global threshold increases
+  - stronger local expectations for high-risk decision logic
+
+### MC/DC-style testing is recommended for critical decision logic
+
+- Modified condition or decision coverage is not required for all code.
+- It is strongly recommended for logic that can change measurement values,
+  correction outcomes, finalization state, or operator-visible blocking
+  decisions.
+- At the current repository stage, the highest-priority candidates are:
+  - `VEE`
+  - `estimation`
+  - `manual edit`
+  - correction-policy and replay or export eligibility checks where the
+    decision tree is small and safety-relevant
 
 ## Test layers
 
@@ -59,6 +93,45 @@ When adding or modifying logic, test at least the following classes of values wh
 - Known master-data mapping vs unknown mapping
 - Supported locale values such as `en` and `ko` vs unsupported locale fallback
 
+## Robustness testing guidance
+
+When behavior is correction-sensitive, workflow-sensitive, or policy-sensitive,
+expand beyond classic boundary values to include:
+
+- valid single condition vs multiple simultaneous invalid conditions
+- valid status transition vs forbidden status transition
+- supported action with required lineage vs missing lineage
+- supported actor path vs missing actor or wrong-role path
+- supported event context vs unsupported or conflicting event context
+- supported revision state vs stale or superseded state
+
+The goal is to verify that the system fails clearly and safely near the
+operational boundary, not only at the nominal boundary.
+
+## Worst-case guidance
+
+Use worst-case combinational coverage selectively when:
+
+- the decision space is intentionally small
+- the logic changes values or state
+- a missed combination could cause silent operator harm or incorrect downstream
+  recalculation
+
+Typical examples in this repository:
+
+- VEE rule blocking versus warning conditions
+- synthetic missing-interval eligibility
+- estimation strategy or blocking choice
+- manual-edit allowed versus blocked decisions
+- export action eligibility such as cancel, rerun, and recreate
+
+Avoid forcing worst-case combinational coverage for:
+
+- basic CRUD wiring
+- broad visibility queries
+- simple template rendering
+- low-risk serializer formatting
+
 ## Regression testing guidance
 
 ### Minimum expectation per change
@@ -74,6 +147,10 @@ When adding or modifying logic, test at least the following classes of values wh
 - Changes to user-facing text or locale logic should re-test English and Korean presentation paths.
 - Changes to external integration boundaries should re-test adapter behavior and failure handling.
 - Changes to replay, idempotency, or adapter watermark behavior should re-test both exact replay and bounded multi-run scenarios.
+- Changes to VEE, estimation, or manual edit logic should re-test the full
+  decision path, adjacent exception states, and downstream recalculation.
+- Changes to actor, audit, or authorization logic should re-test both allowed
+  and forbidden paths together with visibility fallback behavior.
 
 ## Recommended test organization
 
@@ -109,6 +186,30 @@ As the repository grows, tests should evolve toward a structure like the followi
 - Keep fixtures small and domain meaningful.
 - Ensure each test has a clear reason for existence tied to requirements or regression risk.
 - Prefer bounded source windows in adapter tests so replay and idempotency behavior can be reasoned about explicitly.
+- For decision-heavy logic, prefer tests that show which condition independently
+  changes the outcome.
+- Do not chase global `100%` coverage blindly where the resulting tests add
+  little signal.
+- Do pursue near-complete branch and condition confidence in high-risk service
+  logic.
+
+## Coverage direction for the `mdms-preproduct` phase
+
+The current repository should evolve coverage in two tracks:
+
+1. Global branch threshold:
+   - raise gradually from the current baseline toward stronger confidence
+   - do not require an immediate repository-wide jump to `100%`
+
+2. High-risk service target:
+   - aim for near-complete branch coverage on:
+     - `VEE`
+     - `estimation`
+     - `manual edit`
+   - strengthen those same areas with robustness and MC/DC-style test design
+
+The point of this phase is stronger confidence where incorrect decisions would
+be most damaging, not a vanity metric on low-risk code paths.
 
 ## Definition of done for testing
 
@@ -125,3 +226,4 @@ A code change is not complete unless:
 - [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
 - [adapter-test-matrix.md](/home/tprover/2604_sim_mdms_auto/docs/adapter-test-matrix.md)
 - [pytest-xdist-evaluation.md](/home/tprover/2604_sim_mdms_auto/docs/pytest-xdist-evaluation.md)
+- [mdms-preproduct-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-plan.md)
