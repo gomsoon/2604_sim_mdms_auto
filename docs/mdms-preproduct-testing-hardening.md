@@ -113,6 +113,13 @@ Suggested focus:
 - duplicate and missing-interval edge combinations
 - actor-sensitive or state-sensitive exception transitions
 
+Recommended execution order:
+
+1. rule-evaluation hardening in `tests/test_vee_rule_evaluation.py`
+2. baseline-evaluation and summary-code hardening in `tests/test_vee_service.py`
+3. finalization adjacency and transition robustness in
+   `tests/test_finalization_service.py`
+
 ### Slice 3. Estimation decision-test hardening
 
 Goal:
