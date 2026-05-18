@@ -187,6 +187,7 @@ The following short items are recommended before close-out.
 
 After MVP close-out, the recommended next mode is:
 
+- follow [mdms-preproduct-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-plan.md)
 - use the system in a bounded internal setting
 - collect real operating friction, missing policy, and bug reports
 - prefer targeted hardening and usability work over new subsystem expansion

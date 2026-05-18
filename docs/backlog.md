@@ -487,6 +487,22 @@ These items are not blockers for the current minimal baseline, but they should r
 - Define how HES meter reference supports mapping bootstrap, operator comparison, and troubleshooting without turning HES vendor schema into the MDM core model
 - Revisit which source-side attributes should stay as raw source reference only versus which should influence canonical master governance
 
+### X8. `mdms-preproduct` operational hardening and visibility polish
+
+- After MVP close-out, use the `mdms-preproduct` phase for bounded internal use
+  and issue-driven hardening before opening new subsystem scope
+- Run the close-out smoke pass at least once in operator order and treat the
+  resulting issues as the first post-close-out queue
+- Prioritize:
+  - bug fixes on supported operator flows
+  - actor and audit readability on high-traffic views
+  - small visibility polish on replay, export, and adapter runtime screens
+  - known-limitations communication for internal operators
+- Keep each hardening slice small enough to update regression coverage in the
+  same change set
+- Defer broader product expansion until repeated internal-use friction shows a
+  clearer priority signal
+
 ## Recommended execution waves
 
 ### Wave 1
