@@ -502,6 +502,11 @@ These items are not blockers for the current minimal baseline, but they should r
   same change set
 - Defer broader product expansion until repeated internal-use friction shows a
   clearer priority signal
+- During VEE decision-test hardening, defer:
+  - exhaustive worst-case rule-combination matrices
+  - full event-context combination sweeps
+  - web/API-level summary-code assertion duplication
+  - exhaustive operational-event detail assertions for every baseline path
 
 ## Recommended execution waves
 
