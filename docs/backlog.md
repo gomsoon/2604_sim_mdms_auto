@@ -515,6 +515,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - web/API-level duplication of finalization summary assertions
   - large-batch and partition performance characterization
   - concurrency semantics across overlapping finalization runs
+- During estimation decision-test hardening, defer:
+  - exhaustive strategy-by-exception matrices
+  - full event-policy combination sweeps across all supported estimation paths
+  - web/API-level duplication of estimation result assertions
+  - performance and concurrency characterization for synthetic/bulk estimation
 
 ## Recommended execution waves
 

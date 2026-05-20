@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+import app.services.estimation as estimation_service
 from app.models import (
     BillCharge,
     BillDeterminant,
@@ -674,6 +675,219 @@ def test_apply_estimation_blocks_when_tamper_policy_requires_manual_review(sessi
         audit_row.details["correction_policy_snapshot"]["policy_reason_code"]
         == "tamper_correlated_value_anomaly"
     )
+
+
+def test_apply_estimation_blocks_when_target_unit_of_measure_is_missing(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    target_initial = session.get(InitialMeasurement, target_initial_id)
+    assert target_initial is not None
+    target_initial.unit_of_measure = ""
+    session.flush()
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_invalid_target_state"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "missing_unit_of_measure"
+
+
+def test_apply_estimation_blocks_previous_value_when_previous_final_is_missing(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
+        session,
+        include_previous=False,
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_missing_previous_final"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "missing_previous_final"
+
+
+def test_apply_estimation_blocks_previous_value_when_previous_final_uom_mismatches(session):
+    _service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    target_initial = session.get(InitialMeasurement, target_initial_id)
+    assert target_initial is not None
+    previous_final = session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.measuring_component_id == measuring_component_id,
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.measured_at < target_initial.measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.desc(), FinalMeasurement.id.desc())
+        .limit(1)
+    )
+    assert previous_final is not None
+    previous_final.unit_of_measure = "MWh"
+    session.flush()
+
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_uom_mismatch"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "uom_mismatch"
+    assert audit_row.details["estimation_result"]["previous_unit_of_measure"] == "MWh"
+
+
+def test_apply_estimation_policy_block_precedes_neighbor_missing_checks(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
+        session,
+        include_previous=False,
+    )
+    vee_exception = _open_high_value_vee_exception_with_tamper(
+        session,
+        initial_measurement_id=target_initial_id,
+    )
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_event_policy_tamper_correlated_value_anomaly"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "event_policy_blocked"
+
+
+def test_apply_linear_interpolation_blocks_when_next_final_is_missing(session):
+    _service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(session)
+    target_initial = session.get(InitialMeasurement, target_initial_id)
+    assert target_initial is not None
+    next_final = session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.measuring_component_id == measuring_component_id,
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.measured_at > target_initial.measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
+        .limit(1)
+    )
+    assert next_final is not None
+    next_final.is_current = False
+    next_final.final_status = "superseded"
+    session.flush()
+
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_missing_next_final"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "missing_next_final"
+
+
+def test_apply_linear_interpolation_blocks_when_neighbor_order_is_invalid(session, monkeypatch):
+    _service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    target_initial = session.get(InitialMeasurement, target_initial_id)
+    assert target_initial is not None
+    previous_final = session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.measuring_component_id == measuring_component_id,
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.measured_at < target_initial.measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.desc(), FinalMeasurement.id.desc())
+        .limit(1)
+    )
+    next_final = session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.measuring_component_id == measuring_component_id,
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.measured_at > target_initial.measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
+        .limit(1)
+    )
+    assert previous_final is not None
+    assert next_final is not None
+
+    monkeypatch.setattr(
+        estimation_service,
+        "_find_supporting_previous_final",
+        lambda _session, *, initial_row: next_final,
+    )
+    monkeypatch.setattr(
+        estimation_service,
+        "_find_supporting_next_final",
+        lambda _session, *, initial_row: previous_final,
+    )
+
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+
+    assert audit_row is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_context_mismatch"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "invalid_neighbor_order"
 
 
 def test_apply_synthetic_missing_interval_linear_interpolation_creates_synthetic_chain(session):
