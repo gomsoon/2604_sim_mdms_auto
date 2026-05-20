@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
+import app.services.vee as vee_service
 from app.models import InitialMeasurement, RawIntervalWindowState
 from app.services.seeds import seed_demo_environment
 from app.services.vee import (
@@ -30,6 +31,44 @@ def _seed_initial_measurement(session) -> InitialMeasurement:
     assert initial.canonical_measurement.hes_read_raw is not None
     assert initial.measuring_component is not None
     return initial
+
+
+def _add_window_state_for_initial(
+    session,
+    initial: InitialMeasurement,
+    *,
+    completion_status: str = "partial",
+    received_slot_count: int = 2,
+    expected_slot_count: int = 4,
+    interval_size_minutes: int | None = None,
+) -> None:
+    raw_row = initial.canonical_measurement.hes_read_raw
+    assert raw_row is not None
+    assert raw_row.source_system is not None
+    assert raw_row.meter_identifier is not None
+    assert raw_row.channel_identifier is not None
+    raw_row.source_business_ts = raw_row.measured_at
+    assert raw_row.source_business_ts is not None
+
+    session.add(
+        RawIntervalWindowState(
+            source_system=raw_row.source_system,
+            meter_identifier=raw_row.meter_identifier,
+            channel_identifier=raw_row.channel_identifier,
+            window_start_at=raw_row.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=interval_size_minutes
+            if interval_size_minutes is not None
+            else raw_row.interval_size_minutes,
+            expected_slot_count=expected_slot_count,
+            received_slot_count=received_slot_count,
+            received_slot_bitmap="00,15",
+            completion_status=completion_status,
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.flush()
 
 
 def test_build_required_field_hit_returns_none_for_well_formed_row(session):
@@ -114,6 +153,49 @@ def test_build_negative_value_hit_escalates_when_tamper_context_is_present(sessi
     assert tamper_hit.severity == "critical"
     assert tamper_hit.blocking_finalization is True
     assert tamper_hit.details["event_linked_decision"] == "tamper_correlated_value_anomaly"
+
+
+@pytest.mark.parametrize(
+    ("value", "event_context_snapshot", "expected_hit", "expected_severity"),
+    [
+        (Decimal("-1.0000"), None, True, "error"),
+        (
+            Decimal("-1.0000"),
+            {"matched_context_types": ["tamper"]},
+            True,
+            "critical",
+        ),
+        (Decimal("0.0000"), None, False, None),
+        (
+            Decimal("0.0000"),
+            {"matched_context_types": ["tamper"]},
+            False,
+            None,
+        ),
+    ],
+)
+def test_build_negative_value_hit_event_context_matrix(
+    session,
+    value,
+    event_context_snapshot,
+    expected_hit,
+    expected_severity,
+):
+    initial = _seed_initial_measurement(session)
+    initial.value = value
+
+    hit = _build_negative_value_hit(
+        initial,
+        event_context_snapshot=event_context_snapshot,
+    )
+
+    assert (hit is not None) is expected_hit
+    if hit is not None:
+        assert hit.severity == expected_severity
+        if expected_severity == "critical":
+            assert hit.details["event_linked_decision"] == "tamper_correlated_value_anomaly"
+        else:
+            assert "event_linked_decision" not in hit.details
 
 
 def test_build_zero_value_hit_only_matches_exact_zero(session):
@@ -277,31 +359,7 @@ def test_build_missing_interval_hit_requires_incomplete_open_or_partial_window(
 
 def test_build_missing_interval_hit_records_outage_linked_decision(session):
     initial = _seed_initial_measurement(session)
-    raw_row = initial.canonical_measurement.hes_read_raw
-    assert raw_row is not None
-    assert raw_row.source_system is not None
-    assert raw_row.meter_identifier is not None
-    assert raw_row.channel_identifier is not None
-    raw_row.source_business_ts = raw_row.measured_at
-    assert raw_row.source_business_ts is not None
-
-    session.add(
-        RawIntervalWindowState(
-            source_system=raw_row.source_system,
-            meter_identifier=raw_row.meter_identifier,
-            channel_identifier=raw_row.channel_identifier,
-            window_start_at=raw_row.source_business_ts,
-            window_size_minutes=60,
-            interval_size_minutes=raw_row.interval_size_minutes,
-            expected_slot_count=4,
-            received_slot_count=2,
-            received_slot_bitmap="00,15",
-            completion_status="partial",
-            late_update_count=0,
-            details={"expected_slot_codes": ["00", "15", "30", "45"]},
-        )
-    )
-    session.flush()
+    _add_window_state_for_initial(session, initial)
 
     hit = _build_missing_interval_hit(
         session,
@@ -311,6 +369,40 @@ def test_build_missing_interval_hit_records_outage_linked_decision(session):
 
     assert hit is not None
     assert hit.details["event_linked_decision"] == "outage_correlated_missing_interval"
+
+
+@pytest.mark.parametrize(
+    ("has_missing_interval", "event_context_snapshot", "expected_hit", "expected_outage_decision"),
+    [
+        (True, None, True, False),
+        (True, {"matched_context_types": ["outage"]}, True, True),
+        (False, None, False, False),
+        (False, {"matched_context_types": ["outage"]}, False, False),
+    ],
+)
+def test_build_missing_interval_hit_event_context_matrix(
+    session,
+    has_missing_interval,
+    event_context_snapshot,
+    expected_hit,
+    expected_outage_decision,
+):
+    initial = _seed_initial_measurement(session)
+    if has_missing_interval:
+        _add_window_state_for_initial(session, initial)
+
+    hit = _build_missing_interval_hit(
+        session,
+        initial,
+        event_context_snapshot=event_context_snapshot,
+    )
+
+    assert (hit is not None) is expected_hit
+    if hit is not None:
+        if expected_outage_decision:
+            assert hit.details["event_linked_decision"] == "outage_correlated_missing_interval"
+        else:
+            assert "event_linked_decision" not in hit.details
 
 
 def test_build_high_value_hit_respects_threshold_and_tamper_context(session):
@@ -338,6 +430,45 @@ def test_build_high_value_hit_respects_threshold_and_tamper_context(session):
     assert tamper_hit is not None
     assert tamper_hit.severity == "error"
     assert tamper_hit.blocking_finalization is True
+
+
+@pytest.mark.parametrize(
+    ("value", "event_context_snapshot", "expected_hit", "expected_severity", "expected_blocking"),
+    [
+        (Decimal("999.9999"), None, False, None, None),
+        (Decimal("999.9999"), {"matched_context_types": ["tamper"]}, False, None, None),
+        (Decimal("1000.0001"), None, True, "warning", False),
+        (Decimal("1000.0001"), {"matched_context_types": ["tamper"]}, True, "error", True),
+    ],
+)
+def test_build_high_value_hit_event_context_matrix(
+    session,
+    value,
+    event_context_snapshot,
+    expected_hit,
+    expected_severity,
+    expected_blocking,
+):
+    initial = _seed_initial_measurement(session)
+    raw_row = initial.canonical_measurement.hes_read_raw
+    assert raw_row is not None
+    raw_row.interval_size_minutes = 60
+    initial.unit_of_measure = "kWh"
+    initial.value = value
+
+    hit = _build_high_value_hit(
+        initial,
+        event_context_snapshot=event_context_snapshot,
+    )
+
+    assert (hit is not None) is expected_hit
+    if hit is not None:
+        assert hit.severity == expected_severity
+        assert hit.blocking_finalization is expected_blocking
+        if expected_blocking:
+            assert hit.details["event_linked_decision"] == "tamper_correlated_value_anomaly"
+        else:
+            assert "event_linked_decision" not in hit.details
 
 
 def test_evaluate_initial_measurement_rule_hits_keeps_documented_rule_order_for_multiple_matches(session):
@@ -384,3 +515,71 @@ def test_evaluate_initial_measurement_rule_hits_keeps_documented_rule_order_for_
         "vee_duplicate_detected",
         "vee_missing_interval_detected",
     ]
+
+
+def test_evaluate_initial_measurement_rule_hits_uses_supplied_event_context_snapshot_over_lookup(
+    session,
+    monkeypatch,
+):
+    initial = _seed_initial_measurement(session)
+    raw_row = initial.canonical_measurement.hes_read_raw
+    assert raw_row is not None
+    raw_row.interval_size_minutes = 60
+    initial.unit_of_measure = "kWh"
+    initial.value = Decimal("1500.0000")
+    _add_window_state_for_initial(session, initial)
+
+    lookup_calls: list[int] = []
+
+    def _fake_lookup(_session, _initial_row):
+        lookup_calls.append(_initial_row.id)
+        return {"matched_context_types": ["tamper", "outage"]}
+
+    monkeypatch.setattr(vee_service, "lookup_event_context_snapshot", _fake_lookup)
+
+    hits = evaluate_initial_measurement_rule_hits(
+        session,
+        initial,
+        event_context_snapshot={"matched_context_types": []},
+    )
+
+    hit_map = {hit.exception_code: hit for hit in hits}
+    assert lookup_calls == []
+    assert hit_map["vee_high_value_detected"].severity == "warning"
+    assert hit_map["vee_high_value_detected"].blocking_finalization is False
+    assert "event_linked_decision" not in hit_map["vee_high_value_detected"].details
+    assert "event_linked_decision" not in hit_map["vee_missing_interval_detected"].details
+
+
+def test_evaluate_initial_measurement_rule_hits_looks_up_event_context_when_not_supplied(
+    session,
+    monkeypatch,
+):
+    initial = _seed_initial_measurement(session)
+    raw_row = initial.canonical_measurement.hes_read_raw
+    assert raw_row is not None
+    raw_row.interval_size_minutes = 60
+    initial.unit_of_measure = "kWh"
+    initial.value = Decimal("1500.0000")
+    _add_window_state_for_initial(session, initial)
+
+    lookup_calls: list[int] = []
+
+    def _fake_lookup(_session, _initial_row):
+        lookup_calls.append(_initial_row.id)
+        return {"matched_context_types": ["tamper", "outage"]}
+
+    monkeypatch.setattr(vee_service, "lookup_event_context_snapshot", _fake_lookup)
+
+    hits = evaluate_initial_measurement_rule_hits(session, initial)
+
+    hit_map = {hit.exception_code: hit for hit in hits}
+    assert lookup_calls == [initial.id]
+    assert hit_map["vee_high_value_detected"].severity == "error"
+    assert hit_map["vee_high_value_detected"].blocking_finalization is True
+    assert hit_map["vee_high_value_detected"].details["event_linked_decision"] == (
+        "tamper_correlated_value_anomaly"
+    )
+    assert hit_map["vee_missing_interval_detected"].details["event_linked_decision"] == (
+        "outage_correlated_missing_interval"
+    )

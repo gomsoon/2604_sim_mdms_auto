@@ -112,6 +112,8 @@ Suggested focus:
 - blocking versus warning transitions
 - duplicate and missing-interval edge combinations
 - actor-sensitive or state-sensitive exception transitions
+- event-context predicate matrices for tamper, outage, and supplied-versus-looked-up
+  context precedence
 
 Recommended execution order:
 
