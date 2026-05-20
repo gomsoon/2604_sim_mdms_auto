@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select
+import pytest
+from sqlalchemy import func, select
 
 from app.models import (
     BillCharge,
@@ -12,6 +13,8 @@ from app.models import (
     HesSystem,
     InitialMeasurement,
     ManualEditAudit,
+    PipelineRun,
+    RawIntervalWindowState,
     ServicePoint,
     VeeException,
 )
@@ -27,6 +30,7 @@ from app.services.bill_determinants import (
 from app.services.finalization import finalize_canonical_measurements
 from app.services.ingestion import ingest_events, ingest_reads
 from app.services.manual_edits import (
+    ManualEditActionError,
     MANUAL_EDIT_REVISION_REASON_CODE,
     apply_manual_edit_from_vee_exception,
 )
@@ -221,6 +225,521 @@ def _open_required_field_exception(session, *, initial_measurement_id: int) -> V
     assert vee_exception is not None
     assert vee_exception.exception_code == "vee_required_field_missing"
     return vee_exception
+
+
+def _open_zero_value_vee_exception(session, *, initial_measurement_id: int) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    initial_row.value = Decimal("0.0000")
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_zero_value_detected"
+    return vee_exception
+
+
+def _open_missing_interval_vee_exception(session, *, initial_measurement_id: int) -> VeeException:
+    initial_row = session.get(InitialMeasurement, initial_measurement_id)
+    assert initial_row is not None
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_measurement_id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+    assert vee_exception.exception_code == "vee_missing_interval_detected"
+    return vee_exception
+
+
+def _prepare_outage_correlated_missing_interval_environment(session) -> int:
+    seed_demo_environment(session)
+    hes_system_id = session.scalar(select(HesSystem.id).limit(1))
+    assert hes_system_id is not None
+
+    window_start = "2026-04-19T00:00:00+09:00"
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "manual-edit-missing-interval-read-batch",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:00:00+09:00",
+                    "value": 10.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "00",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:15:00+09:00",
+                    "value": 20.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "15",
+                },
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:45:00+09:00",
+                    "value": 40.0,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                    "interval_size_minutes": 15,
+                    "source_business_ts": window_start,
+                    "source_slot_code": "45",
+                },
+            ],
+        },
+        hes_system_id=hes_system_id,
+    )
+    session.commit()
+
+    anchor_initial = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.measured_at == datetime.fromisoformat("2026-04-19T00:15:00+09:00"))
+        .limit(1)
+    )
+    assert anchor_initial is not None
+    anchor_raw = anchor_initial.canonical_measurement.hes_read_raw
+    assert anchor_raw is not None
+
+    ingest_events(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "manual-edit-missing-interval-outage-batch",
+            "received_at": "2026-04-19T09:05:00+09:00",
+            "events": [
+                {
+                    "meter_id": "MTR-1001",
+                    "event_time": "2026-04-19T00:00:00+09:00",
+                    "event_code": "POWER_FAIL",
+                    "severity": "high",
+                }
+            ],
+        },
+        hes_system_id=hes_system_id,
+    )
+    session.commit()
+
+    session.add(
+        RawIntervalWindowState(
+            source_system=anchor_raw.source_system,
+            meter_identifier=anchor_raw.meter_identifier,
+            channel_identifier=anchor_raw.channel_identifier,
+            window_start_at=anchor_raw.source_business_ts,
+            window_size_minutes=60,
+            interval_size_minutes=15,
+            expected_slot_count=4,
+            received_slot_count=3,
+            received_slot_bitmap="00,15,45",
+            completion_status="partial",
+            late_update_count=0,
+            details={"expected_slot_codes": ["00", "15", "30", "45"]},
+        )
+    )
+    session.commit()
+    return anchor_initial.id
+
+
+def _count_manual_edit_audits(session) -> int:
+    return session.scalar(select(func.count()).select_from(ManualEditAudit)) or 0
+
+
+def _count_manual_edit_pipeline_runs(session) -> int:
+    return session.scalar(
+        select(func.count())
+        .select_from(PipelineRun)
+        .where(PipelineRun.pipeline_name == "manual_edit")
+    ) or 0
+
+
+def test_apply_manual_edit_requires_editing_actor(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    audit_count_before = _count_manual_edit_audits(session)
+    pipeline_count_before = _count_manual_edit_pipeline_runs(session)
+
+    with pytest.raises(ManualEditActionError) as exc_info:
+        apply_manual_edit_from_vee_exception(
+            session,
+            vee_exception.id,
+            edited_value=Decimal("12.5000"),
+            reason_code="operator_meter_correction",
+            edited_by="   ",
+        )
+
+    assert exc_info.value.error_code == "missing_edited_by"
+    assert _count_manual_edit_audits(session) == audit_count_before
+    assert _count_manual_edit_pipeline_runs(session) == pipeline_count_before
+
+
+def test_apply_manual_edit_rejects_missing_exception(session):
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-missing-exception",
+        password="secret-password",
+        display_name="Manual Edit Missing Exception",
+        role_code="operator",
+    )
+    audit_count_before = _count_manual_edit_audits(session)
+    pipeline_count_before = _count_manual_edit_pipeline_runs(session)
+
+    with pytest.raises(ManualEditActionError) as exc_info:
+        apply_manual_edit_from_vee_exception(
+            session,
+            999999,
+            edited_value=Decimal("12.5000"),
+            reason_code="operator_meter_correction",
+            edited_by=actor.login_id,
+            edited_by_user_account_id=actor.id,
+        )
+
+    assert exc_info.value.error_code == "not_found"
+    assert _count_manual_edit_audits(session) == audit_count_before
+    assert _count_manual_edit_pipeline_runs(session) == pipeline_count_before
+
+
+def test_apply_manual_edit_rejects_inactive_exception(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-inactive",
+        password="secret-password",
+        display_name="Manual Edit Inactive",
+        role_code="operator",
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    vee_exception.exception_status = "resolved"
+    vee_exception.resolution_type = "test_resolution"
+    session.commit()
+
+    audit_count_before = _count_manual_edit_audits(session)
+    pipeline_count_before = _count_manual_edit_pipeline_runs(session)
+
+    with pytest.raises(ManualEditActionError) as exc_info:
+        apply_manual_edit_from_vee_exception(
+            session,
+            vee_exception.id,
+            edited_value=Decimal("12.5000"),
+            reason_code="operator_meter_correction",
+            edited_by=actor.login_id,
+            edited_by_user_account_id=actor.id,
+        )
+
+    assert exc_info.value.error_code == "exception_not_active"
+    assert _count_manual_edit_audits(session) == audit_count_before
+    assert _count_manual_edit_pipeline_runs(session) == pipeline_count_before
+
+
+def test_apply_manual_edit_blocks_for_invalid_reason_code_and_records_actor_lineage(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-invalid-reason",
+        password="secret-password",
+        display_name="Manual Edit Invalid Reason",
+        role_code="operator",
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    old_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_final is not None
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        reason_code="unsupported_reason_code",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+
+    assert refreshed_initial is not None
+    assert current_final is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert summary.edit_status == "blocked"
+    assert summary.result_code == "blocked_invalid_reason_code"
+    assert summary.current_final_id == old_final.id
+    assert refreshed_initial.value == Decimal("-1.0000")
+    assert current_final.id == old_final.id
+    assert audit_row.edit_status == "blocked"
+    assert audit_row.reason_code == "unsupported_reason_code"
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
+    assert audit_row.details["manual_edit_result"]["blocked_reason"] == "invalid_reason_code"
+    assert pipeline_run.result_code == "manual_edit_blocked"
+    assert pipeline_run.details["edited_by"] == actor.login_id
+    assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["reason_code"] == "unsupported_reason_code"
+    assert pipeline_run.details["result_code"] == "blocked_invalid_reason_code"
+
+
+def test_apply_manual_edit_blocks_for_invalid_edited_value_and_records_actor_lineage(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-invalid-value",
+        password="secret-password",
+        display_name="Manual Edit Invalid Value",
+        role_code="operator",
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    old_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_final is not None
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value="not-a-number",
+        reason_code="operator_data_entry_fix",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+
+    assert refreshed_initial is not None
+    assert current_final is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert summary.edit_status == "blocked"
+    assert summary.result_code == "blocked_invalid_edited_value"
+    assert refreshed_initial.value == Decimal("-1.0000")
+    assert current_final.id == old_final.id
+    assert audit_row.edited_value is None
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
+    assert audit_row.details["manual_edit_result"]["blocked_reason"] == "invalid_edited_value"
+    assert pipeline_run.result_code == "manual_edit_blocked"
+    assert pipeline_run.details["edited_by"] == actor.login_id
+    assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["edited_value"] is None
+    assert pipeline_run.details["result_code"] == "blocked_invalid_edited_value"
+
+
+def test_apply_manual_edit_policy_block_precedes_later_validation_checks(session):
+    target_initial_id = _prepare_outage_correlated_missing_interval_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-policy-blocked",
+        password="secret-password",
+        display_name="Manual Edit Policy Blocked",
+        role_code="operator",
+    )
+    vee_exception = _open_missing_interval_vee_exception(
+        session,
+        initial_measurement_id=target_initial_id,
+    )
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value="not-a-number",
+        reason_code="invalid_reason_code",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+    )
+    session.commit()
+
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+    refreshed_exception = session.get(VeeException, vee_exception.id)
+
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert refreshed_exception is not None
+    assert summary.edit_status == "blocked"
+    assert summary.result_code == "blocked_event_policy_outage_correlated_missing_interval"
+    assert refreshed_exception.exception_status == "open"
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
+    assert audit_row.details["manual_edit_result"]["blocked_reason"] == "event_policy_blocked"
+    assert (
+        audit_row.details["manual_edit_result"]["correction_policy_reason_code"]
+        == "outage_correlated_missing_interval"
+    )
+    assert pipeline_run.result_code == "manual_edit_blocked"
+    assert pipeline_run.details["edited_by"] == actor.login_id
+    assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["result_code"] == (
+        "blocked_event_policy_outage_correlated_missing_interval"
+    )
+
+
+@pytest.mark.parametrize(
+    ("edited_quality_code", "edited_status_code", "expected_quality_code", "expected_status_code"),
+    [
+        ("MANUAL", None, "MANUAL", "ACTUAL"),
+        (None, "OVERRIDDEN", "OK", "OVERRIDDEN"),
+    ],
+)
+def test_apply_manual_edit_treats_quality_or_status_only_change_as_effective_change(
+    session,
+    *,
+    edited_quality_code,
+    edited_status_code,
+    expected_quality_code,
+    expected_status_code,
+):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id=f"manual-edit-effective-{expected_quality_code}-{expected_status_code}",
+        password="secret-password",
+        display_name="Manual Edit Effective Change",
+        role_code="operator",
+    )
+    vee_exception = _open_zero_value_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("0.0000"),
+        edited_quality_code=edited_quality_code,
+        edited_status_code=edited_status_code,
+        reason_code="  operator_source_override  ",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+
+    assert refreshed_initial is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert summary.edit_status == "applied"
+    assert summary.result_code == "manual_edit_applied"
+    assert summary.reason_code == "operator_source_override"
+    assert refreshed_initial.value == Decimal("0.0000")
+    assert refreshed_initial.quality_code == expected_quality_code
+    assert refreshed_initial.status_code == expected_status_code
+    assert audit_row.reason_code == "operator_source_override"
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
+    assert refreshed_initial.details["manual_edit"]["edited_by"] == actor.login_id
+    assert refreshed_initial.details["manual_edit"]["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["reason_code"] == "operator_source_override"
+    assert pipeline_run.details["edited_by"] == actor.login_id
+
+
+def test_apply_manual_edit_blank_quality_and_status_fall_back_to_no_effective_change(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-blank-fallback",
+        password="secret-password",
+        display_name="Manual Edit Blank Fallback",
+        role_code="operator",
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("-1.0000"),
+        edited_quality_code="   ",
+        edited_status_code="   ",
+        reason_code="operator_data_entry_fix",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    refreshed_exception = session.get(VeeException, vee_exception.id)
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+
+    assert refreshed_initial is not None
+    assert refreshed_exception is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert summary.edit_status == "blocked"
+    assert summary.result_code == "blocked_no_effective_change"
+    assert refreshed_initial.quality_code == "OK"
+    assert refreshed_initial.status_code == "ACTUAL"
+    assert refreshed_exception.exception_status == "open"
+    assert audit_row.details["manual_edit_result"]["blocked_reason"] == "no_effective_change"
+    assert pipeline_run.details["result_code"] == "blocked_no_effective_change"
 
 
 def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session):
