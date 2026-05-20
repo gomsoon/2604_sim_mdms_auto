@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import func, select
 
 from app.models import (
@@ -14,10 +15,33 @@ from app.models import (
     RawIntervalWindowState,
     VeeException,
 )
-from app.services.finalization import finalize_canonical_measurements
+from app.services.finalization import (
+    create_or_get_final_measurement,
+    finalize_canonical_measurements,
+    is_initial_measurement_finalizable,
+)
 from app.services.ingestion import ingest_reads
 from app.services.seeds import seed_demo_environment
 from app.services.vee import evaluate_or_get_vee_baseline
+
+
+def _prepare_clean_finalization_candidate(session) -> tuple[InitialMeasurement, CanonicalMeasurement]:
+    seed_demo_environment(session)
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    canonical_row = session.scalar(select(CanonicalMeasurement).limit(1))
+    assert initial_row is not None
+    assert canonical_row is not None
+    assert canonical_row.hes_read_raw is not None
+
+    initial_row.initial_status = "accepted"
+    initial_row.unit_of_measure = "kWh"
+    canonical_row.unit_of_measure = "kWh"
+    canonical_row.hes_read_raw.canonical_status = "mapped"
+    canonical_row.hes_read_raw.is_duplicate = False
+    session.flush()
+    return initial_row, canonical_row
 
 
 def test_finalize_canonical_measurements_creates_final_measurement(session):
@@ -228,7 +252,7 @@ def test_finalize_canonical_measurements_allows_non_blocking_vee_warning(session
     assert initial_row is not None
     session.add(
         VeeException(
-            initial_measurement_id=initial_row.id,
+            initial_measurement=initial_row,
             exception_code="vee_zero_value_detected",
             severity="warning",
             exception_status="open",
@@ -410,3 +434,233 @@ def test_finalize_canonical_measurements_respects_exact_date_boundaries(session)
     assert summary.skipped_not_well_formed == 0
     assert first_final is not None
     assert second_final is None
+
+
+def test_is_initial_measurement_finalizable_returns_true_for_clean_accepted_candidate(session):
+    initial_row, _ = _prepare_clean_finalization_candidate(session)
+
+    assert is_initial_measurement_finalizable(initial_row) is True
+
+
+def test_is_initial_measurement_finalizable_allows_warning_but_blocks_acknowledged_blocker(session):
+    initial_row, _ = _prepare_clean_finalization_candidate(session)
+    session.add(
+        VeeException(
+            initial_measurement_id=initial_row.id,
+            exception_code="vee_zero_value_detected",
+            severity="warning",
+            exception_status="open",
+            blocking_finalization=False,
+            detected_at=datetime.now(timezone.utc),
+            details={"value": "0.0000"},
+        )
+    )
+    session.flush()
+
+    assert is_initial_measurement_finalizable(initial_row) is True
+
+    session.add(
+        VeeException(
+            initial_measurement=initial_row,
+            exception_code="vee_required_field_missing",
+            severity="error",
+            exception_status="acknowledged",
+            blocking_finalization=True,
+            detected_at=datetime.now(timezone.utc),
+            details={"field": "unit_of_measure"},
+        )
+    )
+    session.flush()
+
+    assert is_initial_measurement_finalizable(initial_row) is False
+
+
+def test_is_initial_measurement_finalizable_rejects_nonaccepted_and_unmapped_duplicate_and_non_pass_through_rows(
+    session,
+):
+    initial_row, canonical_row = _prepare_clean_finalization_candidate(session)
+
+    initial_row.initial_status = "ready"
+    session.flush()
+    assert is_initial_measurement_finalizable(initial_row) is False
+
+    initial_row.initial_status = "accepted"
+    canonical_row.hes_read_raw.canonical_status = "exception"
+    session.flush()
+    assert is_initial_measurement_finalizable(initial_row) is False
+
+    canonical_row.hes_read_raw.canonical_status = "mapped"
+    canonical_row.hes_read_raw.is_duplicate = True
+    session.flush()
+    assert is_initial_measurement_finalizable(initial_row) is False
+
+    canonical_row.hes_read_raw.is_duplicate = False
+    canonical_row.unit_of_measure = ""
+    session.flush()
+    assert is_initial_measurement_finalizable(initial_row) is False
+
+
+def test_create_or_get_final_measurement_rejects_initial_without_canonical_relationship(session):
+    clean_initial, _ = _prepare_clean_finalization_candidate(session)
+    detached_initial = InitialMeasurement(
+        canonical_measurement_id=clean_initial.canonical_measurement_id,
+        measuring_component_id=clean_initial.measuring_component_id,
+        device_id=clean_initial.device_id,
+        service_point_id=clean_initial.service_point_id,
+        measured_at=clean_initial.measured_at,
+        value=clean_initial.value,
+        quality_code=clean_initial.quality_code,
+        status_code=clean_initial.status_code,
+        unit_of_measure=clean_initial.unit_of_measure,
+        initial_status=clean_initial.initial_status,
+        ready_for_vee_at=clean_initial.ready_for_vee_at,
+        details=dict(clean_initial.details),
+    )
+
+    with pytest.raises(ValueError, match="initial_measurement must link to canonical_measurement"):
+        create_or_get_final_measurement(session, detached_initial)
+
+
+def test_create_or_get_final_measurement_attaches_canonical_current_row_without_creating_revision(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    final_row = session.scalar(select(FinalMeasurement).limit(1))
+    assert initial_row is not None
+    assert final_row is not None
+
+    final_row.initial_measurement_id = None
+    session.flush()
+
+    attached_row, created = create_or_get_final_measurement(session, initial_row)
+    session.commit()
+    session.refresh(final_row)
+
+    assert created is False
+    assert attached_row.id == final_row.id
+    assert final_row.initial_measurement_id == initial_row.id
+    assert final_row.is_current is True
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 1
+
+
+def test_create_or_get_final_measurement_defaults_revision_reason_to_re_finalized(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    initial_row = session.scalar(select(InitialMeasurement).limit(1))
+    assert initial_row is not None
+    initial_row.value = Decimal("21.0000")
+    session.flush()
+
+    new_row, created = create_or_get_final_measurement(session, initial_row)
+    session.commit()
+
+    rows = session.scalars(select(FinalMeasurement).order_by(FinalMeasurement.id.asc())).all()
+
+    assert created is True
+    assert len(rows) == 2
+    assert rows[0].final_status == "superseded"
+    assert rows[0].is_current is False
+    assert new_row.id == rows[1].id
+    assert rows[1].revision_number == 2
+    assert rows[1].revision_reason_code == "re_finalized"
+    assert rows[1].supersedes_final_measurement_id == rows[0].id
+
+
+def test_finalize_canonical_measurements_mixed_success_and_skip_marks_pipeline_failed_but_updates_watermark(
+    session,
+):
+    seed_demo_environment(session)
+    ingest_reads(
+        session,
+        {
+            "source_system": "HES",
+            "batch_id": "demo-read-batch-2",
+            "received_at": "2026-04-19T09:00:00+09:00",
+            "reads": [
+                {
+                    "meter_id": "MTR-1001",
+                    "channel_id": "CH-01",
+                    "measured_at": "2026-04-19T00:15:00+09:00",
+                    "value": 18.4,
+                    "quality_code": "OK",
+                    "status_code": "ACTUAL",
+                    "unit": "kWh",
+                }
+            ],
+        },
+    )
+    session.commit()
+
+    canonical_rows = session.scalars(
+        select(CanonicalMeasurement).order_by(CanonicalMeasurement.id.asc())
+    ).all()
+    assert len(canonical_rows) == 2
+    canonical_rows[1].hes_read_raw.canonical_status = "exception"
+    session.flush()
+
+    summary = finalize_canonical_measurements(session)
+    session.commit()
+
+    pipeline_run = session.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.pipeline_name == "finalization")
+        .order_by(PipelineRun.id.desc())
+        .limit(1)
+    )
+    watermark = session.scalar(
+        select(ProcessingWatermark)
+        .where(ProcessingWatermark.pipeline_name == "finalization")
+        .limit(1)
+    )
+
+    assert summary.candidates == 2
+    assert summary.finalized == 1
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 1
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 1
+    assert pipeline_run is not None
+    assert pipeline_run.status == "failed"
+    assert pipeline_run.result_code == "finalization_completed_with_skips"
+    assert watermark is not None
+    assert watermark.record_type == "final_measurement"
+
+
+def test_finalize_canonical_measurements_returns_noop_when_no_candidates_match_filters(session):
+    seed_demo_environment(session)
+    session.commit()
+
+    summary = finalize_canonical_measurements(
+        session,
+        meter_id="MTR-NOT-FOUND",
+    )
+    session.commit()
+
+    pipeline_run = session.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.pipeline_name == "finalization")
+        .order_by(PipelineRun.id.desc())
+        .limit(1)
+    )
+    watermark = session.scalar(
+        select(ProcessingWatermark)
+        .where(ProcessingWatermark.pipeline_name == "finalization")
+        .limit(1)
+    )
+
+    assert summary.candidates == 0
+    assert summary.finalized == 0
+    assert summary.skipped_existing == 0
+    assert summary.skipped_not_well_formed == 0
+    assert session.scalar(select(func.count()).select_from(FinalMeasurement)) == 0
+    assert pipeline_run is not None
+    assert pipeline_run.status == "completed"
+    assert pipeline_run.result_code == "finalization_noop"
+    assert watermark is None

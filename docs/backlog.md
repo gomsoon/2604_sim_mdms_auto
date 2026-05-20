@@ -507,6 +507,14 @@ These items are not blockers for the current minimal baseline, but they should r
   - full event-context combination sweeps
   - web/API-level summary-code assertion duplication
   - exhaustive operational-event detail assertions for every baseline path
+  - full acknowledge/resolve/re-evaluate lifecycle permutation matrices across
+    repeated actor and memo combinations
+- During finalization adjacency hardening, defer:
+  - exhaustive meter/date/limit filter combination matrices
+  - watermark timestamp exactness assertions beyond branch-level confidence
+  - web/API-level duplication of finalization summary assertions
+  - large-batch and partition performance characterization
+  - concurrency semantics across overlapping finalization runs
 
 ## Recommended execution waves
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import func, select
 
 from app.models import (
@@ -15,8 +16,10 @@ from app.services.auth import create_user_account
 from app.services.finalization import is_initial_measurement_finalizable
 from app.services.seeds import seed_demo_environment
 from app.services.vee import (
+    VeeExceptionActionError,
     acknowledge_vee_exception,
     evaluate_or_get_vee_baseline,
+    reevaluate_initial_measurement,
     reevaluate_vee_exception,
     resolve_vee_exception,
 )
@@ -118,6 +121,30 @@ def test_acknowledge_vee_exception_keeps_initial_measurement_blocked_for_finaliz
     assert opened_alert.acknowledged_by == "vee-ack"
 
 
+def test_acknowledge_vee_exception_rejects_duplicate_and_resolved_transitions(session):
+    initial, vee_exception = _prepare_required_field_exception(session)
+    acknowledge_vee_exception(session, vee_exception.id, acknowledged_by="vee-ack")
+    session.commit()
+
+    with pytest.raises(VeeExceptionActionError) as duplicate_exc:
+        acknowledge_vee_exception(session, vee_exception.id, acknowledged_by="vee-ack")
+    assert duplicate_exc.value.error_code == "already_acknowledged"
+
+    resolve_vee_exception(
+        session,
+        vee_exception.id,
+        resolution_type="operator_resolution",
+        resolved_by="vee-resolve",
+    )
+    session.commit()
+
+    with pytest.raises(VeeExceptionActionError) as resolved_exc:
+        acknowledge_vee_exception(session, vee_exception.id, acknowledged_by="vee-ack")
+    assert resolved_exc.value.error_code == "already_resolved"
+    session.refresh(initial)
+    assert initial.initial_status == "accepted"
+
+
 def test_resolve_vee_exception_restores_finalizable_initial_measurement_when_last_blocker_clears(
     session,
 ):
@@ -150,6 +177,47 @@ def test_resolve_vee_exception_restores_finalizable_initial_measurement_when_las
     assert vee_exception.operator_memo == "Reviewed by operator."
     assert initial.initial_status == "accepted"
     assert is_initial_measurement_finalizable(initial) is True
+
+
+def test_resolve_vee_exception_normalizes_blank_fields_and_rejects_second_resolution(session):
+    _, vee_exception = _prepare_required_field_exception(session)
+
+    resolve_vee_exception(
+        session,
+        vee_exception.id,
+        resolution_type=" ",
+        resolved_by=" ",
+        operator_memo=" ",
+    )
+    session.commit()
+    session.refresh(vee_exception)
+
+    resolved_event = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "vee_exception_resolved",
+            OperationalEvent.entity_type == "vee_exception",
+            OperationalEvent.entity_id == vee_exception.id,
+        )
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    assert resolved_event is not None
+    assert vee_exception.resolution_type == "operator_resolution"
+    assert vee_exception.resolved_by is None
+    assert vee_exception.operator_memo is None
+    assert resolved_event.details["resolution_type"] == "operator_resolution"
+    assert resolved_event.details["resolved_by"] is None
+    assert resolved_event.details["operator_memo"] is None
+
+    with pytest.raises(VeeExceptionActionError) as exc_info:
+        resolve_vee_exception(
+            session,
+            vee_exception.id,
+            resolution_type="operator_resolution",
+            resolved_by="vee-resolve",
+        )
+    assert exc_info.value.error_code == "already_resolved"
 
 
 def test_vee_exception_open_and_resolve_are_connected_to_operational_events(session):
@@ -286,6 +354,91 @@ def test_reevaluate_vee_exception_can_reopen_same_exception_code_in_new_snapshot
     assert initial.initial_status == "exception"
     assert len(reopened) == 2
     assert reopened[-1].exception_status == "open"
+
+
+def test_reevaluate_initial_measurement_resolves_multiple_active_exceptions_and_records_actor_details(
+    session,
+):
+    initial = _prepare_clean_initial(session)
+    initial.unit_of_measure = ""
+    initial.value = Decimal("-1.0000")
+    evaluate_or_get_vee_baseline(session, initial, force=True)
+    session.commit()
+
+    actor = create_user_account(
+        session,
+        login_id="vee-matrix",
+        display_name="VEE Matrix",
+        role_code="operator",
+        password="secret-password",
+    )
+    active_exception_ids = session.scalars(
+        select(VeeException.id)
+        .where(
+            VeeException.initial_measurement_id == initial.id,
+            VeeException.exception_status.in_(("open", "acknowledged")),
+        )
+        .order_by(VeeException.id.asc())
+    ).all()
+    assert len(active_exception_ids) == 2
+
+    initial.unit_of_measure = "kWh"
+    initial.value = Decimal("10.0000")
+    session.flush()
+
+    execution = reevaluate_initial_measurement(
+        session,
+        initial.id,
+        reevaluated_by=actor.login_id,
+        reevaluated_by_user_account_id=actor.id,
+        operator_memo="Rechecked after source correction.",
+    )
+    session.commit()
+    session.refresh(initial)
+
+    resolved_rows = session.scalars(
+        select(VeeException)
+        .where(VeeException.id.in_(active_exception_ids))
+        .order_by(VeeException.id.asc())
+    ).all()
+    reevaluated_event = session.scalar(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "vee_re_evaluated",
+            OperationalEvent.entity_type == "initial_measurement",
+            OperationalEvent.entity_id == initial.id,
+        )
+        .order_by(OperationalEvent.id.desc())
+        .limit(1)
+    )
+    resolved_events = session.scalars(
+        select(OperationalEvent)
+        .where(
+            OperationalEvent.event_code == "vee_exception_resolved",
+            OperationalEvent.entity_type == "vee_exception",
+            OperationalEvent.entity_id.in_(active_exception_ids),
+        )
+        .order_by(OperationalEvent.entity_id.asc(), OperationalEvent.id.asc())
+    ).all()
+
+    assert execution.execution_status == "passed"
+    assert initial.initial_status == "accepted"
+    assert all(row.exception_status == "resolved" for row in resolved_rows)
+    assert all(row.resolution_type == "re_evaluated_superseded" for row in resolved_rows)
+    assert all(row.resolved_by == actor.login_id for row in resolved_rows)
+    assert all(row.resolved_by_user_account_id == actor.id for row in resolved_rows)
+    assert reevaluated_event is not None
+    assert reevaluated_event.details["resolved_exception_ids"] == active_exception_ids
+    assert reevaluated_event.details["reevaluated_by"] == actor.login_id
+    assert reevaluated_event.details["reevaluated_by_user_account_id"] == actor.id
+    assert reevaluated_event.details["operator_memo"] == "Rechecked after source correction."
+    assert len(resolved_events) == len(active_exception_ids)
+    assert all(
+        event.details["resolved_by"] == actor.login_id and
+        event.details["resolved_by_user_account_id"] == actor.id and
+        event.details["resolution_type"] == "re_evaluated_superseded"
+        for event in resolved_events
+    )
 
 
 def test_evaluate_or_get_vee_baseline_reuses_cached_warning_execution_and_restores_acceptance(
