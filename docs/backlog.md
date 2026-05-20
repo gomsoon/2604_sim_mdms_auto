@@ -519,9 +519,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - exhaustive strategy-by-exception matrices
   - full event-policy combination sweeps across all supported estimation paths
   - exhaustive synthetic precheck-to-apply contract sweeps across all window variants
+  - exhaustive downstream result-code and side-effect matrices across substitution and synthetic paths
   - web/API-level duplication of estimation result assertions
   - synthetic precheck UI duplication assertions
   - synthetic multi-window or bulk estimation contract matrices
+  - exhaustive pipeline-run detail assertions for every blocked and applied estimation path
   - performance and concurrency characterization for synthetic/bulk estimation
 
 ## Recommended execution waves

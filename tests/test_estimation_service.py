@@ -14,6 +14,7 @@ from app.models import (
     HesReadRaw,
     HesSystem,
     InitialMeasurement,
+    PipelineRun,
     RawIntervalWindowState,
     ServicePoint,
     VeeException,
@@ -570,6 +571,147 @@ def test_apply_linear_interpolation_estimation_recalculates_charge_chain(session
     assert current_charge.charge_amount == Decimal("4500.0000")
 
 
+def test_apply_estimation_can_finish_without_creating_new_final_when_current_final_already_matches(
+    session,
+    monkeypatch,
+):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert current_final is not None
+    old_final_value = current_final.value
+    old_final_quality_code = current_final.quality_code
+    old_final_status_code = current_final.status_code
+
+    monkeypatch.setattr(
+        estimation_service,
+        "create_or_get_final_measurement",
+        lambda _session, _initial_row, revision_reason_code=None: (current_final, False),
+    )
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+        operator_memo="reuse matching final",
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    refreshed_final = session.get(FinalMeasurement, current_final.id)
+    final_rows = session.scalars(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .order_by(FinalMeasurement.id.asc())
+    ).all()
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+
+    assert refreshed_initial is not None
+    assert refreshed_final is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert summary.estimation_status == "applied"
+    assert summary.result_code == "estimation_applied_without_final_change"
+    assert summary.final_created is False
+    assert summary.final_superseded is False
+    assert summary.current_final_id == refreshed_final.id
+    assert refreshed_initial.value == Decimal("10.0000")
+    assert refreshed_initial.quality_code == ESTIMATION_QUALITY_CODE
+    assert refreshed_final.value == old_final_value
+    assert refreshed_final.quality_code == old_final_quality_code
+    assert refreshed_final.status_code == old_final_status_code
+    assert len(final_rows) == 1
+    assert summary.daily_usage_groups_updated == 0
+    assert summary.monthly_usage_groups_updated == 0
+    assert summary.bill_determinant_groups == 0
+    assert summary.bill_charge_groups == 0
+    assert audit_row.result_final_measurement_id is None
+    assert audit_row.details["result_final_measurement_snapshot"] is None
+    assert audit_row.details["downstream_recalculation_summary"]["daily_usage_groups_updated"] == 0
+    assert audit_row.details["downstream_recalculation_summary"]["bill_determinant"] is None
+    assert audit_row.details["downstream_recalculation_summary"]["bill_charge"] is None
+    assert pipeline_run.result_code == "estimation_applied_without_final_change"
+    assert pipeline_run.details["final_created"] is False
+    assert pipeline_run.details["blocking_exception_count"] == 0
+
+
+def test_apply_estimation_can_leave_open_blocking_exceptions_after_value_is_estimated(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_estimation_environment(
+        session
+    )
+    old_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_final is not None
+    old_final_id = old_final.id
+    old_final_value = old_final.value
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    target_initial = session.get(InitialMeasurement, target_initial_id)
+    assert target_initial is not None
+    target_initial.measuring_component.multiplier = 0
+    session.flush()
+
+    summary = apply_estimation_from_vee_exception(
+        session,
+        vee_exception.id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+        operator_memo="estimate while multiplier remains invalid",
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    active_exceptions = session.scalars(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == target_initial_id)
+        .where(VeeException.exception_status.in_(("open", "acknowledged")))
+        .order_by(VeeException.id.asc())
+    ).all()
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+
+    assert refreshed_initial is not None
+    assert current_final is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert summary.estimation_status == "applied"
+    assert summary.result_code == "estimation_applied_with_open_exceptions"
+    assert summary.blocking_exception_count > 0
+    assert refreshed_initial.value == Decimal("10.0000")
+    assert refreshed_initial.quality_code == ESTIMATION_QUALITY_CODE
+    assert current_final.id == old_final_id
+    assert current_final.value == old_final_value
+    assert any(row.exception_code == "vee_multiplier_invalid_detected" for row in active_exceptions)
+    assert summary.daily_usage_groups_updated == 0
+    assert summary.monthly_usage_groups_updated == 0
+    assert summary.bill_determinant_groups == 0
+    assert summary.bill_charge_groups == 0
+    assert audit_row.details["blocking_exception_count"] == summary.blocking_exception_count
+    assert audit_row.details["downstream_recalculation_summary"]["bill_determinant"] is None
+    assert audit_row.details["downstream_recalculation_summary"]["bill_charge"] is None
+    assert pipeline_run.result_code == "estimation_applied_with_open_exceptions"
+    assert pipeline_run.details["final_created"] is False
+    assert pipeline_run.details["blocking_exception_count"] == summary.blocking_exception_count
+
+
 def test_apply_estimation_blocks_for_unsupported_exception_code(session):
     service_point_id, target_initial_id, measuring_component_id = _prepare_estimation_environment(
         session,
@@ -961,6 +1103,7 @@ def test_apply_synthetic_missing_interval_linear_interpolation_creates_synthetic
     refreshed_window_state = session.get(RawIntervalWindowState, window_state.id)
     anchor_exception = session.get(VeeException, anchor_exception_id)
     audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
 
     assert synthetic_initial is not None
     assert synthetic_final is not None
@@ -971,6 +1114,7 @@ def test_apply_synthetic_missing_interval_linear_interpolation_creates_synthetic
     assert refreshed_window_state is not None
     assert anchor_exception is not None
     assert audit_row is not None
+    assert pipeline_run is not None
     assert summary.estimation_status == "applied"
     assert summary.estimated_value == Decimal("30.0000")
     assert summary.final_created is True
@@ -997,6 +1141,12 @@ def test_apply_synthetic_missing_interval_linear_interpolation_creates_synthetic
     assert audit_row.result_final_measurement_id == synthetic_final.id
     assert audit_row.details["window_context"]["missing_slot_code"] == "30"
     assert audit_row.details["synthetic_initial_measurement_snapshot"]["initial_measurement_id"] == synthetic_initial.id
+    assert summary.initial_measurement_id in audit_row.details["re_evaluated_initial_measurement_ids"]
+    assert audit_row.details["downstream_recalculation_summary"]["daily_usage_groups_updated"] == 1
+    assert audit_row.details["downstream_recalculation_summary"]["bill_determinant"] is not None
+    assert audit_row.details["downstream_recalculation_summary"]["bill_charge"] is not None
+    assert pipeline_run.result_code == "estimation_applied"
+    assert pipeline_run.details["final_created"] is True
 
 
 def test_apply_synthetic_missing_interval_blocks_for_multi_slot_window(session):
@@ -1309,6 +1459,7 @@ def test_apply_synthetic_linear_interpolation_blocks_when_next_final_is_missing_
 
     audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
     refreshed_exception = session.get(VeeException, anchor_exception_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
     synthetic_row = session.scalar(
         select(HesReadRaw)
         .where(HesReadRaw.measured_at == target_measured_at)
@@ -1319,13 +1470,73 @@ def test_apply_synthetic_linear_interpolation_blocks_when_next_final_is_missing_
 
     assert audit_row is not None
     assert refreshed_exception is not None
+    assert pipeline_run is not None
     assert summary.estimation_status == "blocked"
     assert summary.result_code == "blocked_missing_next_final"
     assert audit_row.estimation_status == "blocked"
     assert audit_row.details["window_context"]["missing_slot_code"] == "30"
     assert audit_row.details["estimation_result"]["blocked_reason"] == "missing_next_final"
+    assert audit_row.result_final_measurement_id is None
+    assert "synthetic_initial_measurement_snapshot" not in audit_row.details
     assert refreshed_exception.exception_status == "open"
     assert synthetic_row is None
+    assert pipeline_run.result_code == "estimation_blocked"
+
+
+def test_apply_synthetic_estimation_can_leave_open_blocking_exceptions_after_re_evaluation(
+    session,
+):
+    _service_point_id, anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_initial = session.get(InitialMeasurement, anchor_initial_id)
+    assert anchor_initial is not None
+    anchor_initial.measuring_component.multiplier = 0
+    session.flush()
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+        operator_memo="synthetic fill with remaining multiplier blocker",
+    )
+    session.commit()
+
+    synthetic_initial = session.get(InitialMeasurement, summary.initial_measurement_id)
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    active_exceptions = session.scalars(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == summary.initial_measurement_id)
+        .where(VeeException.exception_status.in_(("open", "acknowledged")))
+        .order_by(VeeException.id.asc())
+    ).all()
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+
+    assert synthetic_initial is not None
+    assert anchor_exception is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert summary.estimation_status == "applied"
+    assert summary.result_code == "estimation_applied_with_open_exceptions"
+    assert summary.blocking_exception_count > 0
+    assert summary.current_final_id is None
+    assert summary.final_created is False
+    assert summary.bill_determinant_groups == 0
+    assert summary.bill_charge_groups == 0
+    assert anchor_exception.exception_status == "resolved"
+    assert any(row.exception_code == "vee_multiplier_invalid_detected" for row in active_exceptions)
+    assert synthetic_initial.value == Decimal("30.0000")
+    assert audit_row.details["synthetic_initial_measurement_snapshot"]["initial_measurement_id"] == synthetic_initial.id
+    assert synthetic_initial.id in audit_row.details["re_evaluated_initial_measurement_ids"]
+    assert audit_row.details["result_final_measurement_snapshot"] is None
+    assert audit_row.details["blocking_exception_count"] == summary.blocking_exception_count
+    assert audit_row.details["downstream_recalculation_summary"]["bill_determinant"] is None
+    assert audit_row.details["downstream_recalculation_summary"]["bill_charge"] is None
+    assert pipeline_run.result_code == "estimation_applied_with_open_exceptions"
+    assert pipeline_run.details["final_created"] is False
+    assert pipeline_run.details["blocking_exception_count"] == summary.blocking_exception_count
 
 
 def test_apply_synthetic_linear_interpolation_blocks_for_neighbor_uom_mismatch_after_available_precheck(
