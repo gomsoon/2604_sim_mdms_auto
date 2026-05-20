@@ -518,7 +518,10 @@ These items are not blockers for the current minimal baseline, but they should r
 - During estimation decision-test hardening, defer:
   - exhaustive strategy-by-exception matrices
   - full event-policy combination sweeps across all supported estimation paths
+  - exhaustive synthetic precheck-to-apply contract sweeps across all window variants
   - web/API-level duplication of estimation result assertions
+  - synthetic precheck UI duplication assertions
+  - synthetic multi-window or bulk estimation contract matrices
   - performance and concurrency characterization for synthetic/bulk estimation
 
 ## Recommended execution waves

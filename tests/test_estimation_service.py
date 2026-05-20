@@ -1084,3 +1084,373 @@ def test_apply_synthetic_missing_interval_blocks_when_measurement_already_exists
     assert summary.estimation_status == "blocked"
     assert summary.result_code == "blocked_missing_interval_existing_measurement_present"
     assert audit_row.estimation_status == "blocked"
+
+
+def test_get_synthetic_missing_interval_precheck_blocks_when_window_state_is_missing(session):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    window_state = session.scalar(select(RawIntervalWindowState).limit(1))
+
+    assert anchor_exception is not None
+    assert window_state is not None
+
+    session.delete(window_state)
+    session.flush()
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+
+    assert precheck is not None
+    assert precheck.available is False
+    assert precheck.reason_code == "blocked_missing_interval_invalid_window_state"
+    assert precheck.raw_interval_window_state_id is None
+
+
+def test_get_synthetic_missing_interval_precheck_blocks_for_invalid_window_size(session):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    window_state = session.scalar(select(RawIntervalWindowState).limit(1))
+
+    assert anchor_exception is not None
+    assert window_state is not None
+
+    window_state.window_size_minutes = 30
+    session.flush()
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+
+    assert precheck is not None
+    assert precheck.available is False
+    assert precheck.reason_code == "blocked_missing_interval_invalid_window_state"
+    assert precheck.raw_interval_window_state_id is None
+
+
+def test_get_synthetic_missing_interval_precheck_blocks_for_invalid_interval_size(session):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    window_state = session.scalar(select(RawIntervalWindowState).limit(1))
+
+    assert anchor_exception is not None
+    assert window_state is not None
+
+    window_state.interval_size_minutes = 20
+    session.flush()
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+
+    assert precheck is not None
+    assert precheck.available is False
+    assert precheck.reason_code == "blocked_missing_interval_invalid_window_state"
+    assert precheck.raw_interval_window_state_id == window_state.id
+
+
+def test_get_synthetic_missing_interval_precheck_is_available_for_clean_single_slot_window(session):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+
+    assert anchor_exception is not None
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+
+    assert precheck is not None
+    assert precheck.available is True
+    assert precheck.reason_code is None
+    assert precheck.missing_slot_code == "30"
+    assert precheck.target_measured_at == datetime.fromisoformat("2026-04-19T00:30:00+09:00")
+    assert precheck.window_start_at == datetime.fromisoformat("2026-04-19T00:00:00+09:00")
+    assert precheck.window_size_minutes == 60
+    assert precheck.interval_size_minutes == 15
+    assert precheck.raw_interval_window_state_id is not None
+
+
+def test_get_synthetic_missing_interval_precheck_blocks_when_measurement_already_exists(session):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(
+            session,
+            include_missing_slot_measurement=True,
+        )
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+
+    assert anchor_exception is not None
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+
+    assert precheck is not None
+    assert precheck.available is False
+    assert precheck.reason_code == "blocked_missing_interval_existing_measurement_present"
+    assert precheck.missing_slot_code == "30"
+
+
+def test_apply_synthetic_previous_value_blocks_when_previous_final_is_missing_after_available_precheck(
+    session,
+):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    target_measured_at = datetime.fromisoformat("2026-04-19T00:30:00+09:00")
+
+    assert anchor_exception is not None
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+    assert precheck is not None
+    assert precheck.available is True
+
+    previous_finals = session.scalars(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.measured_at < target_measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
+    ).all()
+    assert previous_finals
+    for row in previous_finals:
+        row.is_current = False
+        row.final_status = "superseded"
+    session.flush()
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_PREVIOUS_VALUE_BASED,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    refreshed_exception = session.get(VeeException, anchor_exception_id)
+    synthetic_row = session.scalar(
+        select(HesReadRaw)
+        .where(HesReadRaw.measured_at == target_measured_at)
+        .where(HesReadRaw.source_slot_code == "30")
+        .order_by(HesReadRaw.id.desc())
+        .limit(1)
+    )
+
+    assert audit_row is not None
+    assert refreshed_exception is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_missing_previous_final"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["window_context"]["missing_slot_code"] == "30"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "missing_previous_final"
+    assert refreshed_exception.exception_status == "open"
+    assert synthetic_row is None
+
+
+def test_apply_synthetic_linear_interpolation_blocks_when_next_final_is_missing_after_available_precheck(
+    session,
+):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    target_measured_at = datetime.fromisoformat("2026-04-19T00:30:00+09:00")
+
+    assert anchor_exception is not None
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+    assert precheck is not None
+    assert precheck.available is True
+
+    next_finals = session.scalars(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.measured_at > target_measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
+    ).all()
+    assert next_finals
+    for row in next_finals:
+        row.is_current = False
+        row.final_status = "superseded"
+    session.flush()
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    refreshed_exception = session.get(VeeException, anchor_exception_id)
+    synthetic_row = session.scalar(
+        select(HesReadRaw)
+        .where(HesReadRaw.measured_at == target_measured_at)
+        .where(HesReadRaw.source_slot_code == "30")
+        .order_by(HesReadRaw.id.desc())
+        .limit(1)
+    )
+
+    assert audit_row is not None
+    assert refreshed_exception is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_missing_next_final"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["window_context"]["missing_slot_code"] == "30"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "missing_next_final"
+    assert refreshed_exception.exception_status == "open"
+    assert synthetic_row is None
+
+
+def test_apply_synthetic_linear_interpolation_blocks_for_neighbor_uom_mismatch_after_available_precheck(
+    session,
+):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    target_measured_at = datetime.fromisoformat("2026-04-19T00:30:00+09:00")
+
+    assert anchor_exception is not None
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+    assert precheck is not None
+    assert precheck.available is True
+
+    next_final = session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.measured_at > target_measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
+        .limit(1)
+    )
+    assert next_final is not None
+    next_final.unit_of_measure = "MWh"
+    session.flush()
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    refreshed_exception = session.get(VeeException, anchor_exception_id)
+
+    assert audit_row is not None
+    assert refreshed_exception is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_uom_mismatch"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["window_context"]["missing_slot_code"] == "30"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "uom_mismatch"
+    assert audit_row.details["estimation_result"]["next_unit_of_measure"] == "MWh"
+    assert refreshed_exception.exception_status == "open"
+
+
+def test_apply_synthetic_linear_interpolation_blocks_for_invalid_neighbor_order_after_available_precheck(
+    session,
+    monkeypatch,
+):
+    _service_point_id, _anchor_initial_id, anchor_exception_id = (
+        _prepare_single_slot_missing_interval_environment(session)
+    )
+    anchor_exception = session.get(VeeException, anchor_exception_id)
+    target_measured_at = datetime.fromisoformat("2026-04-19T00:30:00+09:00")
+
+    assert anchor_exception is not None
+
+    precheck = estimation_service.get_synthetic_missing_interval_estimation_precheck(
+        session,
+        vee_exception=anchor_exception,
+    )
+    assert precheck is not None
+    assert precheck.available is True
+
+    previous_final = session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.measured_at < target_measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.desc(), FinalMeasurement.id.desc())
+        .limit(1)
+    )
+    next_final = session.scalar(
+        select(FinalMeasurement)
+        .where(
+            FinalMeasurement.is_current.is_(True),
+            FinalMeasurement.final_status == "finalized",
+            FinalMeasurement.measured_at > target_measured_at,
+        )
+        .order_by(FinalMeasurement.measured_at.asc(), FinalMeasurement.id.asc())
+        .limit(1)
+    )
+    assert previous_final is not None
+    assert next_final is not None
+
+    monkeypatch.setattr(
+        estimation_service,
+        "_find_supporting_previous_final",
+        lambda _session, *, initial_row: next_final,
+    )
+    monkeypatch.setattr(
+        estimation_service,
+        "_find_supporting_next_final",
+        lambda _session, *, initial_row: previous_final,
+    )
+
+    summary = apply_synthetic_missing_interval_estimation_from_vee_exception(
+        session,
+        anchor_exception_id,
+        strategy_code=ESTIMATION_STRATEGY_LINEAR_INTERPOLATION,
+        estimated_by="operator_ui",
+    )
+    session.commit()
+
+    audit_row = session.get(EstimationAudit, summary.estimation_audit_id)
+    refreshed_exception = session.get(VeeException, anchor_exception_id)
+
+    assert audit_row is not None
+    assert refreshed_exception is not None
+    assert summary.estimation_status == "blocked"
+    assert summary.result_code == "blocked_context_mismatch"
+    assert audit_row.estimation_status == "blocked"
+    assert audit_row.details["window_context"]["missing_slot_code"] == "30"
+    assert audit_row.details["estimation_result"]["blocked_reason"] == "invalid_neighbor_order"
+    assert refreshed_exception.exception_status == "open"
