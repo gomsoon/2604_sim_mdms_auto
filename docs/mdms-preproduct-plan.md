@@ -21,6 +21,8 @@ through bounded internal use.
   - `manual edit`
 - an automated bounded smoke-evidence pass has been executed against the
   runbook mapping with no unplanned foundational blocker observed
+- the first visibility-polish slice is complete for export and adapter
+  runtime-versus-human actor clarity
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
 - the next highest-value work is to validate real operator flow and turn the
@@ -71,6 +73,10 @@ Typical polish targets:
 - clearer runtime-versus-human identity display
 - more obvious status or blocked reason wording
 - easier drill-down to the next relevant object
+
+Use the shared inventory in:
+
+- [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 
 ### 3. Audit and accountability readability
 
@@ -150,8 +156,8 @@ Goal:
 
 Recommended first candidates:
 
-- replay or export request list/detail readability
-- VEE queue or detail wording clarity
+- `vee_exception` queue or detail wording clarity
+- replay request list or detail readability
 
 Goal:
 
@@ -181,7 +187,7 @@ This mode has done its job when:
 
 - the close-out smoke pass has been run once end to end
 - no unplanned foundational blocker remains
-- the first round of operator-facing visibility confusion is reduced
+- the first few operator-facing visibility confusion hotspots are reduced
 - the remaining open issues are mostly policy depth, product breadth, or
   accepted limitations
 

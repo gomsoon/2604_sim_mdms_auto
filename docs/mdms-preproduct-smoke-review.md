@@ -179,3 +179,7 @@ Choose one small operator-facing polish slice next, for example:
 - `vee_exception` queue or detail wording clarity
 - billing export request list or detail readability
 - adapter runtime human-versus-runtime actor readability
+
+Track that queue in:
+
+- [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)

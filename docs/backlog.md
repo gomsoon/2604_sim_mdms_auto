@@ -494,13 +494,17 @@ These items are not blockers for the current minimal baseline, but they should r
 - current status:
   - first-wave decision-test hardening is complete for `VEE`, `estimation`, and
     `manual edit`
-  - the next recommended action is one bounded smoke pass in operator order
-- Run the close-out smoke pass at least once in operator order and treat the
-  resulting issues as the first post-close-out queue
+  - the first bounded smoke-evidence pass has been executed with no unplanned
+    foundational blocker observed
+  - the first visibility-polish slice is complete for billing export and
+    adapter runtime-versus-human actor clarity
+- Use the shared visibility inventory in:
+  - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:
   - bug fixes on supported operator flows
   - actor and audit readability on high-traffic views
-  - small visibility polish on replay, export, and adapter runtime screens
+  - small visibility polish on `vee_exception`, replay, correction detail, and
+    remaining export wording screens
   - known-limitations communication for internal operators
 - Keep each hardening slice small enough to update regression coverage in the
   same change set
