@@ -39,17 +39,26 @@ share the exact same wording or display rule.
   human actor versus runtime worker clarity is now explicit
 - `adapter detail` recent runs:
   human actor versus runtime actor clarity is now explicit
+- `vee_exception` queue and detail:
+  status, blocked meaning, and next operator action wording is now easier to
+  scan
+- replay request list and detail:
+  scope meaning, requester actor, progress wording, and current-versus-failed
+  item readability are now clearer
 
 ### Next recommended candidates
 
-- `vee_exception` queue and detail wording clarity
-  - make exception status, blocked meaning, and next action easier to scan
-- replay request list and detail readability
-  - make request status, human actor, runtime worker, and recovery lineage
-    easier to interpret
 - correction detail wording consistency
   - align `vee`, `estimation`, and `manual edit` actor and result wording so
     the operator sees the same shape across sensitive mutation flows
+  - use the active slice design in:
+    [mdms-preproduct-correction-detail-polish-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-correction-detail-polish-plan.md)
+- stale-warning and blocked-reason wording cleanup
+  - make warning and blocked language easier to compare across replay, export,
+    and correction views
+- export wording follow-through
+  - keep billing export detail wording dense enough for audit value but easier
+    to scan during bounded internal use
 
 ### Later candidates
 
@@ -111,11 +120,10 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. `vee_exception` queue and detail wording clarity
-2. replay request list and detail readability
-3. correction detail wording consistency
-4. stale-warning and blocked-reason wording cleanup
-5. wider label and i18n consistency pass
+1. correction detail wording consistency
+2. stale-warning and blocked-reason wording cleanup
+3. export wording follow-through
+4. wider label and i18n consistency pass
 
 ## Explicitly deferred in this worklist
 

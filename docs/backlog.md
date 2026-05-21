@@ -496,8 +496,10 @@ These items are not blockers for the current minimal baseline, but they should r
     `manual edit`
   - the first bounded smoke-evidence pass has been executed with no unplanned
     foundational blocker observed
-  - the first visibility-polish slice is complete for billing export and
-    adapter runtime-versus-human actor clarity
+  - visibility-polish is complete for:
+    - billing export and adapter runtime-versus-human actor clarity
+    - `vee_exception` queue and detail wording clarity
+    - replay request list and detail readability
 - Use the shared visibility inventory in:
   - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:

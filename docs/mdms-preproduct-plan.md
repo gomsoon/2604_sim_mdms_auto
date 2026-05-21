@@ -21,12 +21,14 @@ through bounded internal use.
   - `manual edit`
 - an automated bounded smoke-evidence pass has been executed against the
   runbook mapping with no unplanned foundational blocker observed
-- the first visibility-polish slice is complete for export and adapter
-  runtime-versus-human actor clarity
+- the first visibility-polish slices are complete for:
+  - export and adapter runtime-versus-human actor clarity
+  - `vee_exception` queue and detail wording clarity
+  - replay request list and detail readability
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value work is to validate real operator flow and turn the
-  findings into a small hardening queue
+- the next highest-value visibility work is correction detail consistency
+  across `vee`, `estimation`, and `manual edit`
 
 ## Operating principles
 
@@ -156,8 +158,8 @@ Goal:
 
 Recommended first candidates:
 
-- `vee_exception` queue or detail wording clarity
-- replay request list or detail readability
+- correction detail consistency across `vee`, `estimation`, and `manual edit`
+- stale-warning and blocked-reason wording cleanup after the correction slice
 
 Goal:
 
