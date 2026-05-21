@@ -1856,6 +1856,8 @@ def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(cl
     assert "청구 내보내기 요청" in text
     assert request.service_point.external_id in text
     assert "Billing Export Web Tester (billing-export-web-tester)" in text
+    assert "사람 계정" in text
+    assert "런타임 작업자" in text
     assert "worker heartbeat 지연" in text
     assert f"/billing-export-requests/{request_id}?lang=ko" in text
 
@@ -1874,6 +1876,8 @@ def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(
     assert "generic_json" in text
     assert "staged_only" in text
     assert "Billing Export Web Tester (billing-export-web-tester)" in text
+    assert "사람 계정" in text
+    assert "런타임 작업자" in text
     assert "web_worker" in text
 
 

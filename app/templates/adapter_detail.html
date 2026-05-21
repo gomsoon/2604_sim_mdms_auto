@@ -123,7 +123,15 @@
               <tr>
                 <td>{{ row.id }}</td>
                 <td>{{ t_or("adapter.trigger." ~ row.trigger_type, row.trigger_type) }}</td>
-                <td>{{ row.requested_by }}</td>
+                <td>
+                  {% if row.requested_by_user_account %}
+                  <div>{{ row.requested_by_user_account.display_name }} ({{ row.requested_by_user_account.login_id }})</div>
+                  <div class="small text-secondary">{{ t("field.human_actor") }}</div>
+                  {% else %}
+                  <div>{{ row.requested_by }}</div>
+                  <div class="small text-secondary">{{ t("field.runtime_actor") }}</div>
+                  {% endif %}
+                </td>
                 <td>{{ t_or("adapter_run_status." ~ row.run_status, row.run_status) }}</td>
                 <td>{{ row.requested_at|dt if row.requested_at else row.created_at|dt }}</td>
                 <td>{{ row.completed_at|dt }}</td>

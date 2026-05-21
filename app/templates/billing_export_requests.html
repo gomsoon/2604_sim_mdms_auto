@@ -97,9 +97,11 @@
             </td>
             <td>
               {% if row.requested_by_user_account %}
-              {{ row.requested_by_user_account.display_name }} ({{ row.requested_by_user_account.login_id }})
+              <div>{{ row.requested_by_user_account.display_name }} ({{ row.requested_by_user_account.login_id }})</div>
+              <div class="small text-secondary">{{ t("field.human_actor") }}</div>
               {% else %}
-              {{ row.requested_by }}
+              <div>{{ row.requested_by }}</div>
+              <div class="small text-secondary">{{ t("field.runtime_actor") }}</div>
               {% endif %}
             </td>
             <td>{{ row.item_count }}</td>
@@ -114,7 +116,10 @@
                 · {{ t("table.skipped_count") }} {{ row.skipped_count }}
               </div>
             </td>
-            <td>{{ row.claimed_by or t("common.none") }}</td>
+            <td>
+              <div>{{ row.claimed_by or t("common.none") }}</div>
+              <div class="small text-secondary">{{ t("field.runtime_worker") }}</div>
+            </td>
             <td>{{ row.last_heartbeat_at|dt }}</td>
             <td>{{ row.target_system_code }}</td>
             <td>{{ row.created_at|dt }}</td>

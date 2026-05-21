@@ -55,9 +55,15 @@
           <dt class="col-sm-4">{{ t("field.payload_format") }}</dt>
           <dd class="col-sm-8">{{ detail.request.payload_format }}</dd>
           <dt class="col-sm-4">{{ t("table.requested_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.requested_actor_display or detail.request.requested_by }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ detail.requested_actor_display or detail.request.requested_by }}</div>
+            <div class="small text-secondary">{{ t("field.human_actor") }}</div>
+          </dd>
           <dt class="col-sm-4">{{ t("field.cancelled_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.cancelled_actor_display or t("common.none") }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ detail.cancelled_actor_display or t("common.none") }}</div>
+            <div class="small text-secondary">{{ t("field.human_actor") }}</div>
+          </dd>
           <dt class="col-sm-4">{{ t("field.cancelled_at") }}</dt>
           <dd class="col-sm-8">{{ detail.request.cancelled_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
@@ -108,7 +114,8 @@
             <div class="border rounded p-3 h-100">
               <div class="small text-secondary">{{ t("table.skipped_count") }}</div>
               <div class="fw-semibold">{{ detail.request.skipped_count }}</div>
-              <div class="small text-secondary mt-1">{{ t("field.claimed_by") }}: {{ detail.request.claimed_by or t("common.none") }}</div>
+              <div class="small text-secondary mt-1">{{ t("field.runtime_worker") }}</div>
+              <div class="fw-semibold small">{{ detail.request.claimed_by or t("common.none") }}</div>
             </div>
           </div>
           <div class="col-md-6">

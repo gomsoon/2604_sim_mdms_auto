@@ -88,7 +88,8 @@ def test_run_adapter_once_via_web_creates_waiting_run_in_korean(client, session)
     assert run is not None
     assert run.requested_by == actor.login_id
     assert run.requested_by_user_account_id == actor.id
-    assert actor.login_id in text
+    assert "Test Admin (admin)" in text
+    assert "사람 계정" in text
     assert session.scalar(select(func.count()).select_from(AdapterRun)) == 2
 
 

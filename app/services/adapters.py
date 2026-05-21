@@ -460,6 +460,7 @@ def get_adapter_instance_detail(
 
     recent_runs = session.scalars(
         select(AdapterRun)
+        .options(selectinload(AdapterRun.requested_by_user_account))
         .where(AdapterRun.adapter_instance_id == instance.id)
         .order_by(AdapterRun.id.desc())
         .limit(20)
