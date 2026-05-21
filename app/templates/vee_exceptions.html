@@ -158,8 +158,16 @@
               <span class="badge text-bg-light">
                 {{ t_or("common.status." ~ row.exception_status, row.exception_status) }}
               </span>
+              <div class="small text-secondary mt-1">
+                {{ t_or("vee.exception_status_hint." ~ row.exception_status, t("common.none")) }}
+              </div>
             </td>
-            <td>{{ t("common.yes") if row.blocking_finalization else t("common.no") }}</td>
+            <td>
+              <div>{{ t("common.yes") if row.blocking_finalization else t("common.no") }}</div>
+              <div class="small text-secondary">
+                {{ t("vee.blocking_hint.blocking") if row.blocking_finalization else t("vee.blocking_hint.non_blocking") }}
+              </div>
+            </td>
             <td>
               {% if correction_policy %}
               <div>{{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}</div>
@@ -176,7 +184,8 @@
             </td>
             <td>
               {% if correction_policy %}
-              {{ t_or("correction_policy.action." ~ correction_policy.recommended_action, correction_policy.recommended_action) }}
+              <div>{{ t_or("correction_policy.action." ~ correction_policy.recommended_action, correction_policy.recommended_action) }}</div>
+              <div class="small text-secondary">{{ t("page.vee_exceptions.recommended_action_help") }}</div>
               {% else %}
               {{ t("common.none") }}
               {% endif %}

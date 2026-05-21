@@ -322,10 +322,22 @@
 {% if detail.vee_exception.exception_status != "resolved" %}
 <div class="card shadow-sm mb-4">
   <div class="card-body">
+    <div class="mb-3">
+      <div class="fw-semibold">{{ t("page.vee_exception_detail.next_actions") }}</div>
+      <div class="small text-secondary">{{ t("page.vee_exception_detail.next_actions_description") }}</div>
+    </div>
     <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between">
       <div>
         <div class="fw-semibold">{{ t_or("vee.exception_code." ~ detail.vee_exception.exception_code, detail.vee_exception.exception_code) }}</div>
         <div class="small text-secondary">{{ detail.vee_exception.exception_code }}</div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <span class="badge text-bg-light">
+            {{ t_or("common.status." ~ detail.vee_exception.exception_status, detail.vee_exception.exception_status) }}
+          </span>
+          <span class="badge {{ 'text-bg-danger-subtle' if detail.vee_exception.blocking_finalization else 'text-bg-secondary-subtle' }}">
+            {{ t("vee.blocking_hint.blocking_short") if detail.vee_exception.blocking_finalization else t("vee.blocking_hint.non_blocking_short") }}
+          </span>
+        </div>
       </div>
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <form method="post" action="{{ url_for('web.reevaluate_vee_exception_view', vee_exception_id=detail.vee_exception.id, lang=current_locale) }}">
@@ -359,7 +371,7 @@
           <div class="d-flex justify-content-between gap-3 align-items-start mb-2">
             <div>
               <h3 class="h6 mb-1">{{ t("button.estimate") }}</h3>
-              <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_result_description") }}</div>
+              <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_action_description") }}</div>
             </div>
           </div>
           {% if estimation_available %}
@@ -393,6 +405,7 @@
           <div class="small text-warning-emphasis">
             {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
           </div>
+          <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.estimation_blocked_guidance") }}</div>
           {% else %}
           <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_not_supported_for_exception") }}</div>
           {% endif %}
@@ -449,6 +462,7 @@
             {{ t_or("estimation.result_code." ~ synthetic_estimation_precheck.reason_code, synthetic_estimation_precheck.reason_code) }}
           </div>
           {% endif %}
+          <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.synthetic_estimation_blocked_guidance") }}</div>
           {% endif %}
         </div>
       </div>
@@ -458,7 +472,7 @@
           <div class="d-flex justify-content-between gap-3 align-items-start mb-2">
             <div>
               <h3 class="h6 mb-1">{{ t("button.manual_edit") }}</h3>
-              <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_result_description") }}</div>
+              <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_action_description") }}</div>
             </div>
           </div>
           {% if manual_edit_available %}
@@ -517,6 +531,7 @@
           <div class="small text-warning-emphasis">
             {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
           </div>
+          <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.manual_edit_blocked_guidance") }}</div>
           {% else %}
           <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_not_supported_for_exception") }}</div>
           {% endif %}
@@ -622,9 +637,15 @@
           <dt class="col-sm-4">{{ t("table.rule_set_code") }}</dt>
           <dd class="col-sm-8">{{ detail.vee_execution_log.rule_set_code }}</dd>
           <dt class="col-sm-4">{{ t("table.execution_status") }}</dt>
-          <dd class="col-sm-8">{{ t_or("vee.execution_status." ~ detail.vee_execution_log.execution_status, detail.vee_execution_log.execution_status) }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ t_or("vee.execution_status." ~ detail.vee_execution_log.execution_status, detail.vee_execution_log.execution_status) }}</div>
+            <div class="small text-secondary">{{ t("page.vee_exception_detail.execution_status_help") }}</div>
+          </dd>
           <dt class="col-sm-4">{{ t("table.summary_code") }}</dt>
-          <dd class="col-sm-8">{{ t_or("vee.summary_code." ~ detail.vee_execution_log.summary_code, detail.vee_execution_log.summary_code or t("common.none")) }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ t_or("vee.summary_code." ~ detail.vee_execution_log.summary_code, detail.vee_execution_log.summary_code or t("common.none")) }}</div>
+            <div class="small text-secondary">{{ t("page.vee_exception_detail.summary_code_help") }}</div>
+          </dd>
           <dt class="col-sm-4">{{ t("table.created_at") }}</dt>
           <dd class="col-sm-8">{{ detail.vee_execution_log.started_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("table.completed_at") }}</dt>

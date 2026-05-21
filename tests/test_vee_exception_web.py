@@ -409,6 +409,9 @@ def test_vee_exceptions_page_renders_exception_in_korean(client, session):
     assert response.status_code == 200
     assert "VEE 예외" in text
     assert "필수 항목 누락" in text
+    assert "권장 다음 조치" in text
+    assert "운영자 검토가 필요합니다." in text
+    assert "최종화를 완료하려면 먼저 이 예외를 정리해야 합니다." in text
     assert f"/vee-exceptions/{vee_exception.id}?lang=ko" in text
 
 
@@ -440,7 +443,7 @@ def test_vee_exceptions_page_shows_correction_policy_columns_and_filters(client,
 
     assert response.status_code == 200
     assert "정책 사유" in text
-    assert "권장 조치" in text
+    assert "권장 다음 조치" in text
     assert "변조 연계 값 이상은 시스템 추정보다 운영자 확인이 우선입니다" in text
     assert "운영자 확인 후 필요한 경우 수동 보정을 적용합니다" in text
     assert "변조" in text
@@ -455,9 +458,10 @@ def test_vee_exception_detail_page_shows_lineage(client, session):
 
     assert response.status_code == 200
     assert "VEE 예외 상세" in text
-    assert "관련 원시 검침" in text
-    assert "관련 표준 계측" in text
-    assert "VEE 실행 정보" in text
+    assert "원본 원시 검침" in text
+    assert "매핑된 표준 계측" in text
+    assert "VEE 평가 요약" in text
+    assert "현재 가능한 운영자 조치" in text
     assert "demo-read-batch" in text
     assert "MTR-1001" in text
 
@@ -484,6 +488,7 @@ def test_vee_exception_detail_page_shows_correction_policy_for_tamper_value_anom
     assert "보정 정책" in text
     assert "운영자 확인 후 필요한 경우 수동 보정을 적용합니다" in text
     assert "이벤트 연계 보정 정책에 따라 현재 추정 적용이 차단됩니다." in text
+    assert "먼저 정책 사유를 확인하고, 필요하면 다른 허용된 운영자 조치를 선택하세요." in text
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" not in text
     assert f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko" in text
 
@@ -499,6 +504,7 @@ def test_vee_exception_detail_page_shows_estimation_form_for_supported_exception
 
     assert response.status_code == 200
     assert "추정 적용" in text
+    assert "지원되는 추정 전략 하나를 적용한 뒤, 현재 interval에 대해 VEE와 downstream 재계산을 다시 닫습니다." in text
     assert "선형 보간" in text
     assert "이전 값 기반" in text
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" in text
@@ -538,6 +544,7 @@ def test_vee_exception_detail_page_shows_synthetic_estimation_block_reason_for_o
     assert response.status_code == 200
     assert "현재 이 VEE 예외에는 synthetic missing-interval 복구를 적용할 수 없습니다." in text
     assert "정전 연계 구간 누락에는 아직 1차 보정 경로가 없습니다" in text
+    assert "먼저 window 맥락을 확인하거나, 이후 지원되는 복구 경로에 남겨 두세요." in text
     assert f"/vee-exceptions/{anchor_exception_id}/estimate-synthetic-missing-interval?lang=ko" not in text
 
 
@@ -552,6 +559,7 @@ def test_vee_exception_detail_page_shows_manual_edit_form_for_supported_exceptio
 
     assert response.status_code == 200
     assert "수동 보정" in text
+    assert "운영 검토 결과 현재 interval 값을 직접 덮어써야 할 때 수동 보정을 적용합니다." in text
     assert "운영자 계량기 보정" in text
     assert f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko" in text
 
@@ -563,7 +571,7 @@ def test_vee_exception_detail_page_hides_estimation_form_for_unsupported_excepti
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "이 VEE 예외 유형에는 아직 추정 적용이 열려 있지 않습니다." in text
+    assert "이 VEE 예외 유형은 현재 추정 적용 범위 밖에 있습니다." in text
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" not in text
     assert 'name="strategy_code"' not in text
 
@@ -575,7 +583,7 @@ def test_vee_exception_detail_hides_manual_edit_form_for_unsupported_exception(c
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "이 VEE 예외 유형에는 아직 수동 보정이 열려 있지 않습니다." in text
+    assert "이 VEE 예외 유형은 현재 수동 보정 범위 밖에 있습니다." in text
     assert f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko" not in text
     assert 'name="reason_code"' not in text
 

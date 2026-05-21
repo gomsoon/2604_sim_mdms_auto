@@ -542,6 +542,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - multi-edit same-measurement lifecycle matrices across reopen, supersede, and re-finalize paths
   - exhaustive transition-and-audit contract matrices across clean-pass, same-code reopen, and repeated re-VEE paths
   - performance and concurrency characterization for repeated manual-edit and re-VEE cycles
+- During the first `vee_exception` visibility-polish slice, defer:
+  - queue layout redesign or new summary widgets
+  - dedicated policy-explanation UI beyond wording and label clarity
+  - correction preview workspace concepts
+  - exhaustive wording assertions across every locale permutation
 
 ## Recommended execution waves
 
