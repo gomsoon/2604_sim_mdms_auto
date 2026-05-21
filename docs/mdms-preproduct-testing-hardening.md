@@ -122,6 +122,10 @@ Recommended execution order:
 3. finalization adjacency and transition robustness in
    `tests/test_finalization_service.py`
 
+Status:
+
+- completed in the first `mdms-preproduct` hardening wave
+
 ### Slice 3. Estimation decision-test hardening
 
 Goal:
@@ -135,6 +139,10 @@ Suggested focus:
 - synthetic single-slot eligibility and blocked reasons
 - actor lineage and VEE resolution side effects
 
+Status:
+
+- completed in the first `mdms-preproduct` hardening wave
+
 ### Slice 4. Manual-edit decision-test hardening
 
 Goal:
@@ -146,6 +154,24 @@ Suggested focus:
 - supported versus unsupported exception codes
 - correction-policy constrained paths
 - audit and actor-lineage persistence
+
+Status:
+
+- completed in the first `mdms-preproduct` hardening wave
+
+## What remains deferred after the first wave
+
+The current backlog still contains useful second-wave hardening ideas.
+
+They should stay deferred until after the first bounded smoke pass unless a
+real operator issue points directly at one of them.
+
+Typical deferred examples:
+
+- exhaustive matrix expansion beyond the current high-signal decision branches
+- repeated lifecycle and concurrency characterization
+- web or API duplication of every service-level assertion
+- exhaustive detail-key assertions when the current contract is already covered
 
 ## Test evidence expectations
 

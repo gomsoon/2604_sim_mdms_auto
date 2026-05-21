@@ -491,6 +491,10 @@ These items are not blockers for the current minimal baseline, but they should r
 
 - After MVP close-out, use the `mdms-preproduct` phase for bounded internal use
   and issue-driven hardening before opening new subsystem scope
+- current status:
+  - first-wave decision-test hardening is complete for `VEE`, `estimation`, and
+    `manual edit`
+  - the next recommended action is one bounded smoke pass in operator order
 - Run the close-out smoke pass at least once in operator order and treat the
   resulting issues as the first post-close-out queue
 - Prioritize:

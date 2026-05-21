@@ -10,6 +10,19 @@ The goal is not new subsystem expansion.
 The goal is to make the current baseline easier, safer, and clearer to operate
 through bounded internal use.
 
+## Current baseline snapshot
+
+- `MVP close-out` is complete and tagged
+- auth baseline and actor-lineage propagation are complete across the current
+  sensitive mutation flows
+- first-wave decision-test hardening is complete for:
+  - `VEE`
+  - `estimation`
+  - `manual edit`
+- the bounded end-to-end smoke pass has not yet been executed in operator order
+- the next highest-value work is to validate real operator flow and turn the
+  findings into a small hardening queue
+
 ## Operating principles
 
 - prefer bug fix, audit clarity, and visibility polish over new feature breadth
@@ -84,19 +97,21 @@ Recommended validation discipline:
 2. targeted web or API regression if user-facing
 3. full `pytest --cov-fail-under=80` for cross-cutting fixes
 
-### 5. Testing hardening for high-risk decision logic
+### 5. Testing hardening follow-through
 
-Strengthen testing in the `mdms-preproduct` phase by:
+The first hardening wave for the highest-risk correction logic is complete.
 
-- expanding boundary value analysis into robustness testing
-- applying selective worst-case testing where the decision space stays small
-- applying MC/DC-style strengthening to value-changing and state-changing logic
-
-Priority targets:
+Completed first-wave targets:
 
 - `VEE`
 - `estimation`
 - `manual edit`
+
+The remaining testing-hardening backlog should stay deferred until:
+
+- the bounded smoke pass is executed once
+- real operator friction shows where a second hardening wave would add the most
+  value
 
 See:
 
@@ -117,7 +132,18 @@ Expected outputs:
 - no hidden foundational blockers
 - a small ranked list of real issues
 
-### Slice 2. Visibility polish on one or two high-traffic views
+### Slice 2. Smoke triage and same-slice fixes
+
+Goal:
+
+- classify smoke findings into:
+  - `blocker`
+  - `same-slice hardening fix`
+  - `accepted limitation`
+  - `later backlog item`
+- fix only the issues that can be closed without opening a new subsystem
+
+### Slice 3. Visibility polish on one or two high-traffic views
 
 Recommended first candidates:
 
@@ -128,7 +154,7 @@ Goal:
 
 - improve operator comprehension without changing core business rules
 
-### Slice 3. Audit readability polish
+### Slice 4. Audit readability polish
 
 Recommended first candidates:
 
@@ -139,7 +165,7 @@ Goal:
 
 - make accountability easier to understand during internal use
 
-### Slice 4. Narrow bug-fix cycle
+### Slice 5. Narrow bug-fix cycle
 
 Goal:
 
