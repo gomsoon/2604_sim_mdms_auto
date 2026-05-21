@@ -10,6 +10,7 @@ It complements:
 - [mvp-smoke-runbook.md](/home/tprover/2604_sim_mdms_auto/docs/mvp-smoke-runbook.md)
 - [mvp-known-limitations.md](/home/tprover/2604_sim_mdms_auto/docs/mvp-known-limitations.md)
 - [mdms-preproduct-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-plan.md)
+- [mdms-preproduct-smoke-review.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-smoke-review.md)
 
 The goal is not exhaustive QA.
 

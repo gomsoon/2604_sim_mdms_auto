@@ -19,7 +19,10 @@ through bounded internal use.
   - `VEE`
   - `estimation`
   - `manual edit`
-- the bounded end-to-end smoke pass has not yet been executed in operator order
+- an automated bounded smoke-evidence pass has been executed against the
+  runbook mapping with no unplanned foundational blocker observed
+- direct live-ingest execution can still be added later if a stricter
+  operator-run smoke record is needed
 - the next highest-value work is to validate real operator flow and turn the
   findings into a small hardening queue
 
