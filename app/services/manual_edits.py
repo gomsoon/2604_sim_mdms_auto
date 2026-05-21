@@ -299,6 +299,7 @@ def apply_manual_edit_from_vee_exception(
     normalized_edited_value = _normalize_value(edited_value)
     normalized_edited_quality_code = _normalize_optional_text(edited_quality_code)
     normalized_edited_status_code = _normalize_optional_text(edited_status_code)
+    normalized_operator_memo = _normalize_optional_text(operator_memo)
     correction_policy = build_correction_policy_decision(
         session,
         target_exception,
@@ -318,7 +319,7 @@ def apply_manual_edit_from_vee_exception(
             "edited_value": None if normalized_edited_value is None else str(normalized_edited_value),
             "edited_quality_code": normalized_edited_quality_code,
             "edited_status_code": normalized_edited_status_code,
-            "operator_memo": operator_memo,
+            "operator_memo": normalized_operator_memo,
             "correction_policy_reason_code": correction_policy.policy_reason_code,
             "recommended_action": correction_policy.recommended_action,
         },
@@ -349,7 +350,7 @@ def apply_manual_edit_from_vee_exception(
             edited_status_code=computation_result.edited_status_code,
             edited_by=normalized_edited_by,
             edited_by_user_account_id=edited_by_user_account_id,
-            operator_memo=operator_memo,
+            operator_memo=normalized_operator_memo,
             superseded_final_measurement_id=None,
             result_final_measurement_id=None,
             details={
@@ -434,7 +435,7 @@ def apply_manual_edit_from_vee_exception(
             resolution_type="manually_corrected",
             resolved_by=normalized_edited_by,
             resolved_by_user_account_id=edited_by_user_account_id,
-            operator_memo=operator_memo,
+            operator_memo=normalized_operator_memo,
         )
         execution, _ = evaluate_or_get_vee_baseline(
             session,

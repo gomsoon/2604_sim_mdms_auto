@@ -817,6 +817,8 @@ def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session)
     assert summary.edit_status == "applied"
     assert summary.result_code == "manual_edit_applied"
     assert summary.edited_value == Decimal("12.5000")
+    assert summary.active_exception_count == 0
+    assert summary.blocking_exception_count == 0
     assert summary.final_superseded is True
     assert summary.daily_usage_groups_updated == 1
     assert summary.monthly_usage_groups_updated == 1
@@ -840,9 +842,25 @@ def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session)
     assert resolved_exception.resolution_type == "manually_corrected"
     assert resolved_exception.resolved_by == actor.login_id
     assert resolved_exception.resolved_by_user_account_id == actor.id
+    assert resolved_exception.operator_memo == "correct the interval value"
     assert audit_row.edit_status == "applied"
+    assert audit_row.operator_memo == "correct the interval value"
     assert audit_row.edited_by == actor.login_id
     assert audit_row.edited_by_user_account_id == actor.id
+    assert refreshed_initial.details["manual_edit"]["manual_edit_audit_id"] == audit_row.id
+    assert refreshed_initial.details["manual_edit"]["reason_code"] == "operator_meter_correction"
+    assert refreshed_initial.details["manual_edit"]["edited_by"] == actor.login_id
+    assert refreshed_initial.details["manual_edit"]["edited_by_user_account_id"] == actor.id
+    assert (
+        audit_row.details["target_vee_exception_snapshot"]["vee_exception_id"] == vee_exception.id
+    )
+    assert audit_row.details["original_initial_measurement_snapshot"]["value"] == "-1.0000"
+    assert audit_row.details["applied_initial_measurement_snapshot"]["value"] == "12.5000"
+    assert audit_row.details["applied_initial_measurement_snapshot"]["quality_code"] == "MANUAL"
+    assert (
+        audit_row.details["applied_initial_measurement_snapshot"]["status_code"] == "OVERRIDDEN"
+    )
+    assert audit_row.details["vee_execution_log_id"] == summary.vee_execution_log_id
     assert audit_row.details["blocking_exception_count"] == 0
     assert audit_row.details["downstream_recalculation_summary"]["daily_usage_groups_updated"] == 1
     assert (
@@ -850,15 +868,135 @@ def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session)
         == 1
     )
     assert audit_row.details["downstream_recalculation_summary"]["bill_charge"]["superseded"] == 1
+    assert audit_row.details["result_final_measurement_snapshot"]["final_measurement_id"] == current_final.id
     assert audit_row.result_final_measurement_id == current_final.id
     assert audit_row.superseded_final_measurement_id == old_final.id
     pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
     assert pipeline_run is not None
     assert pipeline_run.result_code == "manual_edit_applied"
+    assert pipeline_run.details["manual_edit_audit_id"] == audit_row.id
+    assert pipeline_run.details["vee_execution_log_id"] == summary.vee_execution_log_id
+    assert pipeline_run.details["active_exception_count"] == 0
+    assert pipeline_run.details["blocking_exception_count"] == 0
     assert pipeline_run.details["edited_by"] == actor.login_id
     assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["operator_memo"] == "correct the interval value"
     assert pipeline_run.details["final_created"] is True
     assert pipeline_run.details["final_superseded"] is True
+
+
+def test_apply_manual_edit_can_reopen_same_zero_value_exception_after_quality_only_change(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-zero-reopen",
+        password="secret-password",
+        display_name="Manual Edit Zero Reopen",
+        role_code="operator",
+    )
+    vee_exception = _open_zero_value_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("0.0000"),
+        edited_quality_code="MANUAL",
+        reason_code="operator_source_override",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+        operator_memo="reclassify quality only",
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+    original_exception = session.get(VeeException, vee_exception.id)
+    same_code_exceptions = session.scalars(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == target_initial_id)
+        .where(VeeException.exception_code == "vee_zero_value_detected")
+        .order_by(VeeException.id.asc())
+    ).all()
+    active_same_code_exceptions = [
+        row
+        for row in same_code_exceptions
+        if row.exception_status in {"open", "acknowledged"}
+    ]
+
+    assert refreshed_initial is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert original_exception is not None
+    assert summary.edit_status == "applied"
+    assert summary.result_code == "manual_edit_applied"
+    assert summary.active_exception_count == 1
+    assert summary.blocking_exception_count == 0
+    assert refreshed_initial.value == Decimal("0.0000")
+    assert refreshed_initial.quality_code == "MANUAL"
+    assert refreshed_initial.details["manual_edit"]["manual_edit_audit_id"] == audit_row.id
+    assert refreshed_initial.details["manual_edit"]["edited_by_user_account_id"] == actor.id
+    assert original_exception.exception_status == "resolved"
+    assert original_exception.resolution_type == "manually_corrected"
+    assert original_exception.resolved_by == actor.login_id
+    assert original_exception.resolved_by_user_account_id == actor.id
+    assert original_exception.operator_memo == "reclassify quality only"
+    assert len(same_code_exceptions) == 2
+    assert len(active_same_code_exceptions) == 1
+    assert active_same_code_exceptions[0].id != original_exception.id
+    assert active_same_code_exceptions[0].exception_code == "vee_zero_value_detected"
+    assert active_same_code_exceptions[0].blocking_finalization is False
+    assert audit_row.operator_memo == "reclassify quality only"
+    assert audit_row.edited_by_user_account_id == actor.id
+    assert audit_row.details["active_exception_count"] == 1
+    assert audit_row.details["blocking_exception_count"] == 0
+    assert pipeline_run.result_code == "manual_edit_applied"
+    assert pipeline_run.details["manual_edit_audit_id"] == audit_row.id
+    assert pipeline_run.details["active_exception_count"] == 1
+    assert pipeline_run.details["blocking_exception_count"] == 0
+    assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["operator_memo"] == "reclassify quality only"
+
+
+def test_apply_manual_edit_normalizes_blank_operator_memo_across_resolution_audit_and_pipeline(
+    session,
+):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-blank-memo",
+        password="secret-password",
+        display_name="Manual Edit Blank Memo",
+        role_code="operator",
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        reason_code="operator_meter_correction",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+        operator_memo="   ",
+    )
+    session.commit()
+
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+    resolved_exception = session.get(VeeException, vee_exception.id)
+
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert resolved_exception is not None
+    assert summary.result_code == "manual_edit_applied"
+    assert resolved_exception.operator_memo is None
+    assert audit_row.operator_memo is None
+    assert pipeline_run.details["operator_memo"] is None
 
 
 def test_apply_manual_edit_can_leave_open_blocking_exceptions_after_edit_is_applied(session):
