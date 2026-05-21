@@ -530,6 +530,8 @@ These items are not blockers for the current minimal baseline, but they should r
   - exhaustive downstream result-code and side-effect matrices across applied manual-edit paths
   - exhaustive audit-detail and pipeline-detail key assertions for every blocked and applied path
   - web/API-level duplication of every manual-edit service result assertion
+  - exhaustive resolved-exception actor and operator-memo lifecycle assertions across repeated edit cycles
+  - multi-edit same-measurement lifecycle matrices across reopen, supersede, and re-finalize paths
   - performance and concurrency characterization for repeated manual-edit and re-VEE cycles
 
 ## Recommended execution waves

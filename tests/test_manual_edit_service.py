@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import func, select
 
+import app.services.manual_edits as manual_edit_service
 from app.models import (
     BillCharge,
     BillDeterminant,
@@ -842,8 +843,211 @@ def test_apply_manual_edit_supersedes_final_and_recalculates_downstream(session)
     assert audit_row.edit_status == "applied"
     assert audit_row.edited_by == actor.login_id
     assert audit_row.edited_by_user_account_id == actor.id
+    assert audit_row.details["blocking_exception_count"] == 0
+    assert audit_row.details["downstream_recalculation_summary"]["daily_usage_groups_updated"] == 1
+    assert (
+        audit_row.details["downstream_recalculation_summary"]["bill_determinant"]["superseded"]
+        == 1
+    )
+    assert audit_row.details["downstream_recalculation_summary"]["bill_charge"]["superseded"] == 1
     assert audit_row.result_final_measurement_id == current_final.id
     assert audit_row.superseded_final_measurement_id == old_final.id
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+    assert pipeline_run is not None
+    assert pipeline_run.result_code == "manual_edit_applied"
+    assert pipeline_run.details["edited_by"] == actor.login_id
+    assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["final_created"] is True
+    assert pipeline_run.details["final_superseded"] is True
+
+
+def test_apply_manual_edit_can_leave_open_blocking_exceptions_after_edit_is_applied(session):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-open-blocker",
+        password="secret-password",
+        display_name="Manual Edit Open Blocker",
+        role_code="operator",
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    target_initial = session.get(InitialMeasurement, target_initial_id)
+    assert target_initial is not None
+    old_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert old_final is not None
+    target_initial.measuring_component.multiplier = Decimal("0")
+    session.commit()
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        reason_code="operator_meter_correction",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+        operator_memo="apply value even though structural blocker remains",
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+    resolved_target_exception = session.get(VeeException, vee_exception.id)
+    active_exceptions = session.scalars(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == target_initial_id)
+        .where(VeeException.exception_status.in_(("open", "acknowledged")))
+        .order_by(VeeException.id.asc())
+    ).all()
+
+    assert refreshed_initial is not None
+    assert current_final is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert resolved_target_exception is not None
+    assert summary.edit_status == "applied"
+    assert summary.result_code == "manual_edit_applied_with_open_exceptions"
+    assert summary.blocking_exception_count > 0
+    assert summary.current_final_id == old_final.id
+    assert summary.final_created is False
+    assert summary.final_superseded is False
+    assert summary.daily_usage_groups_updated == 0
+    assert summary.monthly_usage_groups_updated == 0
+    assert summary.bill_determinant_groups == 0
+    assert summary.bill_charge_groups == 0
+    assert refreshed_initial.value == Decimal("12.5000")
+    assert current_final.id == old_final.id
+    assert resolved_target_exception.exception_status == "resolved"
+    assert resolved_target_exception.resolved_by == actor.login_id
+    assert resolved_target_exception.resolved_by_user_account_id == actor.id
+    assert resolved_target_exception.operator_memo == (
+        "apply value even though structural blocker remains"
+    )
+    assert {row.exception_code for row in active_exceptions} == {
+        "vee_multiplier_invalid_detected"
+    }
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
+    assert audit_row.result_final_measurement_id is None
+    assert audit_row.details["blocking_exception_count"] == summary.blocking_exception_count
+    assert audit_row.details["result_final_measurement_snapshot"] is None
+    assert (
+        audit_row.details["downstream_recalculation_summary"]["daily_usage_groups_updated"] == 0
+    )
+    assert audit_row.details["downstream_recalculation_summary"]["bill_determinant"] is None
+    assert audit_row.details["downstream_recalculation_summary"]["bill_charge"] is None
+    assert pipeline_run.result_code == "manual_edit_applied_with_open_exceptions"
+    assert pipeline_run.details["edited_by"] == actor.login_id
+    assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["blocking_exception_count"] == summary.blocking_exception_count
+    assert pipeline_run.details["final_created"] is False
+    assert pipeline_run.details["final_superseded"] is False
+
+
+def test_apply_manual_edit_can_finish_without_creating_new_final_when_current_final_is_reused(
+    session,
+    monkeypatch,
+):
+    _service_point_id, target_initial_id, _measuring_component_id = _prepare_manual_edit_environment(
+        session
+    )
+    actor = create_user_account(
+        session,
+        login_id="manual-edit-no-final-change",
+        password="secret-password",
+        display_name="Manual Edit No Final Change",
+        role_code="operator",
+    )
+    vee_exception = _open_negative_vee_exception(session, initial_measurement_id=target_initial_id)
+    current_final = session.scalar(
+        select(FinalMeasurement)
+        .where(FinalMeasurement.initial_measurement_id == target_initial_id)
+        .where(FinalMeasurement.is_current.is_(True))
+        .limit(1)
+    )
+    assert current_final is not None
+    old_final_value = current_final.value
+    old_final_quality_code = current_final.quality_code
+    old_final_status_code = current_final.status_code
+
+    monkeypatch.setattr(
+        manual_edit_service,
+        "create_or_get_final_measurement",
+        lambda _session, _initial_row, revision_reason_code=None: (current_final, False),
+    )
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        reason_code="operator_meter_correction",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+        operator_memo="apply manual edit without new final revision",
+    )
+    session.commit()
+
+    refreshed_initial = session.get(InitialMeasurement, target_initial_id)
+    refreshed_final = session.get(FinalMeasurement, current_final.id)
+    audit_row = session.get(ManualEditAudit, summary.manual_edit_audit_id)
+    pipeline_run = session.get(PipelineRun, summary.pipeline_run_id)
+    resolved_exception = session.get(VeeException, vee_exception.id)
+
+    assert refreshed_initial is not None
+    assert refreshed_final is not None
+    assert audit_row is not None
+    assert pipeline_run is not None
+    assert resolved_exception is not None
+    assert summary.edit_status == "applied"
+    assert summary.result_code == "manual_edit_applied_without_final_change"
+    assert summary.final_created is False
+    assert summary.final_superseded is False
+    assert summary.blocking_exception_count == 0
+    assert summary.current_final_id == refreshed_final.id
+    assert summary.daily_usage_groups_updated == 0
+    assert summary.monthly_usage_groups_updated == 0
+    assert summary.bill_determinant_groups == 0
+    assert summary.bill_charge_groups == 0
+    assert refreshed_initial.value == Decimal("12.5000")
+    assert refreshed_initial.details["manual_edit"]["edited_by"] == actor.login_id
+    assert refreshed_initial.details["manual_edit"]["edited_by_user_account_id"] == actor.id
+    assert refreshed_final.value == old_final_value
+    assert refreshed_final.quality_code == old_final_quality_code
+    assert refreshed_final.status_code == old_final_status_code
+    assert resolved_exception.exception_status == "resolved"
+    assert resolved_exception.resolved_by == actor.login_id
+    assert resolved_exception.resolved_by_user_account_id == actor.id
+    assert resolved_exception.operator_memo == "apply manual edit without new final revision"
+    assert audit_row.edited_by == actor.login_id
+    assert audit_row.edited_by_user_account_id == actor.id
+    assert audit_row.result_final_measurement_id is None
+    assert audit_row.superseded_final_measurement_id is None
+    assert audit_row.details["blocking_exception_count"] == 0
+    assert audit_row.details["result_final_measurement_snapshot"] is None
+    assert (
+        audit_row.details["downstream_recalculation_summary"]["daily_usage_groups_updated"] == 0
+    )
+    assert audit_row.details["downstream_recalculation_summary"]["bill_determinant"] is None
+    assert audit_row.details["downstream_recalculation_summary"]["bill_charge"] is None
+    assert pipeline_run.result_code == "manual_edit_applied_without_final_change"
+    assert pipeline_run.details["edited_by"] == actor.login_id
+    assert pipeline_run.details["edited_by_user_account_id"] == actor.id
+    assert pipeline_run.details["blocking_exception_count"] == 0
+    assert pipeline_run.details["final_created"] is False
+    assert pipeline_run.details["final_superseded"] is False
 
 
 def test_apply_manual_edit_blocks_for_unsupported_exception_code(session):
