@@ -150,7 +150,10 @@ def test_vee_replay_requests_page_renders_request_list_and_progress(client, sess
     assert "Demo HES" in text
     assert "40.0%" in text
     assert "Test Admin (admin)" in text
-    assert "같은 범위 재평가" not in text
+    assert "HES 시스템: Demo HES" in text
+    assert "아직 replay item 처리를 시작하지 않았습니다." in text
+    assert "사람 계정" in text
+    assert "같은 범위로 새 요청" not in text
 
 
 def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, session):
@@ -236,9 +239,12 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
     assert "Test Admin (admin)" in text
     assert "50.0%" in text
     assert "자동으로 새로고침" in text
+    assert "요청 상태가 queued 또는 processing을 벗어나면 자동 새로고침이 멈춥니다." in text
+    assert "요청 범위, 요청자, 취소 여부를 먼저 확인하는 영역입니다." in text
+    assert "processing 중이면 지금 queue가 붙잡고 있는 replay item을 보여줍니다." in text
     assert "forced replay failure" in text
     assert str(items[1].representative_vee_exception_id) in text
-    assert "같은 범위 재평가" in text
+    assert "같은 범위로 새 요청" in text
     assert "/usage-transactions/77?lang=ko" in text
     assert "/usage-transactions/88?lang=ko" in text
     assert "/vee-replay-requests/new?lang=ko" in text
@@ -276,7 +282,7 @@ def test_vee_replay_requests_page_offers_repeat_shortcut_for_completed_scope(cli
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "같은 범위 재평가" in text
+    assert "같은 범위로 새 요청" in text
     assert f"/vee-replay-requests/new?lang=ko&amp;request_scope=hes_system&amp;requested_by=admin&amp;hes_system_id={hes_system_id}" in text
 
 

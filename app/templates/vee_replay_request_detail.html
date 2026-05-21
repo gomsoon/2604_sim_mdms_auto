@@ -28,7 +28,7 @@
 {% if detail.request.status in ("queued", "processing") %}
 <div class="alert alert-info d-flex justify-content-between align-items-center" role="alert">
   <span>{{ t("page.vee_replay_request_detail.auto_refresh") }}</span>
-  <span class="small text-secondary">{{ t("field.request_progress_help") }}</span>
+  <span class="small text-secondary">{{ t("page.vee_replay_request_detail.auto_refresh_help") }}</span>
 </div>
 <script>
   setTimeout(() => window.location.reload(), 5000);
@@ -41,17 +41,53 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.vee_replay_request_detail.summary") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.vee_replay_request_detail.summary_help") }}</p>
         <dl class="row mb-0">
           <dt class="col-sm-4">{{ t("table.id") }}</dt>
           <dd class="col-sm-8">{{ detail.request.id }}</dd>
           <dt class="col-sm-4">{{ t("field.requested_scope") }}</dt>
-          <dd class="col-sm-8">{{ t_or("vee_replay.request_scope." ~ detail.request.request_scope, detail.request.request_scope) }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ t_or("vee_replay.request_scope." ~ detail.request.request_scope, detail.request.request_scope) }}</div>
+            <div class="small text-secondary">
+              {% if detail.request.request_scope == "hes_system" %}
+              {{ t("field.hes_system") }}: {{ detail.request.hes_system.display_name if detail.request.hes_system else t("common.none") }}
+              {% elif detail.request.request_scope == "ingest_batch" %}
+              {{ t("table.batch_id") }}: {{ detail.request.ingest_batch.batch_id if detail.request.ingest_batch else detail.request.ingest_batch_id or t("common.none") }}
+              {% elif detail.request.request_scope == "date_range" %}
+              {{ detail.request.measured_at_from|dt }} - {{ detail.request.measured_at_to|dt }}
+              {% if detail.request.window_timezone_name %}
+              <br>{{ t("field.timezone_name") }}: {{ detail.request.window_timezone_name }}
+              {% endif %}
+              {% endif %}
+            </div>
+          </dd>
           <dt class="col-sm-4">{{ t("table.status") }}</dt>
-          <dd class="col-sm-8">{{ t_or("common.status." ~ detail.request.status, detail.request.status) }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ t_or("common.status." ~ detail.request.status, detail.request.status) }}</div>
+            <div class="small text-secondary">{{ t("vee_replay.status_hint." ~ detail.request.status) }}</div>
+          </dd>
           <dt class="col-sm-4">{{ t("table.requested_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.requested_actor_display or t("common.none") }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ detail.requested_actor_display or t("common.none") }}</div>
+            <div class="small text-secondary">
+              {% if detail.request.requested_by_user_account_id %}
+              {{ t("field.human_actor") }}
+              {% else %}
+              {{ t("field.recorded_actor") }}
+              {% endif %}
+            </div>
+          </dd>
           <dt class="col-sm-4">{{ t("field.cancelled_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.cancelled_actor_display or t("common.none") }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ detail.cancelled_actor_display or t("common.none") }}</div>
+            <div class="small text-secondary">
+              {% if detail.request.cancelled_by_user_account_id %}
+              {{ t("field.human_actor") }}
+              {% elif detail.request.cancelled_by %}
+              {{ t("field.recorded_actor") }}
+              {% endif %}
+            </div>
+          </dd>
           <dt class="col-sm-4">{{ t("field.cancelled_at") }}</dt>
           <dd class="col-sm-8">{{ detail.request.cancelled_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("field.hes_system") }}</dt>
@@ -92,6 +128,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.vee_replay_request_detail.progress") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.vee_replay_request_detail.progress_help") }}</p>
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div class="fw-semibold">{{ request_details.get("progress_percent", 0) }}%</div>
           <div class="small text-secondary">{{ detail.request.processed_count }}/{{ detail.request.target_initial_count }}</div>
@@ -99,6 +136,7 @@
         <div class="progress mb-3" role="progressbar" aria-valuenow="{{ request_details.get('progress_percent', 0) }}" aria-valuemin="0" aria-valuemax="100">
           <div class="progress-bar" style="width: {{ request_details.get('progress_percent', 0) }}%"></div>
         </div>
+        <div class="small text-secondary mb-3">{{ t("field.request_progress_help") }}</div>
         <div class="row g-3">
           <div class="col-md-6">
             <div class="border rounded p-3 h-100">
@@ -164,6 +202,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.vee_replay_request_detail.current_item") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.vee_replay_request_detail.current_item_help") }}</p>
         {% if detail.current_item %}
         <dl class="row mb-0">
           <dt class="col-sm-4">{{ t("table.item_id") }}</dt>
@@ -192,6 +231,7 @@
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <h2 class="h5 mb-3">{{ t("page.vee_replay_request_detail.failed_items") }}</h2>
+    <p class="small text-secondary mb-3">{{ t("page.vee_replay_request_detail.failed_items_help") }}</p>
     {% if detail.failed_items %}
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
@@ -238,6 +278,7 @@
 <div class="card shadow-sm">
   <div class="card-body">
     <h2 class="h5 mb-3">{{ t("page.vee_replay_request_detail.recent_items") }}</h2>
+    <p class="small text-secondary mb-3">{{ t("page.vee_replay_request_detail.recent_items_help") }}</p>
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead>

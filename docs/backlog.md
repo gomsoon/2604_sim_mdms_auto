@@ -547,6 +547,12 @@ These items are not blockers for the current minimal baseline, but they should r
   - dedicated policy-explanation UI beyond wording and label clarity
   - correction preview workspace concepts
   - exhaustive wording assertions across every locale permutation
+- During the first replay-request visibility-polish slice, defer:
+  - explicit replay-to-replay recovery lineage modeling
+  - replay queue layout redesign or new progress summary widgets
+  - richer runtime or worker tracking for replay execution
+  - per-item deep drilldown redesign beyond wording and readability polish
+  - exhaustive locale-wording assertion sweeps for replay list and detail views
 
 ## Recommended execution waves
 
