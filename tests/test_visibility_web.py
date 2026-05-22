@@ -1853,6 +1853,8 @@ def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, 
 
     assert response.status_code == 200
     assert "추정 감사 상세" in text
+    assert "여기서 운영자, 결과, 차단 사유, 현재 보정 결과를 먼저 확인한 뒤 스냅샷을 읽습니다." in text
+    assert "lineage에서 target initial, 관련 VEE 예외, final revision 흐름을 따라갑니다." in text
     assert "보정 정책" in text
     assert "관련 VEE 예외 스냅샷" in text
     assert "이전 source final 스냅샷" in text
@@ -1922,6 +1924,21 @@ def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(cl
     assert "worker heartbeat 지연" in text
     assert "최근 heartbeat와 마지막 오류를 함께 확인해 운영자 확인이 필요한지 판단하세요." in text
     assert f"/billing-export-requests/{request_id}?lang=ko" in text
+
+
+def test_billing_export_requests_page_uses_recorded_actor_fallback(client, session):
+    request_id = _prepare_billing_export_request_rows(session)
+    request = session.get(BillingExportRequest, request_id)
+    assert request is not None
+    request.requested_by_user_account_id = None
+    session.commit()
+
+    response = client.get(f"/billing-export-requests?lang=ko&requested_by={request.requested_by}")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert request.requested_by in text
+    assert "기록된 요청자" in text
 
 
 def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(client, session):
@@ -2012,6 +2029,8 @@ def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, sessi
 
     assert response.status_code == 200
     assert "수동 보정 감사 상세" in text
+    assert "여기서 운영자, 결과, 차단 사유, 현재 보정 결과를 먼저 확인한 뒤 스냅샷을 읽습니다." in text
+    assert "lineage에서 target initial, 관련 VEE 예외, final revision 흐름을 따라갑니다." in text
     assert "원본 initial 스냅샷" in text
     assert "적용된 initial 스냅샷" in text
     assert "관련 VEE 예외" in text

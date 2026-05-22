@@ -54,6 +54,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.summary") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.estimation_audit_detail.summary_help") }}</p>
         <dl class="row mb-0">
           <dt class="col-sm-4">{{ t("table.id") }}</dt>
           <dd class="col-sm-8">{{ detail.estimation_audit.id }}</dd>
@@ -106,6 +107,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.estimation_audit_detail.lineage") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.estimation_audit_detail.lineage_help") }}</p>
         <dl class="row mb-0">
           <dt class="col-sm-4">{{ t("field.target_initial_measurement") }}</dt>
           <dd class="col-sm-8">{{ detail.target_initial_measurement.id if detail.target_initial_measurement else t("common.none") }}</dd>
