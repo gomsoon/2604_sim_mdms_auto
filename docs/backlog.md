@@ -502,6 +502,8 @@ These items are not blockers for the current minimal baseline, but they should r
     - replay request list and detail readability
     - correction detail consistency across `vee`, `estimation`, and
       `manual edit`
+    - stale-warning and blocked-reason wording cleanup across export and
+      correction views
 - Use the shared visibility inventory in:
   - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:
@@ -568,6 +570,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - export and replay layout redesign beyond wording and emphasis cleanup
   - blocked-reason taxonomy redesign across every correction and export path
   - exhaustive locale-wording assertion sweeps for stale and blocked guidance text
+- During the export wording follow-through slice, defer:
+  - explicit export-to-export recovery lineage wording beyond current queue fields
+  - large export list/detail layout redesign or new summary widgets
+  - richer failed-item spotlighting beyond wording and emphasis cleanup
+  - exhaustive locale-wording assertion sweeps for export list and detail views
 
 ## Recommended execution waves
 

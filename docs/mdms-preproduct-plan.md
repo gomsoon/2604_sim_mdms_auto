@@ -27,10 +27,12 @@ through bounded internal use.
   - replay request list and detail readability
   - correction detail consistency across `vee`, `estimation`, and
     `manual edit`
+  - stale-warning and blocked-reason wording cleanup across export and
+    correction views
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is stale-warning and blocked-reason
-  wording cleanup across replay, export, and correction views
+- the next highest-value visibility work is export wording follow-through on
+  billing export request list and detail views
 
 ## Operating principles
 
@@ -160,8 +162,8 @@ Goal:
 
 Recommended first candidates:
 
-- stale-warning and blocked-reason wording cleanup
-- export wording follow-through after the warning and blocked-language slice
+- export wording follow-through
+- wider cross-view wording consistency after the export slice
 
 Goal:
 

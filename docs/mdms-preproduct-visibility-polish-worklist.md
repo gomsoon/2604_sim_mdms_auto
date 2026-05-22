@@ -37,6 +37,9 @@ share the exact same wording or display rule.
 
 - `billing export request` list and detail:
   human actor versus runtime worker clarity is now explicit
+- stale-warning and blocked-reason wording cleanup:
+  export stale guidance and correction blocked-reason wording now use a more
+  consistent operator-facing pattern
 - `adapter detail` recent runs:
   human actor versus runtime actor clarity is now explicit
 - `vee_exception` queue and detail:
@@ -52,9 +55,6 @@ share the exact same wording or display rule.
 
 ### Next recommended candidates
 
-- stale-warning and blocked-reason wording cleanup
-  - make warning and blocked language easier to compare across replay, export,
-    and correction views
 - export wording follow-through
   - keep billing export detail wording dense enough for audit value but easier
     to scan during bounded internal use
@@ -62,6 +62,9 @@ share the exact same wording or display rule.
   - consolidate repeated labels such as `human actor`, `recorded actor`,
     `blocked reason`, and `result code` where the same concept still appears
     with slightly different wording
+- stale-warning and blocked-reason second-pass sweep
+  - revisit replay failure wording and broader blocked taxonomy only if
+    repeated internal use shows more ambiguity after the first cleanup
 
 ### Later candidates
 
@@ -115,8 +118,8 @@ share the exact same wording or display rule.
 
 - keep billing export request actor clarity complete after the first
   runtime-versus-human polish slice
-- review whether progress, recovery, and cancellation wording still feels too
-  dense in detail view
+- review whether progress, current-item, failed-item, recent-item, payload, and
+  cancellation wording still feels too dense in detail view
 
 ### F. Cross-view wording consistency
 
@@ -132,9 +135,10 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. stale-warning and blocked-reason wording cleanup
-2. export wording follow-through
-3. wider cross-view wording and i18n consistency pass
+1. export wording follow-through
+2. wider cross-view wording and i18n consistency pass
+3. stale-warning and blocked-reason second-pass sweep only if repeated use
+   still shows ambiguity
 
 ## Explicitly deferred in this worklist
 

@@ -53,8 +53,9 @@ This directory captures the working engineering baseline for the `Minimal End-to
 47. [mdms-preproduct-smoke-review.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-smoke-review.md)
 48. [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 49. [mdms-preproduct-correction-detail-polish-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-correction-detail-polish-plan.md)
-50. [mdms-preproduct-testing-hardening.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-testing-hardening.md)
-51. [backlog-progress-review.md](/home/tprover/2604_sim_mdms_auto/docs/backlog-progress-review.md)
+50. [mdms-preproduct-export-wording-follow-through-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-export-wording-follow-through-plan.md)
+51. [mdms-preproduct-testing-hardening.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-testing-hardening.md)
+52. [backlog-progress-review.md](/home/tprover/2604_sim_mdms_auto/docs/backlog-progress-review.md)
 51. [estimation-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/estimation-baseline-design.md)
 52. [manual-edit-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/manual-edit-baseline-design.md)
 53. [event-linked-decisioning-baseline-design.md](/home/tprover/2604_sim_mdms_auto/docs/event-linked-decisioning-baseline-design.md)
@@ -139,6 +140,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `mdms-preproduct-smoke-review.md` records the first bounded smoke result, including the runbook-to-test mapping, the executed automated evidence bundle, and the first triage outcome.
 - `mdms-preproduct-visibility-polish-worklist.md` inventories the remaining operator-facing visibility-polish slices, marks what is already complete, and provides the recommended next execution order.
 - `mdms-preproduct-correction-detail-polish-plan.md` defines the next visibility-polish slice for aligning actor, memo, result, and lineage wording across `vee`, `estimation`, and `manual edit` correction details.
+- `mdms-preproduct-export-wording-follow-through-plan.md` defines the next billing-export-specific wording slice for making request lifecycle, progress, error, and item-level sections easier to scan during bounded internal use.
 - `mdms-preproduct-testing-hardening.md` defines how the `mdms-preproduct` phase should strengthen testing through robustness testing, selective worst-case coverage, and MC/DC-style focus on `VEE`, `estimation`, and `manual edit`.
 - `mvp-gap-review.md` summarizes which MVP backlog areas are already strong, which are only partial, and which next gaps remain after the first VEE closure baseline, the first `service_point` usage API slice, and current downstream billing-lite progress.
 - `backlog-progress-review.md` refreshes backlog-wide progress, importance, impact, and next-step recommendations across minimal, MVP, and later product slices, including the shift from VEE closure into policy-depth review and selective service-facing refinement.
