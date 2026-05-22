@@ -45,27 +45,30 @@ share the exact same wording or display rule.
 - replay request list and detail:
   scope meaning, requester actor, progress wording, and current-versus-failed
   item readability are now clearer
+- correction detail consistency:
+  `vee`, `estimation`, and `manual edit` now use a more comparable actor,
+  memo, result, blocked-reason, and lineage reading pattern across detail
+  views
 
 ### Next recommended candidates
 
-- correction detail wording consistency
-  - align `vee`, `estimation`, and `manual edit` actor and result wording so
-    the operator sees the same shape across sensitive mutation flows
-  - use the active slice design in:
-    [mdms-preproduct-correction-detail-polish-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-correction-detail-polish-plan.md)
 - stale-warning and blocked-reason wording cleanup
   - make warning and blocked language easier to compare across replay, export,
     and correction views
 - export wording follow-through
   - keep billing export detail wording dense enough for audit value but easier
     to scan during bounded internal use
+- cross-view wording consistency
+  - consolidate repeated labels such as `human actor`, `recorded actor`,
+    `blocked reason`, and `result code` where the same concept still appears
+    with slightly different wording
 
 ### Later candidates
 
-- stale-warning, empty-state, and blocked-reason wording polish across
-  visibility views
 - list-level filter and spotlight polish where actor or status confusion keeps
   appearing in bounded use
+- empty-state wording polish across high-traffic visibility views once the
+  current warning and blocked-language cleanup settles
 - broader i18n label consistency review after the next few targeted polish
   slices settle
 
@@ -99,14 +102,23 @@ share the exact same wording or display rule.
 - make `operator_memo`, `result_code`, and blocked reason labels easier to
   compare across correction types
 
-### D. Export wording follow-through
+### D. Stale-warning and blocked-reason wording cleanup
+
+- make stale or lagging worker warnings easier to compare across replay and
+  export views
+- make blocked-result and blocked-reason wording easier to compare across
+  correction views
+- reduce ambiguity around whether a row needs intervention now or is only an
+  informational warning
+
+### E. Export wording follow-through
 
 - keep billing export request actor clarity complete after the first
   runtime-versus-human polish slice
 - review whether progress, recovery, and cancellation wording still feels too
   dense in detail view
 
-### E. Cross-view wording consistency
+### F. Cross-view wording consistency
 
 - review repeated labels for:
   - `human actor`
@@ -120,10 +132,9 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. correction detail wording consistency
-2. stale-warning and blocked-reason wording cleanup
-3. export wording follow-through
-4. wider label and i18n consistency pass
+1. stale-warning and blocked-reason wording cleanup
+2. export wording follow-through
+3. wider cross-view wording and i18n consistency pass
 
 ## Explicitly deferred in this worklist
 

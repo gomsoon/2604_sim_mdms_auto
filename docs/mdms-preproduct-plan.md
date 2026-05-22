@@ -25,10 +25,12 @@ through bounded internal use.
   - export and adapter runtime-versus-human actor clarity
   - `vee_exception` queue and detail wording clarity
   - replay request list and detail readability
+  - correction detail consistency across `vee`, `estimation`, and
+    `manual edit`
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is correction detail consistency
-  across `vee`, `estimation`, and `manual edit`
+- the next highest-value visibility work is stale-warning and blocked-reason
+  wording cleanup across replay, export, and correction views
 
 ## Operating principles
 
@@ -158,8 +160,8 @@ Goal:
 
 Recommended first candidates:
 
-- correction detail consistency across `vee`, `estimation`, and `manual edit`
-- stale-warning and blocked-reason wording cleanup after the correction slice
+- stale-warning and blocked-reason wording cleanup
+- export wording follow-through after the warning and blocked-language slice
 
 Goal:
 
