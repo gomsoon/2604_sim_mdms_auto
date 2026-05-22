@@ -29,10 +29,14 @@ through bounded internal use.
     `manual edit`
   - stale-warning and blocked-reason wording cleanup across export and
     correction views
+  - billing export wording follow-through across request lifecycle, progress,
+    and failure wording
+  - cross-view wording and i18n consistency across export and correction
+    details
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is export wording follow-through on
-  billing export request list and detail views
+- the next highest-value visibility work is a narrow stale-warning and
+  blocked-reason second-pass sweep across replay and correction views
 
 ## Operating principles
 
@@ -162,8 +166,8 @@ Goal:
 
 Recommended first candidates:
 
-- export wording follow-through
-- wider cross-view wording consistency after the export slice
+- stale-warning and blocked-reason second-pass sweep
+- empty-state wording polish after the second-pass warning slice
 
 Goal:
 

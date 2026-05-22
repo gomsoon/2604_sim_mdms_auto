@@ -40,6 +40,9 @@ share the exact same wording or display rule.
 - stale-warning and blocked-reason wording cleanup:
   export stale guidance and correction blocked-reason wording now use a more
   consistent operator-facing pattern
+- export wording follow-through:
+  request lifecycle, progress, failure follow-up, and item-section wording are
+  now easier to scan during bounded internal use
 - `adapter detail` recent runs:
   human actor versus runtime actor clarity is now explicit
 - `vee_exception` queue and detail:
@@ -52,28 +55,31 @@ share the exact same wording or display rule.
   `vee`, `estimation`, and `manual edit` now use a more comparable actor,
   memo, result, blocked-reason, and lineage reading pattern across detail
   views
+- cross-view wording and i18n consistency:
+  shared actor labels and correction summary helper wording now use a more
+  consistent pattern across export and correction detail screens
 
 ### Next recommended candidates
 
-- export wording follow-through
-  - keep billing export detail wording dense enough for audit value but easier
-    to scan during bounded internal use
-- cross-view wording consistency
-  - consolidate repeated labels such as `human actor`, `recorded actor`,
-    `blocked reason`, and `result code` where the same concept still appears
-    with slightly different wording
 - stale-warning and blocked-reason second-pass sweep
-  - revisit replay failure wording and broader blocked taxonomy only if
-    repeated internal use shows more ambiguity after the first cleanup
+  - revisit replay failure wording, blocked guidance fallback, and
+    auto-refresh-versus-intervention wording where repeated internal use still
+    leaves ambiguity
+- empty-state wording polish
+  - make blank or filtered-out results easier to interpret on repeated
+    operator-facing list and detail views
+- list-level filter and spotlight polish
+  - tighten “what should I inspect next?” cues if repeated internal use still
+    shows scan-time friction after the current wording slices
 
 ### Later candidates
 
-- list-level filter and spotlight polish where actor or status confusion keeps
-  appearing in bounded use
-- empty-state wording polish across high-traffic visibility views once the
-  current warning and blocked-language cleanup settles
 - broader i18n label consistency review after the next few targeted polish
   slices settle
+- empty-state wording polish across lower-traffic views once the current
+  high-traffic wording slices settle
+- list-level filter and spotlight polish for broader row triage after repeated
+  internal use produces stronger signals
 
 ## Candidate inventory
 
@@ -135,10 +141,10 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. export wording follow-through
-2. wider cross-view wording and i18n consistency pass
-3. stale-warning and blocked-reason second-pass sweep only if repeated use
-   still shows ambiguity
+1. stale-warning and blocked-reason second-pass sweep
+2. empty-state wording polish on high-traffic views
+3. list-level filter and spotlight polish only if repeated use still shows
+   scan-time friction
 
 ## Explicitly deferred in this worklist
 

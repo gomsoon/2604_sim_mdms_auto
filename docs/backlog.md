@@ -504,13 +504,18 @@ These items are not blockers for the current minimal baseline, but they should r
       `manual edit`
     - stale-warning and blocked-reason wording cleanup across export and
       correction views
+    - billing export wording follow-through across lifecycle, progress, and
+      failure wording
+    - cross-view wording and i18n consistency across export and correction
+      details
 - Use the shared visibility inventory in:
   - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:
   - bug fixes on supported operator flows
   - actor and audit readability on high-traffic views
-  - small visibility polish on `vee_exception`, replay, correction detail, and
-    remaining export wording screens
+  - small visibility polish on replay warnings, correction blocked guidance,
+    and later empty-state or filter wording where repeated internal use still
+    shows ambiguity
   - known-limitations communication for internal operators
 - Keep each hardening slice small enough to update regression coverage in the
   same change set
@@ -575,6 +580,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - large export list/detail layout redesign or new summary widgets
   - richer failed-item spotlighting beyond wording and emphasis cleanup
   - exhaustive locale-wording assertion sweeps for export list and detail views
+- During the cross-view wording and i18n consistency slice, defer:
+  - broader glossary or i18n taxonomy redesign across all screens
+  - service-layer wording parity changes for APIs and background processing payloads
+  - large summary-widget redesign for correction and export views
+  - exhaustive locale-wording assertion sweeps across all visibility views
 
 ## Recommended execution waves
 
