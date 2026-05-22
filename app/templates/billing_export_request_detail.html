@@ -47,13 +47,17 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.summary") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.billing_export_request_detail.summary_help") }}</p>
         <dl class="row mb-0">
           <dt class="col-sm-4">{{ t("table.id") }}</dt>
           <dd class="col-sm-8">{{ detail.request.id }}</dd>
           <dt class="col-sm-4">{{ t("field.requested_scope") }}</dt>
           <dd class="col-sm-8">{{ t_or("billing_export.request_scope." ~ detail.request.request_scope, detail.request.request_scope) }}</dd>
           <dt class="col-sm-4">{{ t("table.status") }}</dt>
-          <dd class="col-sm-8">{{ t_or("common.status." ~ detail.request.status, detail.request.status) }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ t_or("common.status." ~ detail.request.status, detail.request.status) }}</div>
+            <div class="small text-secondary">{{ t("billing_export.status_hint." ~ detail.request.status) }}</div>
+          </dd>
           <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
           <dd class="col-sm-8">{{ detail.request.service_point.external_id if detail.request.service_point else t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.target_system_code") }}</dt>
@@ -63,15 +67,32 @@
           <dt class="col-sm-4">{{ t("table.requested_by") }}</dt>
           <dd class="col-sm-8">
             <div>{{ detail.requested_actor_display or detail.request.requested_by }}</div>
-            <div class="small text-secondary">{{ t("field.human_actor") }}</div>
+            <div class="small text-secondary">
+              {% if detail.request.requested_by_user_account_id %}
+              {{ t("field.human_actor") }}
+              {% else %}
+              {{ t("field.recorded_actor") }}
+              {% endif %}
+            </div>
           </dd>
           <dt class="col-sm-4">{{ t("field.cancelled_by") }}</dt>
           <dd class="col-sm-8">
             <div>{{ detail.cancelled_actor_display or t("common.none") }}</div>
-            <div class="small text-secondary">{{ t("field.human_actor") }}</div>
+            <div class="small text-secondary">
+              {% if detail.request.cancelled_by_user_account_id %}
+              {{ t("field.human_actor") }}
+              {% elif detail.request.cancelled_by %}
+              {{ t("field.recorded_actor") }}
+              {% endif %}
+            </div>
           </dd>
           <dt class="col-sm-4">{{ t("field.cancelled_at") }}</dt>
-          <dd class="col-sm-8">{{ detail.request.cancelled_at|dt }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ detail.request.cancelled_at|dt }}</div>
+            {% if detail.request.cancelled_at or detail.request.cancelled_by %}
+            <div class="small text-secondary">{{ t("page.billing_export_request_detail.cancelled_lifecycle_help") }}</div>
+            {% endif %}
+          </dd>
           <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
           <dd class="col-sm-8">{{ detail.request.operator_memo or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.billing_period_from") }}</dt>
@@ -85,7 +106,12 @@
           <dt class="col-sm-4">{{ t("field.processing_completed_at") }}</dt>
           <dd class="col-sm-8">{{ detail.request.completed_at|dt }}</dd>
           <dt class="col-sm-4">{{ t("table.last_error") }}</dt>
-          <dd class="col-sm-8">{{ detail.request.last_error or t("common.none") }}</dd>
+          <dd class="col-sm-8">
+            <div>{{ detail.request.last_error or t("common.none") }}</div>
+            {% if detail.request.last_error %}
+            <div class="small text-secondary">{{ t("page.billing_export_request_detail.last_error_help") }}</div>
+            {% endif %}
+          </dd>
         </dl>
       </div>
     </div>
@@ -94,6 +120,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.progress") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.billing_export_request_detail.progress_help") }}</p>
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div class="fw-semibold">{{ request_details.get("progress_percent", 0) }}%</div>
           <div class="small text-secondary">{{ detail.request.processed_count }}/{{ detail.request.item_count }}</div>
@@ -180,6 +207,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.current_item") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.billing_export_request_detail.current_item_help") }}</p>
         {% if detail.current_item %}
         <dl class="row mb-0">
           <dt class="col-sm-4">{{ t("table.item_id") }}</dt>
@@ -206,6 +234,7 @@
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.failed_items") }}</h2>
+    <p class="small text-secondary mb-3">{{ t("page.billing_export_request_detail.failed_items_help") }}</p>
     {% if detail.failed_items %}
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
@@ -242,6 +271,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.recent_items") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.billing_export_request_detail.recent_items_help") }}</p>
         <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead>
@@ -277,6 +307,7 @@
     <div class="card shadow-sm h-100">
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.focus_payload_snapshot") }}</h2>
+        <p class="small text-secondary mb-3">{{ t("page.billing_export_request_detail.focus_payload_snapshot_help") }}</p>
         {% if focus_item %}
         <div class="small text-secondary mb-2">
           {{ t("table.item_id") }} {{ focus_item.id }} · {{ t("table.status") }} {{ t_or("common.status." ~ focus_item.status, focus_item.status) }}
@@ -293,6 +324,7 @@
 <div class="card shadow-sm">
   <div class="card-body">
     <h2 class="h5 mb-3">{{ t("page.billing_export_request_detail.request_metadata") }}</h2>
+    <p class="small text-secondary mb-3">{{ t("page.billing_export_request_detail.request_metadata_help") }}</p>
     <pre class="bg-light border rounded p-3 mb-0"><code>{{ request_details | tojson(indent=2) }}</code></pre>
   </div>
 </div>

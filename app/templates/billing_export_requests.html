@@ -85,12 +85,14 @@
         <tbody>
           {% for row in rows %}
           {% set details = row.details or {} %}
+          {% set remaining_count = details.get("remaining_count", row.item_count - row.processed_count) %}
           <tr>
             <td><a class="link-primary text-decoration-none" href="{{ url_for('web.billing_export_request_detail', request_id=row.id, lang=current_locale) }}">{{ row.id }}</a></td>
             <td>{{ t_or("billing_export.request_scope." ~ row.request_scope, row.request_scope) }}</td>
             <td>{{ row.service_point.external_id if row.service_point else t("common.none") }}</td>
             <td>
               <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
+              <div class="small text-secondary mt-1">{{ t("billing_export.status_hint." ~ row.status) }}</div>
               {% if row.id in stale_request_ids %}
               <div class="small text-warning mt-1">{{ t("billing_export.runtime_state.stale") }}</div>
               <div class="small text-secondary">{{ t("billing_export.runtime_state.stale_help") }}</div>
@@ -112,7 +114,11 @@
                 <div class="progress-bar" style="width: {{ details.get('progress_percent', 0) }}%"></div>
               </div>
               <div class="small text-secondary mt-1">
-                {{ row.processed_count }}/{{ row.item_count }}
+                {{ t("table.processed_count") }} {{ row.processed_count }}/{{ row.item_count }}
+                · {{ t("table.remaining_count") }} {{ remaining_count }}
+              </div>
+              <div class="small text-secondary">
+                {{ t("table.succeeded_count") }} {{ row.succeeded_count }}
                 · {{ t("table.failed_count") }} {{ row.failed_count }}
                 · {{ t("table.skipped_count") }} {{ row.skipped_count }}
               </div>

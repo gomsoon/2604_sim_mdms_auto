@@ -1918,6 +1918,7 @@ def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(cl
     assert "Billing Export Web Tester (billing-export-web-tester)" in text
     assert "사람 계정" in text
     assert "런타임 작업자" in text
+    assert "worker가 export item을 처리 중입니다." in text
     assert "worker heartbeat 지연" in text
     assert "최근 heartbeat와 마지막 오류를 함께 확인해 운영자 확인이 필요한지 판단하세요." in text
     assert f"/billing-export-requests/{request_id}?lang=ko" in text
@@ -1931,9 +1932,15 @@ def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(
 
     assert response.status_code == 200
     assert "청구 내보내기 요청 상세" in text
+    assert "여기서 요청 상태, actor lineage, 취소 이력, 마지막 오류 신호를 먼저 확인합니다." in text
     assert "진행률" in text
+    assert "처리/남은/성공/실패/건너뜀 수치를 함께 읽어 요청이 계속 진행 중인지, 후속 확인이 필요한지 판단합니다." in text
     assert "파이프라인 실행" in text
+    assert "processing 중이면 지금 worker가 처리 중인 export item을 보여줍니다." in text
+    assert "가장 최근에 처리 완료된 export item을 확인합니다." in text
     assert "선택된 payload 스냅샷" in text
+    assert "현재 가장 관련 있는 export item의 staged payload를 확인합니다." in text
+    assert "요약과 item 정보만으로 부족할 때 참고용 metadata를 확인합니다." in text
     assert "generic_json" in text
     assert "staged_only" in text
     assert "Billing Export Web Tester (billing-export-web-tester)" in text
@@ -1953,6 +1960,46 @@ def test_billing_export_request_detail_page_shows_stale_runtime_guidance(client,
     assert "최근 heartbeat, 런타임 작업자, 마지막 오류를 함께 확인한 뒤 재시도 또는 개입 여부를 판단하세요." in text
     assert "worker heartbeat 지연" in text
     assert "최근 heartbeat와 마지막 오류를 함께 확인해 운영자 확인이 필요한지 판단하세요." in text
+
+
+def test_billing_export_request_detail_page_shows_failed_follow_up_wording(client, session):
+    request_id = _prepare_failed_billing_export_request_rows(session)
+
+    response = client.get(f"/billing-export-requests/{request_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "실패 item 검토가 필요합니다." in text
+    assert "실패 또는 부분 완료 요청에서는 이 목록부터 보면 다음 확인할 export item을 빠르게 찾을 수 있습니다." in text
+    assert "forced export failure" in text
+    assert "마지막 오류는 failed item과 heartbeat 상태를 함께 볼 때 가장 유용합니다." in text
+
+
+def test_billing_export_request_detail_page_shows_cancelled_lifecycle_wording(client, session):
+    request_id = _prepare_billing_export_request_rows(session)
+    actor = session.scalar(
+        select(UserAccount).where(UserAccount.login_id == "billing-export-web-tester").limit(1)
+    )
+    assert actor is not None
+
+    cancel_billing_export_request(
+        session,
+        request_id,
+        cancelled_by=actor.login_id,
+        cancelled_by_user_account_id=actor.id,
+        operator_memo="cancelled-by-web",
+    )
+    session.commit()
+
+    response = client.get(f"/billing-export-requests/{request_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "모든 export item 처리가 끝나기 전에 취소되었습니다." in text
+    assert "이 필드는 모든 export item이 끝나기 전에 운영자 취소로 중단되었는지 보여줍니다." in text
+    assert "cancelled-by-web" in text
+    assert "Billing Export Web Tester (billing-export-web-tester)" in text
+    assert "사람 계정" in text
 
 
 def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, session):
