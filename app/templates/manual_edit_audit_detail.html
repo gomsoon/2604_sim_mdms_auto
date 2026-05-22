@@ -2,7 +2,9 @@
 
 {% block content %}
 {% set audit_details = detail.manual_edit_audit.details or {} %}
+{% set pipeline_details = detail.pipeline_run.details if detail.pipeline_run and detail.pipeline_run.details else {} %}
 {% set exception_snapshot = audit_details.get("target_vee_exception_snapshot") %}
+{% set manual_edit_result = audit_details.get("manual_edit_result") or {} %}
 {% set original_initial_snapshot = audit_details.get("original_initial_measurement_snapshot") %}
 {% set applied_initial_snapshot = audit_details.get("applied_initial_measurement_snapshot") %}
 {% set result_final_snapshot = audit_details.get("result_final_measurement_snapshot") %}
@@ -11,6 +13,8 @@
 {% set usage_results = downstream_summary.get("usage_recalculation_results") or [] %}
 {% set bill_determinant_summary = downstream_summary.get("bill_determinant") %}
 {% set bill_charge_summary = downstream_summary.get("bill_charge") %}
+{% set display_result_code = pipeline_details.get("result_code") or (detail.pipeline_run.result_code if detail.pipeline_run else None) %}
+{% set blocked_reason = manual_edit_result.get("blocked_reason") %}
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
   <div>
     <h1 class="h3 mb-1">{{ t("page.manual_edit_audit_detail.title") }}</h1>
@@ -51,11 +55,36 @@
           <dt class="col-sm-4">{{ t("field.edited_status_code") }}</dt>
           <dd class="col-sm-8">{{ detail.manual_edit_audit.edited_status_code or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.edited_by") }}</dt>
-          <dd class="col-sm-8">{{ detail.edited_actor_display or t("common.none") }}</dd>
+          <dd class="col-sm-8">
+            {% if detail.edited_actor_display %}
+            <div>{{ detail.edited_actor_display }}</div>
+            {% if detail.manual_edit_audit.edited_by_user_account_id %}
+            <div class="small text-secondary mt-1">{{ t("field.human_actor") }}</div>
+            {% elif detail.manual_edit_audit.edited_by %}
+            <div class="small text-secondary mt-1">{{ t("field.recorded_actor") }}</div>
+            {% endif %}
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.operator_memo or t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.reason_code") }}</dt>
           <dd class="col-sm-8">{{ t_or("manual_edit.reason_code." ~ detail.manual_edit_audit.reason_code, detail.manual_edit_audit.reason_code) }}</dd>
           <dt class="col-sm-4">{{ t("table.status") }}</dt>
           <dd class="col-sm-8">{{ t_or("manual_edit.status." ~ detail.manual_edit_audit.edit_status, detail.manual_edit_audit.edit_status) }}</dd>
+          <dt class="col-sm-4">{{ t("table.result_code") }}</dt>
+          <dd class="col-sm-8">
+            {% if display_result_code %}
+            {{ t_or("manual_edit.result_code." ~ display_result_code, display_result_code) }}
+            {% else %}
+            {{ t("common.none") }}
+            {% endif %}
+          </dd>
+          {% if blocked_reason %}
+          <dt class="col-sm-4">{{ t("field.blocked_reason") }}</dt>
+          <dd class="col-sm-8">{{ t_or("correction.blocked_reason." ~ blocked_reason, blocked_reason) }}</dd>
+          {% endif %}
           <dt class="col-sm-4">{{ t("table.created_at") }}</dt>
           <dd class="col-sm-8">{{ detail.manual_edit_audit.created_at|dt }}</dd>
         </dl>
@@ -67,14 +96,6 @@
       <div class="card-body">
         <h2 class="h5 mb-3">{{ t("page.manual_edit_audit_detail.lineage") }}</h2>
         <dl class="row mb-0">
-          <dt class="col-sm-4">{{ t("table.pipeline_run_id") }}</dt>
-          <dd class="col-sm-8">{{ detail.pipeline_run.id if detail.pipeline_run else t("common.none") }}</dd>
-          <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
-          <dd class="col-sm-8">{{ detail.manual_edit_audit.service_point.external_id }}</dd>
-          <dt class="col-sm-4">{{ t("field.device") }}</dt>
-          <dd class="col-sm-8">{{ detail.manual_edit_audit.device.external_meter_id if detail.manual_edit_audit.device else t("common.none") }}</dd>
-          <dt class="col-sm-4">{{ t("field.external_channel_id") }}</dt>
-          <dd class="col-sm-8">{{ detail.manual_edit_audit.measuring_component.external_channel_id if detail.manual_edit_audit.measuring_component else t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.target_initial_measurement") }}</dt>
           <dd class="col-sm-8">{{ detail.target_initial_measurement.id if detail.target_initial_measurement else t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.related_vee_exception") }}</dt>
@@ -94,6 +115,14 @@
           <dd class="col-sm-8">{{ detail.superseded_final_measurement.id if detail.superseded_final_measurement else t("common.none") }}</dd>
           <dt class="col-sm-4">{{ t("field.result_final") }}</dt>
           <dd class="col-sm-8">{{ detail.result_final_measurement.id if detail.result_final_measurement else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.pipeline_run_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.pipeline_run.id if detail.pipeline_run else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("table.service_point") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.service_point.external_id }}</dd>
+          <dt class="col-sm-4">{{ t("field.device") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.device.external_meter_id if detail.manual_edit_audit.device else t("common.none") }}</dd>
+          <dt class="col-sm-4">{{ t("field.external_channel_id") }}</dt>
+          <dd class="col-sm-8">{{ detail.manual_edit_audit.measuring_component.external_channel_id if detail.manual_edit_audit.measuring_component else t("common.none") }}</dd>
         </dl>
       </div>
     </div>

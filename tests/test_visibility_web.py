@@ -156,6 +156,57 @@ def _prepare_manual_edit_audit_rows(session) -> int:
     return summary.manual_edit_audit_id
 
 
+def _prepare_blocked_manual_edit_audit_rows(session) -> int:
+    seed_demo_environment(session)
+    actor = create_user_account(
+        session,
+        login_id="manual-blocked-web-tester",
+        password="secret-password",
+        display_name="Manual Blocked Web Tester",
+        role_code="operator",
+    )
+    session.commit()
+
+    initial_row = session.scalar(
+        select(InitialMeasurement)
+        .where(InitialMeasurement.service_point_id == 1)
+        .order_by(InitialMeasurement.measured_at.asc(), InitialMeasurement.id.asc())
+        .limit(1)
+    )
+    assert initial_row is not None
+    initial_row.value = Decimal("-1.0000")
+    for row in list(initial_row.vee_exceptions):
+        session.delete(row)
+    for row in list(initial_row.vee_execution_logs):
+        session.delete(row)
+    initial_row.initial_status = "ready"
+    session.flush()
+    evaluate_or_get_vee_baseline(session, initial_row, force=True)
+    session.commit()
+
+    vee_exception = session.scalar(
+        select(VeeException)
+        .where(VeeException.initial_measurement_id == initial_row.id)
+        .order_by(VeeException.id.desc())
+        .limit(1)
+    )
+    assert vee_exception is not None
+
+    summary = apply_manual_edit_from_vee_exception(
+        session,
+        vee_exception.id,
+        edited_value=Decimal("12.5000"),
+        edited_quality_code="MANUAL",
+        edited_status_code="OVERRIDDEN",
+        reason_code="invalid-reason",
+        edited_by=actor.login_id,
+        edited_by_user_account_id=actor.id,
+        operator_memo="manual-edit-blocked-web",
+    )
+    session.commit()
+    return summary.manual_edit_audit_id
+
+
 def _prepare_estimation_audit_rows(session) -> int:
     seed_demo_environment(session)
     actor = create_user_account(
@@ -1809,6 +1860,11 @@ def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, 
     assert "현재 기본 보정 흐름을 그대로 따릅니다" in text
     assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
     assert "Web Tester (web-tester)" in text
+    assert "사람 계정" in text
+    assert "운영 메모" in text
+    assert "web-test" in text
+    assert "결과" in text
+    assert "추정 적용 완료" in text
     assert "18.4000" in text
     assert (
         f"/vee-exceptions/{audit_row.details['target_vee_exception_snapshot']['vee_exception_id']}?lang=ko"
@@ -1836,6 +1892,10 @@ def test_estimation_audit_detail_page_shows_synthetic_repair_context(client, ses
     assert "synthetic initial 스냅샷" in text
     assert "synthetic missing-interval 복구" in text
     assert "Web Tester (web-tester)" in text
+    assert "사람 계정" in text
+    assert "운영 메모" in text
+    assert "synthetic-web-test" in text
+    assert "결과" in text
     assert "00:30:00+09:00" in text
     assert "00,15,30,45" in text
     assert f"/vee-exceptions/{audit_row.anchor_vee_exception_id}?lang=ko" in text
@@ -1900,8 +1960,31 @@ def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, sessi
     assert "downstream 재계산" in text
     assert "운영자 계량기 보정" in text
     assert "Manual Web Tester (manual-web-tester)" in text
+    assert "사람 계정" in text
+    assert "운영 메모" in text
+    assert "manual-edit-web" in text
+    assert "결과" in text
+    assert "수동 보정 적용 완료" in text
     assert "12.5000" in text
     assert f"/vee-exceptions/{audit_row.related_vee_exception_id}?lang=ko" in text
+
+
+def test_manual_edit_audit_detail_page_shows_blocked_reason_in_summary(client, session):
+    manual_edit_audit_id = _prepare_blocked_manual_edit_audit_rows(session)
+
+    response = client.get(f"/manual-edit-audits/{manual_edit_audit_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "수동 보정 감사 상세" in text
+    assert "Manual Blocked Web Tester (manual-blocked-web-tester)" in text
+    assert "사람 계정" in text
+    assert "운영 메모" in text
+    assert "manual-edit-blocked-web" in text
+    assert "결과" in text
+    assert "차단: 잘못된 수동 보정 사유" in text
+    assert "차단 사유" in text
+    assert "수동 보정 사유 코드가 유효하지 않습니다" in text
 
 
 def test_vee_exception_page_links_to_estimation_audit_detail(client, session):

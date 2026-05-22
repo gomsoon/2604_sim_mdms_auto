@@ -744,6 +744,7 @@ def test_vee_exception_estimate_via_web_applies_estimation_and_shows_result(sess
     assert response.status_code == 200
     assert "VEE 예외에 추정값이 적용되었습니다." in text
     assert "추정 결과" in text
+    assert "결과:" in text
     assert "이전 값 기반" in text
     assert "추정 적용 완료" in text
     assert "청구 결정값 재계산" in text
@@ -924,6 +925,7 @@ def test_vee_exception_manual_edit_via_web_applies_edit_and_shows_result(session
     assert response.status_code == 200
     assert "VEE 예외에 수동 보정이 적용되었습니다." in text
     assert "수동 보정 결과" in text
+    assert "결과:" in text
     assert "운영자 계량기 보정" in text
     assert "수동 보정 적용 완료" in text
     assert "청구 결정값 재계산" in text

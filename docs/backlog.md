@@ -555,6 +555,12 @@ These items are not blockers for the current minimal baseline, but they should r
   - richer runtime or worker tracking for replay execution
   - per-item deep drilldown redesign beyond wording and readability polish
   - exhaustive locale-wording assertion sweeps for replay list and detail views
+- During the first correction-detail consistency slice, defer:
+  - expanding `vee_exception` correction result cards with direct actor and memo context
+  - correction list/detail layout redesign beyond summary and lineage ordering
+  - blocked-reason taxonomy cleanup across every correction flow and locale edge case
+  - cross-view correction summary widget redesign
+  - exhaustive locale-wording assertion sweeps for correction detail pages
 
 ## Recommended execution waves
 
