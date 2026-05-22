@@ -404,6 +404,7 @@
           </form>
           {% elif correction_policy.estimation_policy == "blocked" %}
           <div class="small text-secondary mb-1">{{ t("page.vee_exception_detail.estimation_blocked_by_policy") }}</div>
+          <div class="small text-secondary mt-2">{{ t("field.blocked_reason") }}</div>
           <div class="small text-warning-emphasis">
             {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
           </div>
@@ -460,6 +461,7 @@
           {% else %}
           <div class="small text-secondary mb-1">{{ t("page.vee_exception_detail.synthetic_estimation_blocked") }}</div>
           {% if synthetic_estimation_precheck.reason_code %}
+          <div class="small text-secondary mt-2">{{ t("field.blocked_reason") }}</div>
           <div class="small text-warning-emphasis">
             {{ t_or("estimation.result_code." ~ synthetic_estimation_precheck.reason_code, synthetic_estimation_precheck.reason_code) }}
           </div>
@@ -530,6 +532,7 @@
           </form>
           {% elif correction_policy.manual_edit_policy == "blocked" %}
           <div class="small text-secondary mb-1">{{ t("page.vee_exception_detail.manual_edit_blocked_by_policy") }}</div>
+          <div class="small text-secondary mt-2">{{ t("field.blocked_reason") }}</div>
           <div class="small text-warning-emphasis">
             {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
           </div>

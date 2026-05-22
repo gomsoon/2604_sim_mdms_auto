@@ -1919,6 +1919,7 @@ def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(cl
     assert "사람 계정" in text
     assert "런타임 작업자" in text
     assert "worker heartbeat 지연" in text
+    assert "최근 heartbeat와 마지막 오류를 함께 확인해 운영자 확인이 필요한지 판단하세요." in text
     assert f"/billing-export-requests/{request_id}?lang=ko" in text
 
 
@@ -1939,6 +1940,19 @@ def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(
     assert "사람 계정" in text
     assert "런타임 작업자" in text
     assert "web_worker" in text
+
+
+def test_billing_export_request_detail_page_shows_stale_runtime_guidance(client, session):
+    request_id = _prepare_billing_export_request_rows(session, make_stale=True)
+
+    response = client.get(f"/billing-export-requests/{request_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이 export request는 아직 processing 상태지만 worker heartbeat가 오래되었습니다." in text
+    assert "최근 heartbeat, 런타임 작업자, 마지막 오류를 함께 확인한 뒤 재시도 또는 개입 여부를 판단하세요." in text
+    assert "worker heartbeat 지연" in text
+    assert "최근 heartbeat와 마지막 오류를 함께 확인해 운영자 확인이 필요한지 판단하세요." in text
 
 
 def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, session):

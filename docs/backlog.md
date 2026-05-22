@@ -563,6 +563,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - blocked-reason taxonomy cleanup across every correction flow and locale edge case
   - cross-view correction summary widget redesign
   - exhaustive locale-wording assertion sweeps for correction detail pages
+- During the first stale-warning and blocked-reason wording cleanup slice, defer:
+  - replay-specific stale or heartbeat semantics beyond current auto-refresh and failure wording
+  - export and replay layout redesign beyond wording and emphasis cleanup
+  - blocked-reason taxonomy redesign across every correction and export path
+  - exhaustive locale-wording assertion sweeps for stale and blocked guidance text
 
 ## Recommended execution waves
 

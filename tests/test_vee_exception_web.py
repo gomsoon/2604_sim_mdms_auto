@@ -488,6 +488,8 @@ def test_vee_exception_detail_page_shows_correction_policy_for_tamper_value_anom
     assert "보정 정책" in text
     assert "운영자 확인 후 필요한 경우 수동 보정을 적용합니다" in text
     assert "이벤트 연계 보정 정책에 따라 현재 추정 적용이 차단됩니다." in text
+    assert "차단 사유" in text
+    assert "변조 연계 값 이상은 시스템 추정보다 운영자 확인이 우선입니다" in text
     assert "먼저 정책 사유를 확인하고, 필요하면 다른 허용된 운영자 조치를 선택하세요." in text
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" not in text
     assert f"/vee-exceptions/{vee_exception.id}/manual-edit?lang=ko" in text
@@ -543,6 +545,7 @@ def test_vee_exception_detail_page_shows_synthetic_estimation_block_reason_for_o
 
     assert response.status_code == 200
     assert "현재 이 VEE 예외에는 synthetic missing-interval 복구를 적용할 수 없습니다." in text
+    assert "차단 사유" in text
     assert "정전 연계 구간 누락에는 아직 1차 보정 경로가 없습니다" in text
     assert "먼저 window 맥락을 확인하거나, 이후 지원되는 복구 경로에 남겨 두세요." in text
     assert f"/vee-exceptions/{anchor_exception_id}/estimate-synthetic-missing-interval?lang=ko" not in text

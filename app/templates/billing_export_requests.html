@@ -93,6 +93,7 @@
               <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
               {% if row.id in stale_request_ids %}
               <div class="small text-warning mt-1">{{ t("billing_export.runtime_state.stale") }}</div>
+              <div class="small text-secondary">{{ t("billing_export.runtime_state.stale_help") }}</div>
               {% endif %}
             </td>
             <td>

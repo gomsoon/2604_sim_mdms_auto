@@ -21,15 +21,21 @@
 </div>
 
 {% if detail.request.status == "processing" %}
-<div class="alert {% if detail.heartbeat_is_stale %}alert-warning{% else %}alert-info{% endif %} d-flex justify-content-between align-items-center" role="alert">
-  <span>
+<div class="alert {% if detail.heartbeat_is_stale %}alert-warning{% else %}alert-info{% endif %}" role="alert">
+  <div class="fw-semibold mb-1">
     {% if detail.heartbeat_is_stale %}
     {{ t("page.billing_export_request_detail.stale_warning") }}
     {% else %}
     {{ t("page.billing_export_request_detail.auto_refresh") }}
     {% endif %}
-  </span>
-  <span class="small text-secondary">{{ t("field.request_progress_help") }}</span>
+  </div>
+  <div class="small text-secondary">
+    {% if detail.heartbeat_is_stale %}
+    {{ t("page.billing_export_request_detail.stale_warning_guidance") }}
+    {% else %}
+    {{ t("page.billing_export_request_detail.auto_refresh_help") }}
+    {% endif %}
+  </div>
 </div>
 <script>
   setTimeout(() => window.location.reload(), 5000);
@@ -127,6 +133,13 @@
                 {{ t("billing_export.runtime_state.stale") }}
                 {% else %}
                 {{ t("billing_export.runtime_state.active") }}
+                {% endif %}
+              </div>
+              <div class="small text-secondary mt-1">
+                {% if detail.heartbeat_is_stale %}
+                {{ t("billing_export.runtime_state.stale_help") }}
+                {% else %}
+                {{ t("billing_export.runtime_state.active_help") }}
                 {% endif %}
               </div>
             </div>
