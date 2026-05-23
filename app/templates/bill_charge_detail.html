@@ -287,7 +287,7 @@
     {% if charge_details %}
     <pre class="bg-light border rounded p-3 mb-0"><code>{{ charge_details | tojson(indent=2) }}</code></pre>
     {% else %}
-    <div class="text-secondary">{{ t("page.operational_event_detail.no_details") }}</div>
+    <div class="text-secondary">{{ t("common.no_additional_details") }}</div>
     {% endif %}
   </div>
 </div>

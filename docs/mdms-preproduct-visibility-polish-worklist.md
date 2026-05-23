@@ -68,24 +68,28 @@ share the exact same wording or display rule.
   queue views now show active filter summaries and row-level spotlight helpers
   so operators can see which filters narrowed the list and which rows need
   review first
+- broader i18n label consistency review:
+  lower-frequency detail views now use a more consistent Korean pattern for
+  lineage, revision history, mixed-language descriptions, and shared
+  no-details fallback wording
 
 ### Next recommended candidates
 
-- broader i18n label consistency review
-  - revisit lower-frequency shared labels only after the current high-traffic
-    wording slices settle under repeated internal use
 - lower-traffic empty-state wording polish
   - extend the filter-miss versus baseline-empty distinction only where bounded
     internal use still shows ambiguity outside the current high-traffic lists
+- broader glossary and locale consistency sweep
+  - revisit wider terminology only if repeated internal use still finds
+    mixed-language drift after the current lower-frequency cleanup
 
 ### Later candidates
 
-- broader i18n label consistency review after the next few targeted polish
-  slices settle
 - empty-state wording polish across lower-traffic views once the current
   high-traffic wording slices settle
 - list-level filter and spotlight polish for broader row triage after repeated
   internal use produces stronger signals
+- broader glossary and locale consistency sweep after repeated internal use
+  produces a stronger taxonomy signal
 
 ## Candidate inventory
 
@@ -147,10 +151,10 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. broader i18n label consistency review after the next few narrow polish
-   slices settle
-2. lower-traffic empty-state wording polish only if repeated internal use
+1. lower-traffic empty-state wording polish only if repeated internal use
    still shows ambiguity outside the current high-traffic lists
+2. broader glossary and locale consistency sweep only if repeated internal use
+   still finds terminology drift beyond the current label set
 
 ## Explicitly deferred in this worklist
 

@@ -1563,6 +1563,7 @@ def test_usage_transaction_detail_page_shows_lineage_and_final_context(client, s
 
     assert response.status_code == 200
     assert "사용량 거래 상세" in text
+    assert "연계 흐름" in text
     assert "계산 근거" in text
     assert "수동 사용량 계산" in text
     assert "구성 최종 계측" in text
@@ -1615,8 +1616,9 @@ def test_bill_determinant_detail_page_shows_usage_lineage_and_revision_context(c
 
     assert response.status_code == 200
     assert "청구 결정값 상세" in text
+    assert "연계 흐름" in text
     assert "원본 사용량 거래" in text
-    assert "리비전 이력" in text
+    assert "개정 이력" in text
     assert "SP-1001" in text
     assert "MTR-1001" in text
     assert "CH-01" in text
@@ -1770,10 +1772,11 @@ def test_bill_charge_detail_page_shows_determinant_tariff_and_revision_context(c
 
     assert response.status_code == 200
     assert "청구 금액 상세" in text
+    assert "연계 흐름" in text
     assert "원본 청구 결정값" in text
     assert "요금제 할당" in text
     assert "요율 스냅샷" in text
-    assert "리비전 이력" in text
+    assert "개정 이력" in text
     assert "RES-A" in text
     assert "/bill-determinants/1?lang=ko" in text
 
@@ -1890,7 +1893,7 @@ def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, 
     assert response.status_code == 200
     assert "추정 감사 상세" in text
     assert "여기서 운영자, 결과, 차단 사유, 현재 보정 결과를 먼저 확인한 뒤 스냅샷을 읽습니다." in text
-    assert "lineage에서 target initial, 관련 VEE 예외, final revision 흐름을 따라갑니다." in text
+    assert "연계 흐름에서 대상 initial, 관련 VEE 예외, 최종 개정 흐름을 따라갑니다." in text
     assert "보정 정책" in text
     assert "관련 VEE 예외 스냅샷" in text
     assert "이전 source final 스냅샷" in text
@@ -2004,7 +2007,7 @@ def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(
 
     assert response.status_code == 200
     assert "청구 내보내기 요청 상세" in text
-    assert "여기서 요청 상태, actor lineage, 취소 이력, 마지막 오류 신호를 먼저 확인합니다." in text
+    assert "여기서 요청 상태, 요청자와 처리 주체 정보, 취소 이력, 마지막 오류 신호를 먼저 확인합니다." in text
     assert "진행률" in text
     assert "처리/남은/성공/실패/건너뜀 수치를 함께 읽어 요청이 계속 진행 중인지, 후속 확인이 필요한지 판단합니다." in text
     assert "파이프라인 실행" in text
@@ -2085,7 +2088,7 @@ def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, sessi
     assert response.status_code == 200
     assert "수동 보정 감사 상세" in text
     assert "여기서 운영자, 결과, 차단 사유, 현재 보정 결과를 먼저 확인한 뒤 스냅샷을 읽습니다." in text
-    assert "lineage에서 target initial, 관련 VEE 예외, final revision 흐름을 따라갑니다." in text
+    assert "연계 흐름에서 대상 initial, 관련 VEE 예외, 최종 개정 흐름을 따라갑니다." in text
     assert "원본 initial 스냅샷" in text
     assert "적용된 initial 스냅샷" in text
     assert "관련 VEE 예외" in text
@@ -2301,7 +2304,7 @@ def test_operational_event_detail_page_shows_lineage_and_related_measurements(cl
     assert response.status_code == 200
     assert "운영 이벤트 상세" in text
     assert "표준화 주의 필요" in text
-    assert "Lineage" in text
+    assert "연계 흐름" in text
     assert "demo-read-batch" in text
     assert "MTR-1001" in text
     assert "관련 원시 검침" in text
