@@ -408,7 +408,8 @@
           <div class="small text-warning-emphasis">
             {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
           </div>
-          <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.estimation_blocked_guidance") }}</div>
+          <div class="small text-secondary mt-2">{{ t("field.recommended_action") }}</div>
+          <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_blocked_guidance") }}</div>
           {% else %}
           <div class="small text-secondary">{{ t("page.vee_exception_detail.estimation_not_supported_for_exception") }}</div>
           {% endif %}
@@ -466,7 +467,8 @@
             {{ t_or("estimation.result_code." ~ synthetic_estimation_precheck.reason_code, synthetic_estimation_precheck.reason_code) }}
           </div>
           {% endif %}
-          <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.synthetic_estimation_blocked_guidance") }}</div>
+          <div class="small text-secondary mt-2">{{ t("field.recommended_action") }}</div>
+          <div class="small text-secondary">{{ t("page.vee_exception_detail.synthetic_estimation_blocked_guidance") }}</div>
           {% endif %}
         </div>
       </div>
@@ -536,7 +538,8 @@
           <div class="small text-warning-emphasis">
             {{ t_or("correction_policy.reason." ~ correction_policy.policy_reason_code, correction_policy.policy_reason_code) }}
           </div>
-          <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.manual_edit_blocked_guidance") }}</div>
+          <div class="small text-secondary mt-2">{{ t("field.recommended_action") }}</div>
+          <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_blocked_guidance") }}</div>
           {% else %}
           <div class="small text-secondary">{{ t("page.vee_exception_detail.manual_edit_not_supported_for_exception") }}</div>
           {% endif %}

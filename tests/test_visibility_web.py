@@ -2064,6 +2064,8 @@ def test_manual_edit_audit_detail_page_shows_blocked_reason_in_summary(client, s
     assert "결과" in text
     assert "차단: 잘못된 수동 보정 사유" in text
     assert "차단 사유" in text
+    assert "권장 다음 조치" in text
+    assert "관련 VEE 예외와 보정 정책을 먼저 확인한 뒤, 다른 지원 보정 경로가 있는지 다시 판단합니다." in text
     assert "수동 보정 사유 코드가 유효하지 않습니다" in text
 
 

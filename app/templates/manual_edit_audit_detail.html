@@ -85,6 +85,8 @@
           {% if blocked_reason %}
           <dt class="col-sm-4">{{ t("field.blocked_reason") }}</dt>
           <dd class="col-sm-8">{{ t_or("correction.blocked_reason." ~ blocked_reason, blocked_reason) }}</dd>
+          <dt class="col-sm-4">{{ t("field.recommended_action") }}</dt>
+          <dd class="col-sm-8">{{ t("page.manual_edit_audit_detail.blocked_guidance") }}</dd>
           {% endif %}
           <dt class="col-sm-4">{{ t("table.created_at") }}</dt>
           <dd class="col-sm-8">{{ detail.manual_edit_audit.created_at|dt }}</dd>

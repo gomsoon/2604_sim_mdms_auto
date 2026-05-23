@@ -239,10 +239,12 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
     assert "Test Admin (admin)" in text
     assert "50.0%" in text
     assert "자동으로 새로고침" in text
-    assert "요청 상태가 queued 또는 processing을 벗어나면 자동 새로고침이 멈춥니다." in text
+    assert "이 안내는 화면 새로고침 동작 설명입니다. 요청 상태가 queued 또는 processing을 벗어나면 자동 새로고침이 멈춥니다." in text
     assert "요청 범위, 요청자, 취소 여부를 먼저 확인하는 영역입니다." in text
     assert "processing 중이면 지금 queue가 붙잡고 있는 replay item을 보여줍니다." in text
+    assert "실패 또는 부분 실패 요청에서는 마지막 오류와 이 목록부터 확인해 다음 대표 예외를 찾습니다." in text
     assert "forced replay failure" in text
+    assert "processing 중에도 마지막 오류가 남을 수 있습니다. failed item과 현재 item을 함께 확인하세요." in text
     assert str(items[1].representative_vee_exception_id) in text
     assert "같은 범위로 새 요청" in text
     assert "/usage-transactions/77?lang=ko" in text
