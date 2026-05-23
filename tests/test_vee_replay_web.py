@@ -142,16 +142,19 @@ def test_vee_replay_requests_page_renders_request_list_and_progress(client, sess
     created.request.failed_count = 1
     session.commit()
 
-    response = client.get("/vee-replay-requests?lang=ko")
+    response = client.get("/vee-replay-requests?lang=ko&status=queued")
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
     assert "VEE 재평가 요청" in text
+    assert "현재 필터" in text
+    assert "필터를 초기화하면 전체 목록을 다시 볼 수 있습니다." in text
     assert "Demo HES" in text
     assert "40.0%" in text
     assert "Test Admin (admin)" in text
     assert "HES 시스템: Demo HES" in text
     assert "아직 replay item 처리를 시작하지 않았습니다." in text
+    assert "처리 대기" in text
     assert "사람 계정" in text
     assert "같은 범위로 새 요청" not in text
 

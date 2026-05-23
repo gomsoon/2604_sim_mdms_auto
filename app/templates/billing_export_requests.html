@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set has_active_filters = filters.request_scope or filters.status or filters.service_point or filters.target_system_code or filters.requested_by or filters.date_from or filters.date_to %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h1 class="h3 mb-1">{{ t("page.billing_export_requests.title") }}</h1>
@@ -59,12 +60,40 @@
         <a class="btn btn-outline-secondary" href="{{ url_for('web.billing_export_requests', lang=current_locale) }}">{{ t("button.reset") }}</a>
       </div>
     </form>
+    {% if has_active_filters %}
+    <div class="alert alert-light border small mt-3 mb-0">
+      <div class="fw-semibold">{{ t("filter.active_summary") }}</div>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        {% if filters.request_scope %}
+        <span class="badge text-bg-light border">{{ t("table.request_scope") }}: {{ t_or("billing_export.request_scope." ~ filters.request_scope, filters.request_scope) }}</span>
+        {% endif %}
+        {% if filters.status %}
+        <span class="badge text-bg-light border">{{ t("filter.status") }}: {{ t_or("common.status." ~ filters.status, filters.status) }}</span>
+        {% endif %}
+        {% if filters.service_point %}
+        <span class="badge text-bg-light border">{{ t("filter.service_point") }}: {{ filters.service_point }}</span>
+        {% endif %}
+        {% if filters.target_system_code %}
+        <span class="badge text-bg-light border">{{ t("field.target_system_code") }}: {{ filters.target_system_code }}</span>
+        {% endif %}
+        {% if filters.requested_by %}
+        <span class="badge text-bg-light border">{{ t("table.requested_by") }}: {{ filters.requested_by }}</span>
+        {% endif %}
+        {% if filters.date_from %}
+        <span class="badge text-bg-light border">{{ t("filter.date_from") }}: {{ filters.date_from.date().isoformat() }}</span>
+        {% endif %}
+        {% if filters.date_to %}
+        <span class="badge text-bg-light border">{{ t("filter.date_to") }}: {{ filters.date_to.date().isoformat() }}</span>
+        {% endif %}
+      </div>
+      <div class="text-secondary mt-2">{{ t("filter.reset_hint") }}</div>
+    </div>
+    {% endif %}
   </div>
 </div>
 
 <div class="card shadow-sm">
   <div class="card-body">
-    {% set has_active_filters = filters.request_scope or filters.status or filters.service_point or filters.target_system_code or filters.requested_by or filters.date_from or filters.date_to %}
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
@@ -95,8 +124,15 @@
               <span class="badge text-bg-light">{{ t_or("common.status." ~ row.status, row.status) }}</span>
               <div class="small text-secondary mt-1">{{ t("billing_export.status_hint." ~ row.status) }}</div>
               {% if row.id in stale_request_ids %}
+              <div class="small fw-semibold text-danger mt-1">{{ t("spotlight.runtime_check") }}</div>
               <div class="small text-warning mt-1">{{ t("billing_export.runtime_state.stale") }}</div>
               <div class="small text-secondary">{{ t("billing_export.runtime_state.stale_help") }}</div>
+              {% elif row.status == "failed" %}
+              <div class="small fw-semibold text-danger mt-1">{{ t("spotlight.failed_follow_up") }}</div>
+              {% elif row.status == "processing" %}
+              <div class="small fw-semibold text-primary mt-1">{{ t("spotlight.processing") }}</div>
+              {% elif row.status == "queued" %}
+              <div class="small fw-semibold text-secondary mt-1">{{ t("spotlight.queued") }}</div>
               {% endif %}
             </td>
             <td>

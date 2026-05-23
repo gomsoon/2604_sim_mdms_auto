@@ -408,7 +408,10 @@ def test_vee_exceptions_page_renders_exception_in_korean(client, session):
 
     assert response.status_code == 200
     assert "VEE 예외" in text
+    assert "현재 필터" in text
+    assert "필터를 초기화하면 전체 목록을 다시 볼 수 있습니다." in text
     assert "필수 항목 누락" in text
+    assert "우선 검토" in text
     assert "권장 다음 조치" in text
     assert "운영자 검토가 필요합니다." in text
     assert "최종화를 완료하려면 먼저 이 예외를 정리해야 합니다." in text
@@ -458,10 +461,12 @@ def test_vee_exceptions_page_shows_correction_policy_columns_and_filters(client,
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert "현재 필터" in text
     assert "정책 사유" in text
     assert "권장 다음 조치" in text
     assert "변조 연계 값 이상은 시스템 추정보다 운영자 확인이 우선입니다" in text
     assert "운영자 확인 후 필요한 경우 수동 보정을 적용합니다" in text
+    assert "우선 검토" in text
     assert "변조" in text
     assert f"/vee-exceptions/{vee_exception.id}?lang=ko" in text
 

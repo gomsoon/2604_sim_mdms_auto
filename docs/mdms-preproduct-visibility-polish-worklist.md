@@ -64,15 +64,19 @@ share the exact same wording or display rule.
 - empty-state wording polish:
   high-traffic lists now distinguish filter-miss empties from not-yet-recorded
   baseline empties and point operators to the next likely action
+- list-level filter and spotlight polish:
+  queue views now show active filter summaries and row-level spotlight helpers
+  so operators can see which filters narrowed the list and which rows need
+  review first
 
 ### Next recommended candidates
 
-- list-level filter and spotlight polish
-  - tighten “what should I inspect next?” cues if repeated internal use still
-    shows scan-time friction after the current wording slices
 - broader i18n label consistency review
   - revisit lower-frequency shared labels only after the current high-traffic
     wording slices settle under repeated internal use
+- lower-traffic empty-state wording polish
+  - extend the filter-miss versus baseline-empty distinction only where bounded
+    internal use still shows ambiguity outside the current high-traffic lists
 
 ### Later candidates
 
@@ -143,10 +147,10 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. list-level filter and spotlight polish only if repeated use still shows
-   scan-time friction
-2. broader i18n label consistency review after the next few narrow polish
+1. broader i18n label consistency review after the next few narrow polish
    slices settle
+2. lower-traffic empty-state wording polish only if repeated internal use
+   still shows ambiguity outside the current high-traffic lists
 
 ## Explicitly deferred in this worklist
 

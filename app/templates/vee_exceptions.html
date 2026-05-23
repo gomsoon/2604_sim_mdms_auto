@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set has_active_filters = filters.hes_system_id or filters.exception_status or filters.severity or filters.meter_id or filters.exception_code or filters.policy_reason_code or filters.event_context_type or filters.date_from or filters.date_to %}
+{% set vee_ns = namespace(hes_system_label=filters.hes_system_id) %}
+{% for hes_system in hes_system_options %}
+{% if filters.hes_system_id == hes_system.id %}
+{% set vee_ns.hes_system_label = hes_system.display_name %}
+{% endif %}
+{% endfor %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h1 class="h3 mb-1">{{ t("page.vee_exceptions.title") }}</h1>
@@ -101,12 +108,46 @@
         <a class="btn btn-outline-secondary" href="{{ url_for('web.vee_exceptions', lang=current_locale) }}">{{ t("button.reset") }}</a>
       </div>
     </form>
+    {% if has_active_filters %}
+    <div class="alert alert-light border small mt-3 mb-0">
+      <div class="fw-semibold">{{ t("filter.active_summary") }}</div>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        {% if filters.hes_system_id %}
+        <span class="badge text-bg-light border">{{ t("field.hes_system") }}: {{ vee_ns.hes_system_label }}</span>
+        {% endif %}
+        {% if filters.exception_status %}
+        <span class="badge text-bg-light border">{{ t("filter.exception_status") }}: {{ t_or("common.status." ~ filters.exception_status, filters.exception_status) }}</span>
+        {% endif %}
+        {% if filters.severity %}
+        <span class="badge text-bg-light border">{{ t("filter.severity") }}: {{ t_or("operational_event.severity." ~ filters.severity, filters.severity) }}</span>
+        {% endif %}
+        {% if filters.meter_id %}
+        <span class="badge text-bg-light border">{{ t("filter.meter_id") }}: {{ filters.meter_id }}</span>
+        {% endif %}
+        {% if filters.exception_code %}
+        <span class="badge text-bg-light border">{{ t("filter.exception_code") }}: {{ filters.exception_code }}</span>
+        {% endif %}
+        {% if filters.policy_reason_code %}
+        <span class="badge text-bg-light border">{{ t("field.policy_reason") }}: {{ t_or("correction_policy.reason." ~ filters.policy_reason_code, filters.policy_reason_code) }}</span>
+        {% endif %}
+        {% if filters.event_context_type %}
+        <span class="badge text-bg-light border">{{ t("field.event_context_type") }}: {{ t_or("event_context.type." ~ filters.event_context_type, filters.event_context_type) }}</span>
+        {% endif %}
+        {% if filters.date_from %}
+        <span class="badge text-bg-light border">{{ t("filter.date_from") }}: {{ filters.date_from.date().isoformat() }}</span>
+        {% endif %}
+        {% if filters.date_to %}
+        <span class="badge text-bg-light border">{{ t("filter.date_to") }}: {{ filters.date_to.date().isoformat() }}</span>
+        {% endif %}
+      </div>
+      <div class="text-secondary mt-2">{{ t("filter.reset_hint") }}</div>
+    </div>
+    {% endif %}
   </div>
 </div>
 
 <div class="card shadow-sm">
   <div class="card-body">
-    {% set has_active_filters = filters.hes_system_id or filters.exception_status or filters.severity or filters.meter_id or filters.exception_code or filters.policy_reason_code or filters.event_context_type or filters.date_from or filters.date_to %}
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
@@ -162,6 +203,13 @@
               <div class="small text-secondary mt-1">
                 {{ t_or("vee.exception_status_hint." ~ row.exception_status, t("common.none")) }}
               </div>
+              {% if row.exception_status == "open" and row.blocking_finalization %}
+              <div class="small fw-semibold text-danger mt-1">{{ t("spotlight.review_first") }}</div>
+              {% elif row.exception_status == "acknowledged" and row.blocking_finalization %}
+              <div class="small fw-semibold text-warning mt-1">{{ t("spotlight.follow_up_pending") }}</div>
+              {% elif row.exception_status == "open" %}
+              <div class="small fw-semibold text-secondary mt-1">{{ t("spotlight.observe") }}</div>
+              {% endif %}
             </td>
             <td>
               <div>{{ t("common.yes") if row.blocking_finalization else t("common.no") }}</div>

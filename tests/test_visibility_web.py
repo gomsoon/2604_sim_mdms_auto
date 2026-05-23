@@ -1815,6 +1815,8 @@ def test_manual_edit_audits_page_renders_filtered_rows(client, session):
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert "현재 필터" in text
+    assert "필터를 초기화하면 전체 목록을 다시 볼 수 있습니다." in text
     assert "수동 보정 감사 이력" in text
     assert "SP-1001" in text
     assert "MTR-1001" in text
@@ -1849,6 +1851,8 @@ def test_estimation_audits_page_renders_filtered_rows(client, session):
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert "현재 필터" in text
+    assert "필터를 초기화하면 전체 목록을 다시 볼 수 있습니다." in text
     assert "추정 감사 이력" in text
     assert "SP-1001" in text
     assert "MTR-1001" in text
@@ -1947,12 +1951,15 @@ def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(cl
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert "현재 필터" in text
+    assert "필터를 초기화하면 전체 목록을 다시 볼 수 있습니다." in text
     assert "청구 내보내기 요청" in text
     assert request.service_point.external_id in text
     assert "Billing Export Web Tester (billing-export-web-tester)" in text
     assert "사람 계정" in text
     assert "런타임 작업자" in text
     assert "worker가 export item을 처리 중입니다." in text
+    assert "즉시 런타임 확인" in text
     assert "worker heartbeat 지연" in text
     assert "최근 heartbeat와 마지막 오류를 함께 확인해 운영자 확인이 필요한지 판단하세요." in text
     assert f"/billing-export-requests/{request_id}?lang=ko" in text
