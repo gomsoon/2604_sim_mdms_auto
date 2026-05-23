@@ -508,14 +508,16 @@ These items are not blockers for the current minimal baseline, but they should r
       failure wording
     - cross-view wording and i18n consistency across export and correction
       details
+    - stale-warning and blocked-reason second-pass cleanup across replay
+      failure wording and correction blocked-guidance fallback
 - Use the shared visibility inventory in:
   - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:
   - bug fixes on supported operator flows
   - actor and audit readability on high-traffic views
-  - small visibility polish on replay warnings, correction blocked guidance,
-    and later empty-state or filter wording where repeated internal use still
-    shows ambiguity
+  - small visibility polish on high-traffic empty states, list-level
+    spotlighting, and remaining wording ambiguity where repeated internal use
+    still shows confusion
   - known-limitations communication for internal operators
 - Keep each hardening slice small enough to update regression coverage in the
   same change set
@@ -585,6 +587,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - service-layer wording parity changes for APIs and background processing payloads
   - large summary-widget redesign for correction and export views
   - exhaustive locale-wording assertion sweeps across all visibility views
+- During the stale-warning and blocked-reason second-pass sweep, defer:
+  - replay-specific runtime heartbeat or stale semantics beyond current request metadata
+  - blocked-reason taxonomy redesign across all correction and export paths
+  - replay and correction layout redesign beyond wording and helper-text cleanup
+  - exhaustive locale-wording assertion sweeps for replay failure and blocked guidance text
 
 ## Recommended execution waves
 

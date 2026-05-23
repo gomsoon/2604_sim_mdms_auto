@@ -33,10 +33,12 @@ through bounded internal use.
     and failure wording
   - cross-view wording and i18n consistency across export and correction
     details
+  - stale-warning and blocked-reason second-pass cleanup across replay failure
+    wording and correction blocked-guidance fallback
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is a narrow stale-warning and
-  blocked-reason second-pass sweep across replay and correction views
+- the next highest-value visibility work is empty-state wording polish on
+  high-traffic views, followed by narrow list-level filter and spotlight polish
 
 ## Operating principles
 
@@ -166,8 +168,8 @@ Goal:
 
 Recommended first candidates:
 
-- stale-warning and blocked-reason second-pass sweep
-- empty-state wording polish after the second-pass warning slice
+- empty-state wording polish on high-traffic views
+- list-level filter and spotlight polish after the empty-state slice
 
 Goal:
 

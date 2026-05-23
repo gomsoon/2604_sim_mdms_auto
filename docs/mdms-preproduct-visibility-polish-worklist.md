@@ -58,19 +58,21 @@ share the exact same wording or display rule.
 - cross-view wording and i18n consistency:
   shared actor labels and correction summary helper wording now use a more
   consistent pattern across export and correction detail screens
+- stale-warning and blocked-reason second-pass sweep:
+  replay failure wording, blocked-guidance fallback, and auto-refresh versus
+  intervention wording now use a more explicit operator-facing distinction
 
 ### Next recommended candidates
 
-- stale-warning and blocked-reason second-pass sweep
-  - revisit replay failure wording, blocked guidance fallback, and
-    auto-refresh-versus-intervention wording where repeated internal use still
-    leaves ambiguity
 - empty-state wording polish
   - make blank or filtered-out results easier to interpret on repeated
     operator-facing list and detail views
 - list-level filter and spotlight polish
   - tighten “what should I inspect next?” cues if repeated internal use still
     shows scan-time friction after the current wording slices
+- broader i18n label consistency review
+  - revisit lower-frequency shared labels only after the current high-traffic
+    wording slices settle under repeated internal use
 
 ### Later candidates
 
@@ -141,10 +143,11 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. stale-warning and blocked-reason second-pass sweep
-2. empty-state wording polish on high-traffic views
-3. list-level filter and spotlight polish only if repeated use still shows
+1. empty-state wording polish on high-traffic views
+2. list-level filter and spotlight polish only if repeated use still shows
    scan-time friction
+3. broader i18n label consistency review after the next few narrow polish
+   slices settle
 
 ## Explicitly deferred in this worklist
 
