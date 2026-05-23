@@ -1824,6 +1824,22 @@ def test_manual_edit_audits_page_renders_filtered_rows(client, session):
     assert f"/manual-edit-audits/{manual_edit_audit_id}?lang=ko" in text
 
 
+def test_manual_edit_audits_page_distinguishes_filtered_and_baseline_empty_states(client):
+    baseline = client.get("/manual-edit-audits?lang=ko")
+    baseline_text = baseline.get_data(as_text=True)
+
+    assert baseline.status_code == 200
+    assert "아직 기록된 수동 보정 감사 이력이 없습니다." in baseline_text
+    assert "지원되는 VEE 예외에서 수동 보정을 적용하면 여기서 결과를 확인할 수 있습니다." in baseline_text
+
+    filtered = client.get("/manual-edit-audits?lang=ko&edit_status=applied")
+    filtered_text = filtered.get_data(as_text=True)
+
+    assert filtered.status_code == 200
+    assert "현재 필터와 일치하는 수동 보정 감사 이력이 없습니다." in filtered_text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in filtered_text
+
+
 def test_estimation_audits_page_renders_filtered_rows(client, session):
     estimation_audit_id = _prepare_estimation_audit_rows(session)
 
@@ -1841,6 +1857,22 @@ def test_estimation_audits_page_renders_filtered_rows(client, session):
     assert "적용됨" in text
     assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
     assert f"/estimation-audits/{estimation_audit_id}?lang=ko" in text
+
+
+def test_estimation_audits_page_distinguishes_filtered_and_baseline_empty_states(client):
+    baseline = client.get("/estimation-audits?lang=ko")
+    baseline_text = baseline.get_data(as_text=True)
+
+    assert baseline.status_code == 200
+    assert "아직 기록된 추정 감사 이력이 없습니다." in baseline_text
+    assert "지원되는 VEE 예외에서 추정을 적용하면 여기서 결과를 확인할 수 있습니다." in baseline_text
+
+    filtered = client.get("/estimation-audits?lang=ko&estimation_status=applied")
+    filtered_text = filtered.get_data(as_text=True)
+
+    assert filtered.status_code == 200
+    assert "현재 필터와 일치하는 추정 감사 이력이 없습니다." in filtered_text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in filtered_text
 
 
 def test_estimation_audit_detail_page_shows_policy_and_source_snapshots(client, session):
@@ -1924,6 +1956,22 @@ def test_billing_export_requests_page_renders_filtered_rows_and_stale_warning(cl
     assert "worker heartbeat 지연" in text
     assert "최근 heartbeat와 마지막 오류를 함께 확인해 운영자 확인이 필요한지 판단하세요." in text
     assert f"/billing-export-requests/{request_id}?lang=ko" in text
+
+
+def test_billing_export_requests_page_distinguishes_filtered_and_baseline_empty_states(client):
+    baseline = client.get("/billing-export-requests?lang=ko")
+    baseline_text = baseline.get_data(as_text=True)
+
+    assert baseline.status_code == 200
+    assert "아직 청구 내보내기 요청이 없습니다." in baseline_text
+    assert "내보내기 대상이 준비되면 새 요청을 만들거나 실행한 뒤 여기서 진행 상황을 확인하세요." in baseline_text
+
+    filtered = client.get("/billing-export-requests?lang=ko&status=queued")
+    filtered_text = filtered.get_data(as_text=True)
+
+    assert filtered.status_code == 200
+    assert "현재 필터와 일치하는 청구 내보내기 요청이 없습니다." in filtered_text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in filtered_text
 
 
 def test_billing_export_requests_page_uses_recorded_actor_fallback(client, session):

@@ -415,6 +415,22 @@ def test_vee_exceptions_page_renders_exception_in_korean(client, session):
     assert f"/vee-exceptions/{vee_exception.id}?lang=ko" in text
 
 
+def test_vee_exceptions_page_distinguishes_filtered_and_baseline_empty_states(client):
+    baseline = client.get("/vee-exceptions?lang=ko")
+    baseline_text = baseline.get_data(as_text=True)
+
+    assert baseline.status_code == 200
+    assert "아직 기록된 VEE 예외가 없습니다." in baseline_text
+    assert "적재, VEE 평가, 또는 replay 이후 후속 검토가 필요한 예외가 생기면 여기서 확인합니다." in baseline_text
+
+    filtered = client.get("/vee-exceptions?lang=ko&exception_status=open")
+    filtered_text = filtered.get_data(as_text=True)
+
+    assert filtered.status_code == 200
+    assert "현재 필터와 일치하는 VEE 예외가 없습니다." in filtered_text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in filtered_text
+
+
 def test_vee_exceptions_page_exposes_filtered_replay_request_link(client, session):
     vee_exception = _create_open_vee_exception(session)
     initial = session.get(InitialMeasurement, vee_exception.initial_measurement_id)

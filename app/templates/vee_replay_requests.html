@@ -61,6 +61,7 @@
 
 <div class="card shadow-sm">
   <div class="card-body">
+    {% set has_active_filters = filters.request_scope or filters.status or filters.hes_system_id or filters.requested_by %}
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
@@ -149,7 +150,15 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="10" class="text-secondary">{{ t("page.vee_replay_requests.empty") }}</td>
+            <td colspan="10" class="text-secondary">
+              {% if has_active_filters %}
+              <div>{{ t("page.vee_replay_requests.empty") }}</div>
+              <div class="small mt-1">{{ t("empty.filtered_help") }}</div>
+              {% else %}
+              <div>{{ t("page.vee_replay_requests.empty_baseline") }}</div>
+              <div class="small mt-1">{{ t("page.vee_replay_requests.empty_baseline_help") }}</div>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>

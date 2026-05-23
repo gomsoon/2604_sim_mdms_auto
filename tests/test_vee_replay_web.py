@@ -156,6 +156,22 @@ def test_vee_replay_requests_page_renders_request_list_and_progress(client, sess
     assert "같은 범위로 새 요청" not in text
 
 
+def test_vee_replay_requests_page_distinguishes_filtered_and_baseline_empty_states(client):
+    baseline = client.get("/vee-replay-requests?lang=ko")
+    baseline_text = baseline.get_data(as_text=True)
+
+    assert baseline.status_code == 200
+    assert "아직 등록된 VEE 재평가 요청이 없습니다." in baseline_text
+    assert "HES, ingest batch, 또는 bounded date range를 다시 평가해야 할 때 새 요청을 등록하세요." in baseline_text
+
+    filtered = client.get("/vee-replay-requests?lang=ko&status=queued")
+    filtered_text = filtered.get_data(as_text=True)
+
+    assert filtered.status_code == 200
+    assert "현재 필터에 맞는 VEE 재평가 요청이 없습니다." in filtered_text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in filtered_text
+
+
 def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, session):
     hes_system_id = _prepare_replay_environment(session)
     actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))

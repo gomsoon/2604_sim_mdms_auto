@@ -510,14 +510,14 @@ These items are not blockers for the current minimal baseline, but they should r
       details
     - stale-warning and blocked-reason second-pass cleanup across replay
       failure wording and correction blocked-guidance fallback
+    - empty-state wording polish across high-traffic list views
 - Use the shared visibility inventory in:
   - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:
   - bug fixes on supported operator flows
   - actor and audit readability on high-traffic views
-  - small visibility polish on high-traffic empty states, list-level
-    spotlighting, and remaining wording ambiguity where repeated internal use
-    still shows confusion
+  - small visibility polish on list-level spotlighting and remaining wording
+    ambiguity where repeated internal use still shows confusion
   - known-limitations communication for internal operators
 - Keep each hardening slice small enough to update regression coverage in the
   same change set

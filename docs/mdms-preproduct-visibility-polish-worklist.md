@@ -61,12 +61,12 @@ share the exact same wording or display rule.
 - stale-warning and blocked-reason second-pass sweep:
   replay failure wording, blocked-guidance fallback, and auto-refresh versus
   intervention wording now use a more explicit operator-facing distinction
+- empty-state wording polish:
+  high-traffic lists now distinguish filter-miss empties from not-yet-recorded
+  baseline empties and point operators to the next likely action
 
 ### Next recommended candidates
 
-- empty-state wording polish
-  - make blank or filtered-out results easier to interpret on repeated
-    operator-facing list and detail views
 - list-level filter and spotlight polish
   - tighten “what should I inspect next?” cues if repeated internal use still
     shows scan-time friction after the current wording slices
@@ -143,10 +143,9 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. empty-state wording polish on high-traffic views
-2. list-level filter and spotlight polish only if repeated use still shows
+1. list-level filter and spotlight polish only if repeated use still shows
    scan-time friction
-3. broader i18n label consistency review after the next few narrow polish
+2. broader i18n label consistency review after the next few narrow polish
    slices settle
 
 ## Explicitly deferred in this worklist

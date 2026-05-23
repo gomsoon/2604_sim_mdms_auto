@@ -90,6 +90,7 @@
 
 <div class="card shadow-sm">
   <div class="card-body">
+    {% set has_active_filters = filters.service_point or filters.external_channel_id or filters.edit_status or filters.reason_code or filters.policy_reason_code or filters.event_context_type or filters.date_from or filters.date_to %}
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
@@ -146,7 +147,15 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="12" class="text-secondary">{{ t("page.manual_edit_audits.empty") }}</td>
+            <td colspan="12" class="text-secondary">
+              {% if has_active_filters %}
+              <div>{{ t("page.manual_edit_audits.empty") }}</div>
+              <div class="small mt-1">{{ t("empty.filtered_help") }}</div>
+              {% else %}
+              <div>{{ t("page.manual_edit_audits.empty_baseline") }}</div>
+              <div class="small mt-1">{{ t("page.manual_edit_audits.empty_baseline_help") }}</div>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>

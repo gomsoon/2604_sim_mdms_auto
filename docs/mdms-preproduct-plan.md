@@ -37,8 +37,8 @@ through bounded internal use.
     wording and correction blocked-guidance fallback
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is empty-state wording polish on
-  high-traffic views, followed by narrow list-level filter and spotlight polish
+- the next highest-value visibility work is narrow list-level filter and
+  spotlight polish, followed by broader i18n label consistency review
 
 ## Operating principles
 
@@ -168,8 +168,8 @@ Goal:
 
 Recommended first candidates:
 
-- empty-state wording polish on high-traffic views
-- list-level filter and spotlight polish after the empty-state slice
+- list-level filter and spotlight polish after the current empty-state slice
+- broader i18n label consistency review after the next narrow visibility slice
 
 Goal:
 
