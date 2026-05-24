@@ -8,6 +8,8 @@
   </div>
 </div>
 
+{% set has_active_filters = filters.stream_type or filters.hes_system_id or filters.source_layer or filters.severity or filters.alert_status or filters.batch_id or filters.meter_id or filters.event_code or filters.date_from or filters.date_to %}
+
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <form class="row g-3" method="get">
@@ -179,7 +181,10 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="9" class="text-secondary">{{ t("page.operational_events.empty") }}</td>
+            <td colspan="9" class="text-secondary">
+              <div>{{ t("page.operational_events.empty") if has_active_filters else t("page.operational_events.empty_baseline") }}</div>
+              <div class="small mt-1">{{ t("empty.filtered_help") if has_active_filters else t("page.operational_events.empty_baseline_help") }}</div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

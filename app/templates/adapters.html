@@ -107,7 +107,10 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="11" class="text-secondary">{{ t("page.adapters.empty") }}</td>
+            <td colspan="11" class="text-secondary">
+              <div>{{ t("page.adapters.empty") }}</div>
+              <div class="small mt-1">{{ t("page.adapters.empty_help") }}</div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

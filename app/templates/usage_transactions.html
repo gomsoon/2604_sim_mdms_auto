@@ -8,6 +8,8 @@
   </div>
 </div>
 
+{% set has_active_filters = filters.service_point or filters.external_channel_id or filters.usage_type or filters.calculation_status or filters.date_from or filters.date_to %}
+
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <form class="row g-3" method="get">
@@ -113,7 +115,10 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="13" class="text-secondary">{{ t("page.usage_transactions.empty") }}</td>
+            <td colspan="13" class="text-secondary">
+              <div>{{ t("page.usage_transactions.empty") if has_active_filters else t("page.usage_transactions.empty_baseline") }}</div>
+              <div class="small mt-1">{{ t("empty.filtered_help") if has_active_filters else t("page.usage_transactions.empty_baseline_help") }}</div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

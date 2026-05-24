@@ -15,6 +15,8 @@
   </div>
 </div>
 
+{% set has_active_filters = form_data.meter_query or form_data.comparison_status %}
+
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <form method="get" class="row g-3 align-items-end">
@@ -118,7 +120,10 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="14" class="text-secondary">{{ t("page.hes_meter_references.no_rows") }}</td>
+            <td colspan="14" class="text-secondary">
+              <div>{{ t("page.hes_meter_references.no_rows") if has_active_filters else t("page.hes_meter_references.empty_baseline") }}</div>
+              <div class="small mt-1">{{ t("empty.filtered_help") if has_active_filters else t("page.hes_meter_references.empty_baseline_help") }}</div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

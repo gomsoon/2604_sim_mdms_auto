@@ -160,6 +160,27 @@ def test_operational_events_page_filters_by_hes_system(client, session):
     assert f'value="{demo_hes.id}" selected' in text
 
 
+def test_operational_events_page_shows_baseline_empty_guidance(client):
+    response = client.get("/operational-events?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 기록된 운영 이벤트가 없습니다." in text
+    assert "적재, 처리, 런타임 경고나 알림이 발생하면 여기서 확인합니다." in text
+
+
+def test_operational_events_page_shows_filtered_empty_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/operational-events?lang=ko&event_code=no-such-event")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 필터와 일치하는 운영 이벤트가 없습니다." in text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in text
+
+
 def test_operational_event_detail_page_links_to_usage_transactions(client, session):
     event, usage_rows = _create_usage_recalculation_event(session)
 

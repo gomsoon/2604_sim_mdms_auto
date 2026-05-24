@@ -37,9 +37,9 @@ through bounded internal use.
     wording and correction blocked-guidance fallback
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is lower-traffic empty-state cleanup,
-  followed by a broader glossary and locale sweep only if repeated use still
-  shows terminology drift
+- the next highest-value visibility work is lower-traffic composite-page
+  empty-state cleanup, followed by a broader glossary and locale sweep only if
+  repeated use still shows terminology drift
 
 ## Operating principles
 

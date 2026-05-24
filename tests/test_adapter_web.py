@@ -21,6 +21,15 @@ def test_adapters_page_renders_seeded_runtime_in_korean(client, session):
     assert "준비됨" in text
 
 
+def test_adapters_page_shows_baseline_empty_guidance(client):
+    response = client.get("/adapters?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 등록된 어댑터 인스턴스가 없습니다." in text
+    assert "지원되는 어댑터를 등록한 뒤 여기서 상태를 확인합니다." in text
+
+
 def test_pause_and_enable_adapter_via_web_updates_admin_state(client, session):
     seed_demo_environment(session)
     session.commit()

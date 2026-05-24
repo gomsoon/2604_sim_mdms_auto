@@ -515,13 +515,14 @@ These items are not blockers for the current minimal baseline, but they should r
       filter summaries
     - lower-frequency i18n label consistency cleanup across operational-event,
       usage, billing, and correction detail views
+    - lower-traffic empty-state wording polish across standalone list views
 - Use the shared visibility inventory in:
   - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:
   - bug fixes on supported operator flows
   - actor and audit readability on high-traffic views
-  - lower-traffic empty-state cleanup where repeated internal use still shows
-    ambiguity outside the current high-traffic views
+  - lower-traffic composite-page empty-state cleanup where repeated internal
+    use still shows ambiguity outside the current standalone list views
   - broader glossary and locale cleanup only if repeated internal use still
     shows terminology drift after the current visibility passes
   - known-limitations communication for internal operators

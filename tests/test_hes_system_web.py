@@ -35,6 +35,15 @@ def test_hes_systems_page_renders_seeded_registry_in_korean(client, session):
     assert "Company HES Poll Primary" not in text
 
 
+def test_hes_systems_page_shows_baseline_empty_guidance(client):
+    response = client.get("/hes-systems?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 등록된 HES 시스템이 없습니다." in text
+    assert "오른쪽 등록 폼에서 첫 HES 시스템을 추가하세요." in text
+
+
 def test_create_hes_system_via_web_creates_registry_entry(client, session):
     seed_demo_environment(session)
     session.commit()
@@ -323,6 +332,41 @@ def test_hes_meter_references_page_filters_by_comparison_status(client, session)
     assert response.status_code == 200
     assert "MTR-4040" in text
     assert "AIMIR-32418" not in text
+
+
+def test_hes_meter_references_page_shows_baseline_empty_guidance(client, session):
+    hes_system = HesSystem(
+        hes_code="EMPTY_WEB_HES",
+        display_name="Empty Web HES",
+        source_family="hes",
+        status="active",
+    )
+    session.add(hes_system)
+    session.commit()
+
+    response = client.get(f"/hes-systems/{hes_system.id}/meter-references?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이 HES 시스템에 연결된 계량기 참조가 아직 없습니다." in text
+    assert "계량기 참조 동기화 이후 매핑 비교 결과를 여기서 확인합니다." in text
+
+
+def test_hes_meter_references_page_shows_filtered_empty_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert hes_system is not None
+
+    response = client.get(
+        f"/hes-systems/{hes_system.id}/meter-references?lang=ko&meter_query=NO-SUCH-METER"
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 필터와 일치하는 HES 계량기 참조가 없습니다." in text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in text
 
 
 def test_hes_meter_references_page_offers_master_data_bootstrap_link(client, session):

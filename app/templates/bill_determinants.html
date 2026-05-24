@@ -8,6 +8,8 @@
   </div>
 </div>
 
+{% set has_active_filters = filters.service_point or filters.external_channel_id or filters.determinant_type or filters.calculation_status or filters.billing_cycle_mode or filters.tariff_assignment_presence or filters.date_from or filters.date_to or filters.quality_summary or filters.tariff_plan_code or filters.include_history %}
+
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <form class="row g-3" method="get">
@@ -151,7 +153,10 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="12" class="text-secondary">{{ t("page.bill_determinants.empty") }}</td>
+            <td colspan="12" class="text-secondary">
+              <div>{{ t("page.bill_determinants.empty") if has_active_filters else t("page.bill_determinants.empty_baseline") }}</div>
+              <div class="small mt-1">{{ t("empty.filtered_help") if has_active_filters else t("page.bill_determinants.empty_baseline_help") }}</div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

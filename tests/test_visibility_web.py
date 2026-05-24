@@ -674,6 +674,27 @@ def test_canonical_measurements_page_filters_by_batch_and_meter(client, session)
     assert "CH-01" in text
 
 
+def test_canonical_measurements_page_shows_baseline_empty_guidance(client):
+    response = client.get("/canonical-measurements?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 표준 계측이 없습니다." in text
+    assert "원시 검침 적재와 매핑이 끝나면 여기서 확인합니다." in text
+
+
+def test_canonical_measurements_page_shows_filtered_empty_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    response = client.get("/canonical-measurements?lang=ko&meter_id=NO-SUCH-METER")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 필터와 일치하는 표준 계측이 없습니다." in text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in text
+
+
 def test_ingest_batches_api_rejects_invalid_date_range_in_korean(client):
     response = client.get(
         "/api/v1/ingest-batches?lang=ko&date_from=2026-04-19&date_to=2026-04-18"
@@ -726,6 +747,29 @@ def test_final_measurements_page_filters_by_batch_and_meter(client, session):
     assert "demo-read-batch" in text
     assert "MTR-1001" in text
     assert "최종화" in text
+
+
+def test_final_measurements_page_shows_baseline_empty_guidance(client):
+    response = client.get("/final-measurements?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 최종 계측이 없습니다." in text
+    assert "표준 계측 승격이나 최종화가 끝나면 여기서 확인합니다." in text
+
+
+def test_final_measurements_page_shows_filtered_empty_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+
+    response = client.get("/final-measurements?lang=ko&meter_id=NO-SUCH-METER")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 필터와 일치하는 최종 계측이 없습니다." in text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in text
 
 
 def test_final_measurements_api_returns_filtered_measurement(client, session):
@@ -1550,6 +1594,31 @@ def test_usage_transactions_page_filters_by_service_point_and_channel(client, se
     assert "일별 사용량" in text
 
 
+def test_usage_transactions_page_shows_baseline_empty_guidance(client):
+    response = client.get("/usage-transactions?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 기록된 사용량 거래가 없습니다." in text
+    assert "최종 계측이 준비된 뒤 사용량 재계산이 실행되면 여기서 확인합니다." in text
+
+
+def test_usage_transactions_page_shows_filtered_empty_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="daily_consumption")
+    session.commit()
+
+    response = client.get("/usage-transactions?lang=ko&service_point=SP-9999")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 필터와 일치하는 사용량 거래가 없습니다." in text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in text
+
+
 def test_usage_transaction_detail_page_shows_lineage_and_final_context(client, session):
     seed_demo_environment(session)
     session.commit()
@@ -1596,6 +1665,36 @@ def test_bill_determinants_page_filters_by_service_point_and_channel(client, ses
     assert "MTR-1001" in text
     assert "CH-01" in text
     assert "청구 주기 총 사용량" in text
+
+
+def test_bill_determinants_page_shows_baseline_empty_guidance(client):
+    response = client.get("/bill-determinants?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 계산된 청구 결정값이 없습니다." in text
+    assert "사용량 거래와 청구 컨텍스트가 준비된 뒤 결정값 계산 결과를 여기서 확인합니다." in text
+
+
+def test_bill_determinants_page_shows_filtered_empty_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    response = client.get("/bill-determinants?lang=ko&service_point=SP-9999")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 필터와 일치하는 청구 결정값이 없습니다." in text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in text
 
 
 def test_bill_determinant_detail_page_shows_usage_lineage_and_revision_context(client, session):
@@ -1762,6 +1861,26 @@ def test_bill_charges_page_filters_by_service_point_and_channel(client, session)
     assert "MTR-1001" in text
     assert "CH-01" in text
     assert "정액 에너지 요금" in text
+
+
+def test_bill_charges_page_shows_baseline_empty_guidance(client):
+    response = client.get("/bill-charges?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 계산된 청구 금액이 없습니다." in text
+    assert "청구 결정값과 요금 정보가 준비된 뒤 청구 금액 계산 결과를 여기서 확인합니다." in text
+
+
+def test_bill_charges_page_shows_filtered_empty_guidance(client, session):
+    _prepare_bill_charge_rows(session)
+
+    response = client.get("/bill-charges?lang=ko&service_point=SP-9999")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "현재 필터와 일치하는 청구 금액이 없습니다." in text
+    assert "필터를 완화하거나 초기화한 뒤 다시 확인하세요." in text
 
 
 def test_bill_charge_detail_page_shows_determinant_tariff_and_revision_context(client, session):

@@ -72,12 +72,15 @@ share the exact same wording or display rule.
   lower-frequency detail views now use a more consistent Korean pattern for
   lineage, revision history, mixed-language descriptions, and shared
   no-details fallback wording
+- lower-traffic empty-state wording polish:
+  standalone lower-traffic lists now distinguish filter-miss empties from
+  baseline empties and point operators to the next likely action
 
 ### Next recommended candidates
 
-- lower-traffic empty-state wording polish
-  - extend the filter-miss versus baseline-empty distinction only where bounded
-    internal use still shows ambiguity outside the current high-traffic lists
+- lower-traffic composite-page empty-state wording polish
+  - extend the same distinction to composite screens like master data and
+    sectioned detail views only if repeated internal use still shows ambiguity
 - broader glossary and locale consistency sweep
   - revisit wider terminology only if repeated internal use still finds
     mixed-language drift after the current lower-frequency cleanup
@@ -88,6 +91,8 @@ share the exact same wording or display rule.
   high-traffic wording slices settle
 - list-level filter and spotlight polish for broader row triage after repeated
   internal use produces stronger signals
+- lower-traffic composite-page empty-state wording polish after standalone list
+  wording settles under repeated internal use
 - broader glossary and locale consistency sweep after repeated internal use
   produces a stronger taxonomy signal
 
@@ -151,8 +156,8 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. lower-traffic empty-state wording polish only if repeated internal use
-   still shows ambiguity outside the current high-traffic lists
+1. lower-traffic composite-page empty-state wording polish only if repeated
+   internal use still shows ambiguity outside the current standalone lists
 2. broader glossary and locale consistency sweep only if repeated internal use
    still finds terminology drift beyond the current label set
 
