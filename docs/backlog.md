@@ -521,8 +521,11 @@ These items are not blockers for the current minimal baseline, but they should r
 - Prioritize:
   - bug fixes on supported operator flows
   - actor and audit readability on high-traffic views
-  - lower-traffic composite-page empty-state cleanup where repeated internal
-    use still shows ambiguity outside the current standalone list views
+  - lower-traffic composite-page empty-state cleanup completed for
+    `hes_system_detail` and `dashboard`
+  - deferred follow-up:
+    master-data sectioned empty-state cleanup if repeated internal use still
+    shows ambiguity outside the current standalone list views
   - broader glossary and locale cleanup only if repeated internal use still
     shows terminology drift after the current visibility passes
   - known-limitations communication for internal operators

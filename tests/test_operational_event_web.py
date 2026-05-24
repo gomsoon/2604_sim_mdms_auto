@@ -249,6 +249,19 @@ def test_dashboard_page_lists_recent_vee_replay_requests(client, session):
     assert "50% (2/4)" in text
 
 
+def test_dashboard_page_shows_composite_empty_guidance(client):
+    response = client.get("/?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "적재된 원시 검침이 없습니다." in text
+    assert "어댑터나 적재 파이프라인이 원시 검침을 불러오면 최신 row가 여기에 표시됩니다." in text
+    assert "현재 열린 알림이 없습니다." in text
+    assert "현재 대시보드에서 바로 조치할 알림이 없는 조용한 상태입니다." in text
+    assert "기록된 최근 보정 감사가 없습니다." in text
+    assert "VEE 큐에서 추정 또는 수동 보정을 적용한 뒤 최근 보정 감사를 여기서 확인합니다." in text
+
+
 def test_dashboard_page_shows_correction_policy_spotlight_and_recent_audits(client, session):
     seed_demo_environment(session)
     session.commit()

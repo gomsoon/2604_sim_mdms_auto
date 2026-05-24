@@ -131,7 +131,10 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" class="text-secondary">{{ t("dashboard.no_recent_recalculated_usage") }}</td>
+              <td colspan="8" class="text-secondary">
+                <div>{{ t("dashboard.no_recent_recalculated_usage") }}</div>
+                <div class="small mt-1">{{ t("dashboard.no_recent_recalculated_usage_help") }}</div>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -187,7 +190,10 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" class="text-secondary">{{ t("dashboard.no_recent_bill_determinants") }}</td>
+              <td colspan="8" class="text-secondary">
+                <div>{{ t("dashboard.no_recent_bill_determinants") }}</div>
+                <div class="small mt-1">{{ t("dashboard.no_recent_bill_determinants_help") }}</div>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -244,7 +250,10 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="7" class="text-secondary">{{ t("dashboard.no_recent_vee_replay_requests") }}</td>
+              <td colspan="7" class="text-secondary">
+                <div>{{ t("dashboard.no_recent_vee_replay_requests") }}</div>
+                <div class="small mt-1">{{ t("dashboard.no_recent_vee_replay_requests_help") }}</div>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -334,7 +343,10 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" class="text-secondary">{{ t("dashboard.no_recent_correction_audits") }}</td>
+              <td colspan="8" class="text-secondary">
+                <div>{{ t("dashboard.no_recent_correction_audits") }}</div>
+                <div class="small mt-1">{{ t("dashboard.no_recent_correction_audits_help") }}</div>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -413,7 +425,10 @@
               </tr>
               {% else %}
               <tr>
-                <td colspan="5" class="text-secondary">{{ t("dashboard.no_raw_reads") }}</td>
+                <td colspan="5" class="text-secondary">
+                  <div>{{ t("dashboard.no_raw_reads") }}</div>
+                  <div class="small mt-1">{{ t("dashboard.no_raw_reads_help") }}</div>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
@@ -441,7 +456,10 @@
             </div>
           </div>
           {% else %}
-          <div class="text-secondary">{{ t("dashboard.no_exceptions") }}</div>
+          <div class="text-secondary">
+            <div>{{ t("dashboard.no_exceptions") }}</div>
+            <div class="small mt-1">{{ t("dashboard.no_exceptions_help") }}</div>
+          </div>
           {% endfor %}
         </div>
       </div>
@@ -506,7 +524,10 @@
             </div>
           </div>
           {% else %}
-          <div class="text-secondary">{{ t("dashboard.no_open_alerts") }}</div>
+          <div class="text-secondary">
+            <div>{{ t("dashboard.no_open_alerts") }}</div>
+            <div class="small mt-1">{{ t("dashboard.no_open_alerts_help") }}</div>
+          </div>
           {% endfor %}
         </div>
       </div>
@@ -560,7 +581,10 @@
               </tr>
               {% else %}
               <tr>
-                <td colspan="5" class="text-secondary">{{ t("dashboard.no_recent_events") }}</td>
+                <td colspan="5" class="text-secondary">
+                  <div>{{ t("dashboard.no_recent_events") }}</div>
+                  <div class="small mt-1">{{ t("dashboard.no_recent_events_help") }}</div>
+                </td>
               </tr>
               {% endfor %}
             </tbody>

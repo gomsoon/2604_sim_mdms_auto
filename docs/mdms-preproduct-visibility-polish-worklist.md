@@ -75,12 +75,15 @@ share the exact same wording or display rule.
 - lower-traffic empty-state wording polish:
   standalone lower-traffic lists now distinguish filter-miss empties from
   baseline empties and point operators to the next likely action
+- lower-traffic composite-page empty-state wording polish:
+  `hes_system_detail` and `dashboard` subsection empties now distinguish setup,
+  quiet-state, and not-yet-recorded activity more clearly
 
 ### Next recommended candidates
 
-- lower-traffic composite-page empty-state wording polish
-  - extend the same distinction to composite screens like master data and
-    sectioned detail views only if repeated internal use still shows ambiguity
+- master-data sectioned empty-state wording polish
+  - extend the same distinction to `master_data` and other shared subsection
+    empties only if repeated internal use still shows ambiguity
 - broader glossary and locale consistency sweep
   - revisit wider terminology only if repeated internal use still finds
     mixed-language drift after the current lower-frequency cleanup
@@ -156,8 +159,8 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. lower-traffic composite-page empty-state wording polish only if repeated
-   internal use still shows ambiguity outside the current standalone lists
+1. master-data sectioned empty-state wording polish only if repeated internal
+   use still shows ambiguity in shared subsection tables
 2. broader glossary and locale consistency sweep only if repeated internal use
    still finds terminology drift beyond the current label set
 

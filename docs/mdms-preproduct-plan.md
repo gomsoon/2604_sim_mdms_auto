@@ -35,11 +35,13 @@ through bounded internal use.
     details
   - stale-warning and blocked-reason second-pass cleanup across replay failure
     wording and correction blocked-guidance fallback
+  - lower-traffic composite-page empty-state wording polish across
+    `hes_system_detail` and `dashboard` subsection empties
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is lower-traffic composite-page
-  empty-state cleanup, followed by a broader glossary and locale sweep only if
-  repeated use still shows terminology drift
+- the next highest-value visibility work is master-data sectioned empty-state
+  cleanup, followed by a broader glossary and locale sweep only if repeated
+  use still shows terminology drift
 
 ## Operating principles
 

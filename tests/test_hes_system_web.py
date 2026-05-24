@@ -166,6 +166,28 @@ def test_hes_system_detail_page_renders_recent_alerts_and_events(client, session
     assert f"/operational-events?hes_system_id={hes_system.id}" in text
 
 
+def test_hes_system_detail_page_shows_composite_empty_guidance(client, session):
+    hes_system = HesSystem(
+        hes_code="EMPTY_DETAIL_HES",
+        display_name="Empty Detail HES",
+        source_family="hes",
+        status="active",
+    )
+    session.add(hes_system)
+    session.commit()
+
+    response = client.get(f"/hes-systems/{hes_system.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이 HES 시스템에 연결된 어댑터가 없습니다." in text
+    assert "이 HES 시스템에 어댑터를 등록하거나 연결한 뒤 여기서 런타임 상태를 확인합니다." in text
+    assert "이 HES 시스템의 적재 배치 이력이 없습니다." in text
+    assert "이 HES 시스템으로 적재 배치가 들어오면 최신 배치 이력이 여기에 표시됩니다." in text
+    assert "이 HES 시스템에 연결된 열린 알림이 없습니다." in text
+    assert "현재 검토가 필요한 열린 알림이 없다는 뜻입니다." in text
+
+
 def test_hes_system_detail_page_lists_recent_recalculated_usage(client, session):
     seed_demo_environment(session)
     session.commit()

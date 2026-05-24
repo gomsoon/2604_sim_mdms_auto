@@ -182,7 +182,10 @@
               </tr>
               {% else %}
               <tr>
-                <td colspan="6" class="text-secondary">{{ t("page.hes_system_detail.no_linked_adapters") }}</td>
+                <td colspan="6" class="text-secondary">
+                  <div>{{ t("page.hes_system_detail.no_linked_adapters") }}</div>
+                  <div class="small mt-1">{{ t("page.hes_system_detail.no_linked_adapters_help") }}</div>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
@@ -219,7 +222,10 @@
               </tr>
               {% else %}
               <tr>
-                <td colspan="4" class="text-secondary">{{ t("page.hes_system_detail.no_recent_batches") }}</td>
+                <td colspan="4" class="text-secondary">
+                  <div>{{ t("page.hes_system_detail.no_recent_batches") }}</div>
+                  <div class="small mt-1">{{ t("page.hes_system_detail.no_recent_batches_help") }}</div>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
@@ -284,7 +290,10 @@
           </table>
         </div>
         {% else %}
-        <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_vee_replay_requests") }}</div>
+        <div class="text-secondary">
+          <div>{{ t("page.hes_system_detail.no_recent_vee_replay_requests") }}</div>
+          <div class="small mt-1">{{ t("page.hes_system_detail.no_recent_vee_replay_requests_help") }}</div>
+        </div>
         {% endif %}
       </div>
     </div>
@@ -346,7 +355,10 @@
           </table>
         </div>
         {% else %}
-        <div class="text-secondary">{{ t("page.hes_system_detail.no_meter_references") }}</div>
+        <div class="text-secondary">
+          <div>{{ t("page.hes_system_detail.no_meter_references") }}</div>
+          <div class="small mt-1">{{ t("page.hes_system_detail.no_meter_references_help") }}</div>
+        </div>
         {% endif %}
       </div>
     </div>
@@ -409,7 +421,10 @@
           </table>
         </div>
         {% else %}
-        <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_recalculated_usage") }}</div>
+        <div class="text-secondary">
+          <div>{{ t("page.hes_system_detail.no_recent_recalculated_usage") }}</div>
+          <div class="small mt-1">{{ t("page.hes_system_detail.no_recent_recalculated_usage_help") }}</div>
+        </div>
         {% endif %}
       </div>
     </div>
@@ -469,7 +484,10 @@
           </table>
         </div>
         {% else %}
-        <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_bill_determinants") }}</div>
+        <div class="text-secondary">
+          <div>{{ t("page.hes_system_detail.no_recent_bill_determinants") }}</div>
+          <div class="small mt-1">{{ t("page.hes_system_detail.no_recent_bill_determinants_help") }}</div>
+        </div>
         {% endif %}
       </div>
     </div>
@@ -517,7 +535,10 @@
             </div>
           </div>
           {% else %}
-          <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_alerts") }}</div>
+          <div class="text-secondary">
+            <div>{{ t("page.hes_system_detail.no_recent_alerts") }}</div>
+            <div class="small mt-1">{{ t("page.hes_system_detail.no_recent_alerts_help") }}</div>
+          </div>
           {% endfor %}
         </div>
       </div>
@@ -566,7 +587,10 @@
             </div>
           </div>
           {% else %}
-          <div class="text-secondary">{{ t("page.hes_system_detail.no_recent_events") }}</div>
+          <div class="text-secondary">
+            <div>{{ t("page.hes_system_detail.no_recent_events") }}</div>
+            <div class="small mt-1">{{ t("page.hes_system_detail.no_recent_events_help") }}</div>
+          </div>
           {% endfor %}
         </div>
       </div>
