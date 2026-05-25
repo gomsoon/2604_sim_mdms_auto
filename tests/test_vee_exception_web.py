@@ -528,7 +528,7 @@ def test_vee_exception_detail_page_shows_estimation_form_for_supported_exception
 
     assert response.status_code == 200
     assert "추정 적용" in text
-    assert "지원되는 추정 전략 하나를 적용한 뒤, 현재 interval에 대해 VEE와 downstream 재계산을 다시 닫습니다." in text
+    assert "지원되는 추정 전략 하나를 적용한 뒤, 현재 interval에 대해 VEE와 후속 재계산을 다시 닫습니다." in text
     assert "선형 보간" in text
     assert "이전 값 기반" in text
     assert f"/vee-exceptions/{vee_exception.id}/estimate?lang=ko" in text
@@ -692,7 +692,7 @@ def test_vee_exception_re_evaluate_via_web_creates_new_execution(session, client
     assert "재평가 결과" in text
     assert "현재 최종 생성" in text
     assert "일별 사용량 재계산" in text
-    assert "영향받은 사용량 window" in text
+    assert "영향받은 사용량 집계 구간" in text
     assert "일별 사용량" in text
     assert "월별 사용량" in text
     assert "재계산됨" in text

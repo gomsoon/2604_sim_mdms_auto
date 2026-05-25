@@ -82,12 +82,13 @@ share the exact same wording or display rule.
   `master_data` now distinguishes missing prerequisites from true section
   baseline empties across service point, billing, tariff, device, component,
   and installation sections
+- broader glossary and locale consistency sweep:
+  repeated mixed-language nouns such as revision, downstream recalculation,
+  usage window, usage row, source-side, and billing-lite now use a more
+  consistent Korean operator-facing pattern across lower-frequency views
 
 ### Next recommended candidates
 
-- broader glossary and locale consistency sweep
-  - revisit wider terminology only if repeated internal use still finds
-    mixed-language drift after the current lower-frequency cleanup
 - remaining detail-page and subsection `no_*` wording sweep
   - revisit `no_pipeline`, `no_current_item`, shared subsection placeholders,
     and other lower-frequency detail fallbacks only if repeated internal use
@@ -99,8 +100,8 @@ share the exact same wording or display rule.
   high-traffic wording slices settle
 - list-level filter and spotlight polish for broader row triage after repeated
   internal use produces stronger signals
-- broader glossary and locale consistency sweep after repeated internal use
-  produces a stronger taxonomy signal
+- broader glossary or i18n taxonomy redesign after repeated internal use
+  produces a stronger terminology signal
 - remaining detail-page and subsection `no_*` wording cleanup after repeated
   internal use produces a clearer ambiguity signal
 
@@ -164,10 +165,10 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. broader glossary and locale consistency sweep only if repeated internal use
-   still finds terminology drift beyond the current label set
-2. remaining detail-page and subsection `no_*` wording sweep only if repeated
+1. remaining detail-page and subsection `no_*` wording sweep only if repeated
    internal use still shows ambiguity in lower-frequency placeholders
+2. broader glossary or i18n taxonomy redesign only if repeated internal use
+   still finds a stronger terminology signal beyond the current label set
 
 ## Explicitly deferred in this worklist
 

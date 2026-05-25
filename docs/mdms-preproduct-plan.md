@@ -39,11 +39,14 @@ through bounded internal use.
     `hes_system_detail` and `dashboard` subsection empties
   - master-data sectioned empty-state wording polish across service point,
     billing, tariff, device, component, and installation sections
+  - broader glossary and locale consistency sweep across remaining
+    lower-frequency mixed-language nouns and helper descriptions
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is a broader glossary and locale
-  sweep, followed by a lower-frequency detail placeholder review only if
-  repeated use still shows ambiguity
+- the next highest-value visibility work is a lower-frequency detail
+  placeholder review only if repeated use still shows ambiguity, followed by
+  broader glossary redesign only if repeated use still shows a stronger
+  terminology signal
 
 ## Operating principles
 
@@ -173,10 +176,10 @@ Goal:
 
 Recommended first candidates:
 
-- broader i18n label consistency review after the current filter/spotlight
-  slice settles
-- lower-traffic empty-state wording polish only if repeated internal use still
-  shows ambiguity outside the current high-traffic lists
+- remaining detail-page and subsection `no_*` wording sweep only if repeated
+  internal use still shows ambiguity in lower-frequency placeholders
+- broader glossary or locale taxonomy redesign only if repeated internal use
+  still shows a stronger terminology signal beyond the current label set
 
 Goal:
 

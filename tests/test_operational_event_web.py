@@ -255,7 +255,7 @@ def test_dashboard_page_shows_composite_empty_guidance(client):
 
     assert response.status_code == 200
     assert "적재된 원시 검침이 없습니다." in text
-    assert "어댑터나 적재 파이프라인이 원시 검침을 불러오면 최신 row가 여기에 표시됩니다." in text
+    assert "어댑터나 적재 파이프라인이 원시 검침을 불러오면 최신 항목이 여기에 표시됩니다." in text
     assert "현재 열린 알림이 없습니다." in text
     assert "현재 대시보드에서 바로 조치할 알림이 없는 조용한 상태입니다." in text
     assert "기록된 최근 보정 감사가 없습니다." in text

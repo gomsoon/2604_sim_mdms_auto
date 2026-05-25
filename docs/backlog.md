@@ -516,6 +516,8 @@ These items are not blockers for the current minimal baseline, but they should r
     - lower-frequency i18n label consistency cleanup across operational-event,
       usage, billing, and correction detail views
     - lower-traffic empty-state wording polish across standalone list views
+    - broader glossary and locale consistency cleanup across remaining
+      lower-frequency mixed-language nouns and helper descriptions
 - Use the shared visibility inventory in:
   - [mdms-preproduct-visibility-polish-worklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-visibility-polish-worklist.md)
 - Prioritize:
@@ -526,10 +528,10 @@ These items are not blockers for the current minimal baseline, but they should r
   - master-data sectioned empty-state cleanup completed for prerequisite-aware
     service-point, billing, tariff, device, component, and installation
     sections
-  - broader glossary and locale cleanup only if repeated internal use still
-    shows terminology drift after the current visibility passes
   - defer the remaining lower-frequency detail and subsection `no_*` wording
     sweep until repeated internal use shows a clearer ambiguity signal
+  - defer broader glossary or i18n taxonomy redesign until repeated internal
+    use shows a stronger terminology signal than the current label cleanup
   - known-limitations communication for internal operators
 - Keep each hardening slice small enough to update regression coverage in the
   same change set

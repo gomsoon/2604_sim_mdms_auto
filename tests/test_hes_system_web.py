@@ -32,6 +32,7 @@ def test_hes_systems_page_renders_seeded_registry_in_korean(client, session):
     assert response.status_code == 200
     assert "HES 시스템" in text
     assert "HES" in text
+    assert "원본 연계 흐름" in text
     assert "Company HES Poll Primary" not in text
 
 

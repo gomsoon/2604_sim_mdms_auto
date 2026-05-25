@@ -1868,6 +1868,7 @@ def test_bill_charges_page_shows_baseline_empty_guidance(client):
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert "청구 계산 결과 항목" in text
     assert "아직 계산된 청구 금액이 없습니다." in text
     assert "청구 결정값과 요금 정보가 준비된 뒤 청구 금액 계산 결과를 여기서 확인합니다." in text
 
@@ -2046,8 +2047,8 @@ def test_estimation_audit_detail_page_shows_synthetic_repair_context(client, ses
     assert "synthetic 복구 컨텍스트" in text
     assert "추정 모드" in text
     assert "누락 slot" in text
-    assert "window 상태(전)" in text
-    assert "window 상태(후)" in text
+    assert "구간 상태(전)" in text
+    assert "구간 상태(후)" in text
     assert "synthetic raw 스냅샷" in text
     assert "synthetic initial 스냅샷" in text
     assert "synthetic missing-interval 복구" in text
@@ -2214,7 +2215,7 @@ def test_manual_edit_audit_detail_page_shows_snapshots_and_lineage(client, sessi
     assert "보정 정책" in text
     assert "현재 기본 보정 흐름을 그대로 따릅니다" in text
     assert "이벤트 기반 보정 override가 적용되지 않습니다" in text
-    assert "downstream 재계산" in text
+    assert "후속 재계산" in text
     assert "운영자 계량기 보정" in text
     assert "Manual Web Tester (manual-web-tester)" in text
     assert "사람 계정" in text
