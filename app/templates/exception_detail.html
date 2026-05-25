@@ -190,7 +190,10 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="6" class="text-secondary">{{ t("page.exception_detail.no_reprocess_history") }}</td>
+            <td colspan="6" class="text-secondary">
+              <div>{{ t("page.exception_detail.no_reprocess_history") }}</div>
+              <div class="small mt-1">{{ t("page.exception_detail.no_reprocess_history_help") }}</div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

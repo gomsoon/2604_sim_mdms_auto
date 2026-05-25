@@ -98,13 +98,16 @@ share the exact same wording or display rule.
   operational-event, VEE exception, and raw exception detail views now
   explain whether missing event/raw/final context means healthy absence,
   unavailable linkage, or not-yet-created downstream context
+- isolated detail/subsection placeholder cleanup:
+  standalone fallbacks such as missing reprocess history or missing adapter
+  definitions now explain whether the page is simply not used yet or still
+  waiting for prerequisite setup
 
 ### Next recommended candidates
 
-- remaining detail-page and subsection `no_*` wording cleanup
-  - revisit isolated lower-frequency placeholders such as reprocess-history
-    or similar single-section fallbacks only if repeated internal use still
-    shows ambiguity after the workflow, lineage, and event-context slices
+- broader glossary or locale taxonomy redesign
+  - revisit shared terminology only if repeated internal use still shows a
+    stronger naming signal after the placeholder cleanup settles
 
 ### Later candidates
 

@@ -132,6 +132,15 @@ def test_new_adapter_page_renders_active_definition(client, session):
     assert "Company HES Poll" in text
 
 
+def test_new_adapter_page_shows_missing_definition_guidance(client):
+    response = client.get("/adapters/new?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "활성 상태의 어댑터 정의가 없습니다." in text
+    assert "새 런타임 인스턴스를 만들기 전에 사용할 어댑터 정의를 먼저 준비하거나 활성화하세요." in text
+
+
 def test_new_adapter_page_from_hes_context_prefills_parent_hes(client, session):
     seed_demo_environment(session)
     session.commit()

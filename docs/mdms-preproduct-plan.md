@@ -50,12 +50,14 @@ through bounded internal use.
   - event/exception context `no_*` wording sweep across operational-event,
     VEE exception, and raw exception detail placeholders such as missing
     event context, raw linkage, and final-context availability
+  - isolated detail/subsection placeholder cleanup across single-purpose
+    fallbacks such as missing reprocess history or missing adapter
+    definitions
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is a remaining isolated detail or
-  subsection placeholder review only if repeated use still shows ambiguity,
-  followed by broader glossary redesign only if repeated use still shows a
-  stronger terminology signal
+- the next highest-value visibility work is broader glossary redesign only if
+  repeated use still shows a stronger terminology signal beyond the current
+  placeholder and empty-state cleanup
 
 ## Operating principles
 
@@ -185,8 +187,6 @@ Goal:
 
 Recommended first candidates:
 
-- remaining detail-page and subsection `no_*` wording cleanup only if
-  repeated internal use still shows ambiguity in isolated placeholders
 - broader glossary or locale taxonomy redesign only if repeated internal use
   still shows a stronger terminology signal beyond the current label set
 

@@ -537,6 +537,9 @@ These items are not blockers for the current minimal baseline, but they should r
   - event/exception context placeholder cleanup completed for operational
     events, VEE exceptions, and raw exception detail views that needed
     clearer healthy-absence versus unavailable-linkage guidance
+  - isolated placeholder cleanup completed for reprocess-history and
+    adapter-definition fallbacks that needed clearer not-used-yet versus
+    prerequisite-setup guidance
   - defer broader glossary or i18n taxonomy redesign until repeated internal
     use shows a stronger terminology signal than the current label cleanup
   - known-limitations communication for internal operators
