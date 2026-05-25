@@ -694,6 +694,7 @@
         </dl>
         {% else %}
         <div class="text-secondary">{{ t("page.vee_exception_detail.no_event_context") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.no_event_context_help") }}</div>
         {% endif %}
       </div>
     </div>
@@ -746,6 +747,7 @@
         </dl>
         {% else %}
         <div class="text-secondary">{{ t("page.vee_exception_detail.no_final_context") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.no_final_context_help") }}</div>
         {% endif %}
       </div>
     </div>
@@ -772,6 +774,7 @@
         </dl>
         {% else %}
         <div class="text-secondary">{{ t("page.vee_exception_detail.no_raw_context") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.no_raw_context_help") }}</div>
         {% endif %}
       </div>
     </div>
@@ -804,6 +807,7 @@
     <pre class="bg-light border rounded p-3 mb-0"><code>{{ detail.vee_exception.details | tojson(indent=2) }}</code></pre>
     {% else %}
     <div class="text-secondary">{{ t("page.vee_exception_detail.no_details") }}</div>
+    <div class="small text-secondary mt-2">{{ t("page.vee_exception_detail.no_details_help") }}</div>
     {% endif %}
   </div>
 </div>

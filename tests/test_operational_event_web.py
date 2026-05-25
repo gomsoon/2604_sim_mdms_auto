@@ -195,6 +195,36 @@ def test_operational_event_detail_page_links_to_usage_transactions(client, sessi
         assert f"/usage-transactions/{row.id}?lang=ko" in text
 
 
+def test_operational_event_detail_page_shows_missing_context_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert hes_system is not None
+
+    event = record_operational_event(
+        session,
+        "adapter_enabled",
+        hes_system=hes_system,
+        details={},
+        instance_code="no-context-adapter",
+    )
+    session.commit()
+
+    response = client.get(f"/operational-events/{event.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이 이벤트와 연결된 원시 검침이 없습니다." in text
+    assert "이 경우는 특정 원시 검침 한 건보다 런타임 또는 처리 상태를 설명하는 이벤트일 가능성이 큽니다." in text
+    assert "관련 원시 검침에서 생성된 표준 계측이 없습니다." in text
+    assert "표준화가 아직 실행되지 않았거나, 표준 계측이 생성되기 전에 기록된 이벤트일 수 있습니다." in text
+    assert "관련 표준 계측에서 생성된 최종 계측이 없습니다." in text
+    assert "최종화가 아직 실행되지 않았거나, downstream 처리가 끝나기 전에 기록된 이벤트일 수 있습니다." in text
+    assert "추가 이벤트 세부 정보가 없습니다." in text
+    assert "추가 payload가 없을 때는 위의 연결 대상과 타임라인 정보를 먼저 확인하세요." in text
+
+
 def test_dashboard_page_lists_recent_recalculated_usage(client, session):
     _, usage_rows = _create_usage_recalculation_event(session)
 

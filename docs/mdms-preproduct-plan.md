@@ -47,12 +47,15 @@ through bounded internal use.
   - lineage/detail-context `no_*` wording sweep across usage, bill
     determinant, and bill charge detail placeholders such as missing
     downstream rows, source lineage, and revision-history context
+  - event/exception context `no_*` wording sweep across operational-event,
+    VEE exception, and raw exception detail placeholders such as missing
+    event context, raw linkage, and final-context availability
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is an event/exception context
-  placeholder review only if repeated use still shows ambiguity, followed by
-  broader glossary redesign only if repeated use still shows a stronger
-  terminology signal
+- the next highest-value visibility work is a remaining isolated detail or
+  subsection placeholder review only if repeated use still shows ambiguity,
+  followed by broader glossary redesign only if repeated use still shows a
+  stronger terminology signal
 
 ## Operating principles
 
@@ -182,8 +185,8 @@ Goal:
 
 Recommended first candidates:
 
-- remaining event and exception context `no_*` wording sweep only if repeated
-  internal use still shows ambiguity in lower-frequency placeholders
+- remaining detail-page and subsection `no_*` wording cleanup only if
+  repeated internal use still shows ambiguity in isolated placeholders
 - broader glossary or locale taxonomy redesign only if repeated internal use
   still shows a stronger terminology signal beyond the current label set
 

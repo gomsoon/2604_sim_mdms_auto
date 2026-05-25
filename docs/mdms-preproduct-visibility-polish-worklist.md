@@ -94,13 +94,17 @@ share the exact same wording or display rule.
   usage, bill-determinant, and bill-charge detail views now explain whether
   missing downstream rows, upstream snapshots, or revision history mean
   not-yet-calculated context or unavailable lineage context
+- event/exception context `no_*` wording sweep:
+  operational-event, VEE exception, and raw exception detail views now
+  explain whether missing event/raw/final context means healthy absence,
+  unavailable linkage, or not-yet-created downstream context
 
 ### Next recommended candidates
 
-- remaining event and exception context `no_*` wording sweep
-  - revisit lower-frequency placeholders across operational-event, VEE
-    exception, and raw exception detail views only if repeated internal use
-    still shows ambiguity after the usage/billing lineage placeholders settle
+- remaining detail-page and subsection `no_*` wording cleanup
+  - revisit isolated lower-frequency placeholders such as reprocess-history
+    or similar single-section fallbacks only if repeated internal use still
+    shows ambiguity after the workflow, lineage, and event-context slices
 
 ### Later candidates
 

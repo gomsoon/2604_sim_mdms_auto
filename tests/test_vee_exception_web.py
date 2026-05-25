@@ -485,6 +485,8 @@ def test_vee_exception_detail_page_shows_lineage(client, session):
     assert "현재 가능한 운영자 조치" in text
     assert "demo-read-batch" in text
     assert "MTR-1001" in text
+    assert "이 초기 계측에서 아직 최종 계측이 생성되지 않았습니다." in text
+    assert "열린 예외 때문에 최종화가 아직 막혀 있거나, 보정 이후 최종화가 다시 실행되지 않은 상태일 수 있습니다." in text
 
 
 def test_vee_exception_detail_page_shows_event_context_for_tamper_linked_rule(client, session):

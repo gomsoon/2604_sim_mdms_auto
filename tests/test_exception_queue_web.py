@@ -48,6 +48,12 @@ def test_exception_detail_page_renders_hes_meter_reference_bootstrap_in_korean(c
     assert "MTR-9999" in text
     assert "LP 주기(분)" in text
     assert "원본 계량기 상태" in text
+    assert "계량기 ID와 일치하는 장치가 없습니다." in text
+    assert "이 원시 검침을 재처리하려면 먼저 일치하는 장치를 등록하거나 동기화해야 합니다." in text
+    assert "채널 ID와 일치하는 컴포넌트가 없습니다." in text
+    assert "재처리 전에 이 채널에 맞는 측정 컴포넌트 매핑을 먼저 만들어야 합니다." in text
+    assert "아직 활성 상태의 정확 일치 컴포넌트가 없습니다." in text
+    assert "후보 장치나 컴포넌트는 있어도, 현재 활성 exact 매핑은 아직 완성되지 않은 상태일 수 있습니다." in text
 
 
 def test_exception_detail_page_master_data_link_includes_prefill_query(client, session):

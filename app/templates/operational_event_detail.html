@@ -207,6 +207,7 @@
     </div>
     {% else %}
     <div class="text-secondary">{{ t("page.operational_event_detail.no_raw_context") }}</div>
+    <div class="small text-secondary mt-2">{{ t("page.operational_event_detail.no_raw_context_help") }}</div>
     {% endif %}
   </div>
 </div>
@@ -243,6 +244,7 @@
         </div>
         {% else %}
         <div class="text-secondary">{{ t("page.operational_event_detail.no_canonical_context") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.operational_event_detail.no_canonical_context_help") }}</div>
         {% endif %}
       </div>
     </div>
@@ -278,6 +280,7 @@
         </div>
         {% else %}
         <div class="text-secondary">{{ t("page.operational_event_detail.no_final_context") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.operational_event_detail.no_final_context_help") }}</div>
         {% endif %}
       </div>
     </div>
@@ -356,6 +359,7 @@
     <pre class="bg-light border rounded p-3 mb-0"><code>{{ detail.event.details | tojson(indent=2) }}</code></pre>
     {% else %}
     <div class="text-secondary">{{ t("page.operational_event_detail.no_details") }}</div>
+    <div class="small text-secondary mt-2">{{ t("page.operational_event_detail.no_details_help") }}</div>
     {% endif %}
   </div>
 </div>
