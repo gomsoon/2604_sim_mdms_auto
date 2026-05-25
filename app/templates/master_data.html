@@ -152,7 +152,10 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                  <td colspan="7" class="text-secondary">
+                    <div>{{ t("page.master_data.service_points_empty") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.service_points_empty_help") }}</div>
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -294,7 +297,15 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="11" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                  <td colspan="11" class="text-secondary">
+                    {% if not service_points %}
+                    <div>{{ t("page.master_data.billing_contexts_empty_prereq") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.billing_contexts_empty_prereq_help") }}</div>
+                    {% else %}
+                    <div>{{ t("page.master_data.billing_contexts_empty") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.billing_contexts_empty_help") }}</div>
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -412,7 +423,15 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="9" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                  <td colspan="9" class="text-secondary">
+                    {% if not service_points %}
+                    <div>{{ t("page.master_data.tariff_assignments_empty_prereq") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.tariff_assignments_empty_prereq_help") }}</div>
+                    {% else %}
+                    <div>{{ t("page.master_data.tariff_assignments_empty") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.tariff_assignments_empty_help") }}</div>
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -508,7 +527,15 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                  <td colspan="7" class="text-secondary">
+                    {% if not service_points %}
+                    <div>{{ t("page.master_data.devices_empty_prereq") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.devices_empty_prereq_help") }}</div>
+                    {% else %}
+                    <div>{{ t("page.master_data.devices_empty") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.devices_empty_help") }}</div>
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -627,7 +654,15 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="9" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                  <td colspan="9" class="text-secondary">
+                    {% if not devices %}
+                    <div>{{ t("page.master_data.components_empty_prereq") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.components_empty_prereq_help") }}</div>
+                    {% else %}
+                    <div>{{ t("page.master_data.components_empty") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.components_empty_help") }}</div>
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -734,7 +769,15 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="7" class="text-secondary">{{ t("page.master_data.empty") }}</td>
+                  <td colspan="7" class="text-secondary">
+                    {% if not devices %}
+                    <div>{{ t("page.master_data.installations_empty_prereq") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.installations_empty_prereq_help") }}</div>
+                    {% else %}
+                    <div>{{ t("page.master_data.installations_empty") }}</div>
+                    <div class="small mt-1">{{ t("page.master_data.installations_empty_help") }}</div>
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>

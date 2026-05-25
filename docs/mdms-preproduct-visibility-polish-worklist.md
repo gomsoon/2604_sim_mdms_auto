@@ -78,15 +78,20 @@ share the exact same wording or display rule.
 - lower-traffic composite-page empty-state wording polish:
   `hes_system_detail` and `dashboard` subsection empties now distinguish setup,
   quiet-state, and not-yet-recorded activity more clearly
+- master-data sectioned empty-state wording polish:
+  `master_data` now distinguishes missing prerequisites from true section
+  baseline empties across service point, billing, tariff, device, component,
+  and installation sections
 
 ### Next recommended candidates
 
-- master-data sectioned empty-state wording polish
-  - extend the same distinction to `master_data` and other shared subsection
-    empties only if repeated internal use still shows ambiguity
 - broader glossary and locale consistency sweep
   - revisit wider terminology only if repeated internal use still finds
     mixed-language drift after the current lower-frequency cleanup
+- remaining detail-page and subsection `no_*` wording sweep
+  - revisit `no_pipeline`, `no_current_item`, shared subsection placeholders,
+    and other lower-frequency detail fallbacks only if repeated internal use
+    still shows ambiguity
 
 ### Later candidates
 
@@ -94,10 +99,10 @@ share the exact same wording or display rule.
   high-traffic wording slices settle
 - list-level filter and spotlight polish for broader row triage after repeated
   internal use produces stronger signals
-- lower-traffic composite-page empty-state wording polish after standalone list
-  wording settles under repeated internal use
 - broader glossary and locale consistency sweep after repeated internal use
   produces a stronger taxonomy signal
+- remaining detail-page and subsection `no_*` wording cleanup after repeated
+  internal use produces a clearer ambiguity signal
 
 ## Candidate inventory
 
@@ -159,10 +164,10 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. master-data sectioned empty-state wording polish only if repeated internal
-   use still shows ambiguity in shared subsection tables
-2. broader glossary and locale consistency sweep only if repeated internal use
+1. broader glossary and locale consistency sweep only if repeated internal use
    still finds terminology drift beyond the current label set
+2. remaining detail-page and subsection `no_*` wording sweep only if repeated
+   internal use still shows ambiguity in lower-frequency placeholders
 
 ## Explicitly deferred in this worklist
 

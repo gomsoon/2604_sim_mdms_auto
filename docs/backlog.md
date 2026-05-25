@@ -523,11 +523,13 @@ These items are not blockers for the current minimal baseline, but they should r
   - actor and audit readability on high-traffic views
   - lower-traffic composite-page empty-state cleanup completed for
     `hes_system_detail` and `dashboard`
-  - deferred follow-up:
-    master-data sectioned empty-state cleanup if repeated internal use still
-    shows ambiguity outside the current standalone list views
+  - master-data sectioned empty-state cleanup completed for prerequisite-aware
+    service-point, billing, tariff, device, component, and installation
+    sections
   - broader glossary and locale cleanup only if repeated internal use still
     shows terminology drift after the current visibility passes
+  - defer the remaining lower-frequency detail and subsection `no_*` wording
+    sweep until repeated internal use shows a clearer ambiguity signal
   - known-limitations communication for internal operators
 - Keep each hardening slice small enough to update regression coverage in the
   same change set

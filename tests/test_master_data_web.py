@@ -93,6 +93,19 @@ def test_master_data_page_shows_matching_hes_meter_references_from_prefill(clien
     assert "15" in text
 
 
+def test_master_data_page_shows_dependency_aware_empty_guidance_without_prerequisites(client):
+    response = client.get("/master-data?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 등록된 서비스 포인트가 없습니다." in text
+    assert "왼쪽 등록 폼에서 첫 서비스 포인트를 추가하세요." in text
+    assert "청구 컨텍스트를 추가하기 전에 서비스 포인트를 먼저 등록하세요." in text
+    assert "장치를 추가하기 전에 서비스 포인트를 먼저 등록하세요." in text
+    assert "측정 컴포넌트를 추가하기 전에 장치를 먼저 등록하세요." in text
+    assert "설치 이력을 추가하기 전에 장치를 먼저 등록하세요." in text
+
+
 def test_create_billing_context_via_web_creates_record(client, session):
     service_point = create_service_point(
         session,
@@ -241,6 +254,29 @@ def test_master_data_page_shows_tariff_assignment_rows(client, session):
     assert "RES-B" in text
 
 
+def test_master_data_page_shows_empty_guidance_after_service_point_exists(client, session):
+    create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-EMPTY-GUIDE-1001",
+        service_type="electric",
+        name="Empty Guide Site",
+        status="active",
+    )
+    session.commit()
+
+    response = client.get("/master-data?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 등록된 청구 컨텍스트가 없습니다." in text
+    assert "서비스 포인트를 선택해 현재 또는 이력 청구 컨텍스트를 추가하세요." in text
+    assert "아직 등록된 요금제 할당이 없습니다." in text
+    assert "서비스 포인트를 선택해 현재 또는 이력 요금제 할당을 추가하세요." in text
+    assert "아직 등록된 장치가 없습니다." in text
+    assert "왼쪽 등록 폼에서 첫 장치를 추가하고 서비스 포인트에 연결하세요." in text
+
+
 def test_master_data_page_service_point_row_links_to_tariff_assignment_section(client, session):
     service_point = create_service_point(
         session,
@@ -257,6 +293,35 @@ def test_master_data_page_service_point_row_links_to_tariff_assignment_section(c
 
     assert response.status_code == 200
     assert f'/master-data?prefill_service_point_id={service_point.id}#tariff-assignments' in text
+
+
+def test_master_data_page_shows_component_and_installation_guidance_after_device_exists(client, session):
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-COMP-EMPTY-1001",
+        service_type="electric",
+        name="Component Empty Site",
+        status="active",
+    )
+    create_device(
+        session,
+        source_system="HES",
+        external_meter_id="MTR-COMP-EMPTY-1001",
+        serial_number="SER-COMP-EMPTY-1001",
+        service_point_id=service_point.id,
+        status="active",
+    )
+    session.commit()
+
+    response = client.get("/master-data?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 등록된 측정 컴포넌트가 없습니다." in text
+    assert "장치와 서비스 포인트를 선택한 뒤 채널 매핑을 추가하세요." in text
+    assert "아직 등록된 설치 이력이 없습니다." in text
+    assert "첫 설치 이력을 추가해 장치와 서비스 포인트 연결을 기록하세요." in text
 
 
 def test_create_device_via_web_closes_missing_device_alert_and_opens_missing_component_alert(

@@ -37,11 +37,13 @@ through bounded internal use.
     wording and correction blocked-guidance fallback
   - lower-traffic composite-page empty-state wording polish across
     `hes_system_detail` and `dashboard` subsection empties
+  - master-data sectioned empty-state wording polish across service point,
+    billing, tariff, device, component, and installation sections
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is master-data sectioned empty-state
-  cleanup, followed by a broader glossary and locale sweep only if repeated
-  use still shows terminology drift
+- the next highest-value visibility work is a broader glossary and locale
+  sweep, followed by a lower-frequency detail placeholder review only if
+  repeated use still shows ambiguity
 
 ## Operating principles
 
