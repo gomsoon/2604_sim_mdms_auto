@@ -199,6 +199,7 @@
         </dl>
         {% else %}
         <div class="text-secondary">{{ t("page.billing_export_request_detail.no_pipeline") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.billing_export_request_detail.no_pipeline_help") }}</div>
         {% endif %}
       </div>
     </div>
@@ -225,6 +226,7 @@
         </dl>
         {% else %}
         <div class="text-secondary">{{ t("page.billing_export_request_detail.no_current_item") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.billing_export_request_detail.no_current_item_help") }}</div>
         {% endif %}
       </div>
     </div>
@@ -262,6 +264,7 @@
     </div>
     {% else %}
     <div class="text-secondary">{{ t("page.billing_export_request_detail.no_failed_items") }}</div>
+    <div class="small text-secondary mt-2">{{ t("page.billing_export_request_detail.no_failed_items_help") }}</div>
     {% endif %}
   </div>
 </div>
@@ -315,6 +318,7 @@
         <pre class="bg-light border rounded p-3 mb-0"><code>{{ focus_item.payload_snapshot | tojson(indent=2) }}</code></pre>
         {% else %}
         <div class="text-secondary">{{ t("page.billing_export_request_detail.no_focus_item") }}</div>
+        <div class="small text-secondary mt-2">{{ t("page.billing_export_request_detail.no_focus_item_help") }}</div>
         {% endif %}
       </div>
     </div>

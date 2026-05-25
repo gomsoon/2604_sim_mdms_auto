@@ -274,6 +274,38 @@ def test_vee_replay_request_detail_page_shows_progress_and_failed_items(client, 
     assert f"hes_system_id={hes_system_id}" in text
 
 
+def test_vee_replay_request_detail_page_shows_workflow_placeholders(client, session):
+    hes_system_id = _prepare_replay_environment(session)
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
+    initial = _ingest_initial_measurement(
+        session,
+        hes_system_id=hes_system_id,
+        batch_id="replay-web-placeholder",
+        measured_at="2026-05-18T00:00:00+09:00",
+    )
+    _attach_vee_exception(session, initial)
+    created = create_vee_replay_request(
+        session,
+        request_scope="hes_system",
+        requested_by=actor.login_id,
+        requested_by_user_account_id=actor.id,
+        hes_system_id=hes_system_id,
+    )
+    session.commit()
+
+    response = client.get(f"/vee-replay-requests/{created.request.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "아직 이 replay request와 연결된 pipeline run이 없습니다." in text
+    assert "요청이 아직 queued 상태이거나 worker가 replay pipeline 실행을 시작하지 않았을 수 있습니다." in text
+    assert "현재 processing 상태로 표시된 replay item이 없습니다." in text
+    assert "요청이 processing 상태가 아니라면 정상입니다. 아직 대기 중이거나 이미 끝난 요청에서는 현재 item이 없을 수 있습니다." in text
+    assert "이 요청에는 실패한 replay item이 없습니다." in text
+    assert "요청이 실패나 부분 완료 상태가 아니라면 정상 신호입니다." in text
+
+
 def test_vee_replay_requests_page_offers_repeat_shortcut_for_completed_scope(client, session):
     hes_system_id = _prepare_replay_environment(session)
     actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))

@@ -528,7 +528,10 @@ These items are not blockers for the current minimal baseline, but they should r
   - master-data sectioned empty-state cleanup completed for prerequisite-aware
     service-point, billing, tariff, device, component, and installation
     sections
-  - defer the remaining lower-frequency detail and subsection `no_*` wording
+  - request-detail workflow placeholder cleanup completed for billing export
+    and replay detail `no_pipeline`, `no_current_item`, `no_failed_items`, and
+    export `no_focus_item` guidance
+  - defer the remaining lower-frequency lineage/detail-context `no_*` wording
     sweep until repeated internal use shows a clearer ambiguity signal
   - defer broader glossary or i18n taxonomy redesign until repeated internal
     use shows a stronger terminology signal than the current label cleanup

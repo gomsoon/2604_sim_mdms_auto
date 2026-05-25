@@ -86,13 +86,17 @@ share the exact same wording or display rule.
   repeated mixed-language nouns such as revision, downstream recalculation,
   usage window, usage row, source-side, and billing-lite now use a more
   consistent Korean operator-facing pattern across lower-frequency views
+- request-detail workflow placeholder wording polish:
+  export and replay request detail views now explain whether missing pipeline,
+  current-item, failed-item, and focus-payload sections mean not-started-yet,
+  not-currently-processing, or a healthy no-failure state
 
 ### Next recommended candidates
 
-- remaining detail-page and subsection `no_*` wording sweep
-  - revisit `no_pipeline`, `no_current_item`, shared subsection placeholders,
-    and other lower-frequency detail fallbacks only if repeated internal use
-    still shows ambiguity
+- remaining lineage/detail-context `no_*` wording sweep
+  - revisit lower-frequency detail fallbacks such as missing context, source,
+    history, or downstream linkage only if repeated internal use still shows
+    ambiguity after the request-detail workflow placeholders settle
 
 ### Later candidates
 
@@ -165,7 +169,7 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. remaining detail-page and subsection `no_*` wording sweep only if repeated
+1. remaining lineage/detail-context `no_*` wording sweep only if repeated
    internal use still shows ambiguity in lower-frequency placeholders
 2. broader glossary or i18n taxonomy redesign only if repeated internal use
    still finds a stronger terminology signal beyond the current label set

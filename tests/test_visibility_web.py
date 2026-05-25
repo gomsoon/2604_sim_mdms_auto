@@ -2144,6 +2144,21 @@ def test_billing_export_request_detail_page_shows_progress_pipeline_and_payload(
     assert "web_worker" in text
 
 
+def test_billing_export_request_detail_page_shows_workflow_placeholders(client, session):
+    request_id = _prepare_billing_export_request_rows(session)
+
+    response = client.get(f"/billing-export-requests/{request_id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이 export request와 연결된 파이프라인 실행이 아직 없습니다." in text
+    assert "요청이 아직 queued 상태이거나 worker가 첫 pipeline 실행을 시작하지 않았을 수 있습니다." in text
+    assert "현재 processing 상태로 표시된 export item이 없습니다." in text
+    assert "요청이 processing 상태가 아니라면 정상입니다. 아직 대기 중이거나 이미 끝난 요청에서는 현재 item이 없을 수 있습니다." in text
+    assert "이 request에 기록된 실패 export item이 없습니다." in text
+    assert "요청이 실패나 부분 완료 상태가 아니라면 정상 신호입니다." in text
+
+
 def test_billing_export_request_detail_page_shows_stale_runtime_guidance(client, session):
     request_id = _prepare_billing_export_request_rows(session, make_stale=True)
 
