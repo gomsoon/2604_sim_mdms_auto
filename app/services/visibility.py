@@ -30,6 +30,7 @@ from app.models import (
     ReprocessRequest,
     ServicePoint,
     ServicePointTariffAssignment,
+    UserAccount,
     UsageTransaction,
     VeeException,
     VeeExecutionLog,
@@ -243,6 +244,8 @@ class OperationalEventDetailContext:
     raw_rows: list[HesReadRaw] = ()
     canonical_rows: list[CanonicalMeasurement] = ()
     final_rows: list[FinalMeasurement] = ()
+    action_actor_display: str | None = None
+    action_actor_kind: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -2093,6 +2096,11 @@ def get_operational_event_detail_context(
             .order_by(FinalMeasurement.measured_at.desc(), FinalMeasurement.id.desc())
         ).all()
 
+    action_actor_display, action_actor_kind = _build_operational_event_action_actor(
+        session,
+        event,
+    )
+
     return OperationalEventDetailContext(
         event=event,
         adapter_instance=adapter_instance,
@@ -2107,6 +2115,8 @@ def get_operational_event_detail_context(
         raw_rows=raw_rows,
         canonical_rows=canonical_rows,
         final_rows=final_rows,
+        action_actor_display=action_actor_display,
+        action_actor_kind=action_actor_kind,
     )
 
 
@@ -2176,6 +2186,56 @@ def _format_user_actor_display(user_account, fallback_actor: str | None) -> str 
         return f"{user_account.display_name} ({user_account.login_id})"
     normalized_fallback = (fallback_actor or "").strip()
     return normalized_fallback or None
+
+
+def _build_operational_event_action_actor(
+    session: Session,
+    event: OperationalEvent,
+) -> tuple[str | None, str | None]:
+    details = event.details or {}
+    actor_candidates = (
+        ("acted_by", "acted_by_user_account_id"),
+        ("cancelled_by", "cancelled_by_user_account_id"),
+        ("requested_by", "requested_by_user_account_id"),
+    )
+
+    for actor_key, actor_id_key in actor_candidates:
+        fallback_actor = _normalize_text(details.get(actor_key))
+        actor_user_account_id = details.get(actor_id_key)
+        if not isinstance(actor_user_account_id, int):
+            actor_user_account_id = None
+        if actor_user_account_id is None and fallback_actor is None:
+            continue
+
+        user_account = (
+            session.get(UserAccount, actor_user_account_id)
+            if actor_user_account_id is not None
+            else None
+        )
+        display = _format_user_actor_display(user_account, fallback_actor)
+        if display is None:
+            continue
+        return display, _infer_operational_event_actor_kind(user_account, fallback_actor)
+
+    return None, None
+
+
+def _infer_operational_event_actor_kind(
+    user_account: UserAccount | None,
+    fallback_actor: str | None,
+) -> str | None:
+    if user_account is not None:
+        return "field.human_actor"
+
+    normalized_actor = _normalize_text(fallback_actor)
+    if normalized_actor is None:
+        return None
+    if normalized_actor in {"scheduler", "system"}:
+        return "field.runtime_actor"
+    if normalized_actor.endswith("_worker") or normalized_actor.endswith("-worker"):
+        return "field.runtime_actor"
+
+    return "field.recorded_actor"
 
 
 def _list_related_raw_rows(

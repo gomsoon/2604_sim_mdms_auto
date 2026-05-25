@@ -18,6 +18,10 @@
   </div>
 </div>
 
+{% set event_details = detail.event.details or {} %}
+{% set snapshot_instance_code = event_details.get("instance_code") or (detail.adapter_instance.instance_code if detail.adapter_instance else None) %}
+{% set has_action_snapshot = detail.action_actor_display or snapshot_instance_code or event_details.get("request_scope") or event_details.get("trigger_type") or event_details.get("target_admin_state") or event_details.get("previous_admin_state") or event_details.get("status") or event_details.get("result_code") or event_details.get("completion_reason") or event_details.get("cancellation_memo") %}
+
 {% if detail.event.is_alert and detail.event.alert_status != "closed" %}
 <div class="card shadow-sm mb-4">
   <div class="card-body d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between">
@@ -44,6 +48,70 @@
         <button type="submit" class="btn btn-outline-danger">{{ t("button.close_alert") }}</button>
       </form>
     </div>
+  </div>
+</div>
+{% endif %}
+
+{% if has_action_snapshot %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="h5 mb-3">{{ t("page.operational_event_detail.action_snapshot") }}</h2>
+    <p class="small text-secondary mb-3">{{ t("page.operational_event_detail.action_snapshot_help") }}</p>
+    <dl class="row mb-0">
+      {% if detail.action_actor_display %}
+      <dt class="col-sm-4">{{ t("field.action_actor") }}</dt>
+      <dd class="col-sm-8">
+        <div>{{ detail.action_actor_display }}</div>
+        {% if detail.action_actor_kind %}
+        <div class="small text-secondary">{{ t(detail.action_actor_kind) }}</div>
+        {% endif %}
+      </dd>
+      {% endif %}
+      {% if snapshot_instance_code %}
+      <dt class="col-sm-4">{{ t("field.instance_code") }}</dt>
+      <dd class="col-sm-8">{{ snapshot_instance_code }}</dd>
+      {% endif %}
+      {% if event_details.get("request_scope") %}
+      <dt class="col-sm-4">{{ t("table.request_scope") }}</dt>
+      <dd class="col-sm-8">
+        {% if detail.event.event_code.startswith("vee_replay_") %}
+        {{ t_or("vee_replay.request_scope." ~ event_details.get("request_scope"), event_details.get("request_scope")) }}
+        {% elif detail.event.event_code.startswith("billing_export_") %}
+        {{ t_or("billing_export.request_scope." ~ event_details.get("request_scope"), event_details.get("request_scope")) }}
+        {% else %}
+        {{ event_details.get("request_scope") }}
+        {% endif %}
+      </dd>
+      {% endif %}
+      {% if event_details.get("trigger_type") %}
+      <dt class="col-sm-4">{{ t("field.trigger_type") }}</dt>
+      <dd class="col-sm-8">{{ event_details.get("trigger_type") }}</dd>
+      {% endif %}
+      {% if event_details.get("target_admin_state") or event_details.get("admin_state") %}
+      <dt class="col-sm-4">{{ t("field.requested_state") }}</dt>
+      <dd class="col-sm-8">{{ t_or("adapter_admin_state." ~ (event_details.get("target_admin_state") or event_details.get("admin_state")), event_details.get("target_admin_state") or event_details.get("admin_state")) }}</dd>
+      {% endif %}
+      {% if event_details.get("previous_admin_state") %}
+      <dt class="col-sm-4">{{ t("field.previous_state") }}</dt>
+      <dd class="col-sm-8">{{ t_or("adapter_admin_state." ~ event_details.get("previous_admin_state"), event_details.get("previous_admin_state")) }}</dd>
+      {% endif %}
+      {% if event_details.get("status") %}
+      <dt class="col-sm-4">{{ t("field.status") }}</dt>
+      <dd class="col-sm-8">{{ t_or("common.status." ~ event_details.get("status"), event_details.get("status")) }}</dd>
+      {% endif %}
+      {% if event_details.get("result_code") %}
+      <dt class="col-sm-4">{{ t("table.result_code") }}</dt>
+      <dd class="col-sm-8">{{ event_details.get("result_code") }}</dd>
+      {% endif %}
+      {% if event_details.get("completion_reason") %}
+      <dt class="col-sm-4">{{ t("field.completion_reason") }}</dt>
+      <dd class="col-sm-8">{{ event_details.get("completion_reason") }}</dd>
+      {% endif %}
+      {% if event_details.get("cancellation_memo") %}
+      <dt class="col-sm-4">{{ t("field.operator_memo") }}</dt>
+      <dd class="col-sm-8">{{ event_details.get("cancellation_memo") }}</dd>
+      {% endif %}
+    </dl>
   </div>
 </div>
 {% endif %}

@@ -5,12 +5,14 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 
 from app.models import (
+    AdapterInstance,
     EstimationAudit,
     HesSystem,
     IngestBatch,
     InitialMeasurement,
     ManualEditAudit,
     OperationalEvent,
+    UserAccount,
     UsageTransaction,
     VeeException,
     VeeReplayRequest,
@@ -199,15 +201,27 @@ def test_operational_event_detail_page_shows_missing_context_guidance(client, se
     seed_demo_environment(session)
     session.commit()
 
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    adapter_instance = session.scalar(
+        select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary").limit(1)
+    )
     hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    assert actor is not None
+    assert adapter_instance is not None
     assert hes_system is not None
 
     event = record_operational_event(
         session,
         "adapter_enabled",
         hes_system=hes_system,
-        details={},
-        instance_code="no-context-adapter",
+        adapter_instance=adapter_instance,
+        details={
+            "acted_by": actor.login_id,
+            "acted_by_user_account_id": actor.id,
+            "previous_admin_state": "paused",
+            "target_admin_state": "enabled",
+        },
+        instance_code=adapter_instance.instance_code,
     )
     session.commit()
 
@@ -215,14 +229,61 @@ def test_operational_event_detail_page_shows_missing_context_guidance(client, se
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert "조치 스냅샷" in text
+    assert "조치 주체" in text
+    assert "Test Admin (admin)" in text
+    assert "사람 계정" in text
+    assert "인스턴스 코드" in text
+    assert "demo_hes_poll_primary" in text
+    assert "이전 상태" in text
+    assert "일시중지" in text
+    assert "요청 상태" in text
+    assert "활성" in text
     assert "이 이벤트와 연결된 원시 검침이 없습니다." in text
     assert "이 경우는 특정 원시 검침 한 건보다 런타임 또는 처리 상태를 설명하는 이벤트일 가능성이 큽니다." in text
     assert "관련 원시 검침에서 생성된 표준 계측이 없습니다." in text
     assert "표준화가 아직 실행되지 않았거나, 표준 계측이 생성되기 전에 기록된 이벤트일 수 있습니다." in text
     assert "관련 표준 계측에서 생성된 최종 계측이 없습니다." in text
     assert "최종화가 아직 실행되지 않았거나, downstream 처리가 끝나기 전에 기록된 이벤트일 수 있습니다." in text
-    assert "추가 이벤트 세부 정보가 없습니다." in text
-    assert "추가 payload가 없을 때는 위의 연결 대상과 타임라인 정보를 먼저 확인하세요." in text
+    assert "acted_by_user_account_id" in text
+    assert "previous_admin_state" in text
+
+
+def test_operational_event_detail_page_shows_runtime_action_snapshot(client, session):
+    seed_demo_environment(session)
+    session.commit()
+
+    hes_system = session.scalar(select(HesSystem).where(HesSystem.hes_code == "HES").limit(1))
+    adapter_instance = session.scalar(
+        select(AdapterInstance).where(AdapterInstance.instance_code == "demo_hes_poll_primary").limit(1)
+    )
+    assert hes_system is not None
+    assert adapter_instance is not None
+
+    event = record_operational_event(
+        session,
+        "adapter_run_queued",
+        hes_system=hes_system,
+        adapter_instance=adapter_instance,
+        details={
+            "requested_by": "scheduler",
+            "requested_by_user_account_id": None,
+            "trigger_type": "schedule",
+        },
+        instance_code=adapter_instance.instance_code,
+    )
+    session.commit()
+
+    response = client.get(f"/operational-events/{event.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "조치 스냅샷" in text
+    assert "scheduler" in text
+    assert "런타임 주체" in text
+    assert "실행 유형" in text
+    assert "schedule" in text
+    assert "demo_hes_poll_primary" in text
 
 
 def test_dashboard_page_lists_recent_recalculated_usage(client, session):

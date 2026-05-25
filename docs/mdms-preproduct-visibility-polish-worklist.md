@@ -108,6 +108,10 @@ share the exact same wording or display rule.
 - broader glossary or locale taxonomy redesign
   - revisit shared terminology only if repeated internal use still shows a
     stronger naming signal after the placeholder cleanup settles
+- hand off to audit/accountability readability
+  - the visibility baseline is effectively closed, so the next preproduct
+    slices should prefer operational-event/action audit readability over new
+    wording-only sweeps
 
 ### Later candidates
 

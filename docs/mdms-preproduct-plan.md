@@ -58,6 +58,9 @@ through bounded internal use.
 - the next highest-value visibility work is broader glossary redesign only if
   repeated use still shows a stronger terminology signal beyond the current
   placeholder and empty-state cleanup
+- the first audit/accountability readability slice is now in place for
+  `operational_event` detail, where action actor, requested state, and request
+  or completion hints are surfaced before raw JSON details
 
 ## Operating principles
 
@@ -119,9 +122,15 @@ Focus areas:
 
 - confirm `user_action_audit` is present on critical read and execute flows
 - make actor fallback rules consistent where legacy rows still exist
-- make action snapshots in `operational_event.details` easy to interpret
+- keep action snapshots in `operational_event.details` easy to interpret
 - prefer explicit actor wording like `display_name (login_id)` on sensitive
   actions
+
+Recommended next steps:
+
+- sweep `user_action_audit` evidence across critical read and execute flows
+- add created/updated actor visibility on admin mutation views such as HES and
+  master-data screens
 
 ### 4. Bug-fix loop with regression discipline
 

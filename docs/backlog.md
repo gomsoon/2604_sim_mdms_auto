@@ -540,9 +540,15 @@ These items are not blockers for the current minimal baseline, but they should r
   - isolated placeholder cleanup completed for reprocess-history and
     adapter-definition fallbacks that needed clearer not-used-yet versus
     prerequisite-setup guidance
+  - operational-event action snapshot readability completed for actor,
+    requested-state, trigger, and request/completion summary fields that now
+    appear before raw JSON event details
   - defer broader glossary or i18n taxonomy redesign until repeated internal
     use shows a stronger terminology signal than the current label cleanup
   - known-limitations communication for internal operators
+  - next audit/accountability readability candidates are critical-flow
+    `user_action_audit` evidence review and created/updated actor visibility on
+    admin mutation views
 - Keep each hardening slice small enough to update regression coverage in the
   same change set
 - Defer broader product expansion until repeated internal-use friction shows a
