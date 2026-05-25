@@ -90,13 +90,17 @@ share the exact same wording or display rule.
   export and replay request detail views now explain whether missing pipeline,
   current-item, failed-item, and focus-payload sections mean not-started-yet,
   not-currently-processing, or a healthy no-failure state
+- lineage/detail-context `no_*` wording sweep:
+  usage, bill-determinant, and bill-charge detail views now explain whether
+  missing downstream rows, upstream snapshots, or revision history mean
+  not-yet-calculated context or unavailable lineage context
 
 ### Next recommended candidates
 
-- remaining lineage/detail-context `no_*` wording sweep
-  - revisit lower-frequency detail fallbacks such as missing context, source,
-    history, or downstream linkage only if repeated internal use still shows
-    ambiguity after the request-detail workflow placeholders settle
+- remaining event and exception context `no_*` wording sweep
+  - revisit lower-frequency placeholders across operational-event, VEE
+    exception, and raw exception detail views only if repeated internal use
+    still shows ambiguity after the usage/billing lineage placeholders settle
 
 ### Later candidates
 
@@ -169,7 +173,7 @@ share the exact same wording or display rule.
 
 ## Recommended execution order
 
-1. remaining lineage/detail-context `no_*` wording sweep only if repeated
+1. remaining event and exception context `no_*` wording sweep only if repeated
    internal use still shows ambiguity in lower-frequency placeholders
 2. broader glossary or i18n taxonomy redesign only if repeated internal use
    still finds a stronger terminology signal beyond the current label set

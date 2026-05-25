@@ -44,9 +44,12 @@ through bounded internal use.
   - request-detail workflow placeholder wording polish across billing export
     and replay detail placeholders such as missing pipeline, current item,
     failed items, and focus payload
+  - lineage/detail-context `no_*` wording sweep across usage, bill
+    determinant, and bill charge detail placeholders such as missing
+    downstream rows, source lineage, and revision-history context
 - direct live-ingest execution can still be added later if a stricter
   operator-run smoke record is needed
-- the next highest-value visibility work is a lower-frequency lineage/detail
+- the next highest-value visibility work is an event/exception context
   placeholder review only if repeated use still shows ambiguity, followed by
   broader glossary redesign only if repeated use still shows a stronger
   terminology signal
@@ -179,7 +182,7 @@ Goal:
 
 Recommended first candidates:
 
-- remaining lineage/detail-context `no_*` wording sweep only if repeated
+- remaining event and exception context `no_*` wording sweep only if repeated
   internal use still shows ambiguity in lower-frequency placeholders
 - broader glossary or locale taxonomy redesign only if repeated internal use
   still shows a stronger terminology signal beyond the current label set

@@ -1636,6 +1636,10 @@ def test_usage_transaction_detail_page_shows_lineage_and_final_context(client, s
     assert "계산 근거" in text
     assert "수동 사용량 계산" in text
     assert "구성 최종 계측" in text
+    assert "이 사용량 집계 구간에 대해 계산된 청구 결정값이 아직 없습니다." in text
+    assert "이 사용량 구간에 대한 청구 결정값 계산이 아직 실행되지 않았거나, 청구 컨텍스트 준비가 끝나지 않았을 수 있습니다." in text
+    assert "이 사용량 집계 구간에 대해 계산된 청구 금액이 아직 없습니다." in text
+    assert "청구 결정값, 요금제 할당, 요율 문맥이 준비된 뒤 청구 금액 계산이 실행되면 여기서 확인합니다." in text
     assert "SP-1001" in text
     assert "MTR-1001" in text
     assert "CH-01" in text
@@ -1726,6 +1730,8 @@ def test_bill_determinant_detail_page_shows_usage_lineage_and_revision_context(c
     assert "청구 컨텍스트 달력 월" in text
     assert "Asia/Seoul" in text
     assert "적용 가능한 요금제 할당이 아직 없습니다" in text
+    assert "이 청구 결정값에서 계산된 청구 금액이 아직 없습니다." in text
+    assert "요금제 할당과 요율 문맥이 준비된 뒤 청구 금액 계산이 실행되면 여기서 확인합니다." in text
 
 
 def test_bill_determinant_detail_page_shows_applicable_tariff_assignment(client, session):
@@ -1899,6 +1905,34 @@ def test_bill_charge_detail_page_shows_determinant_tariff_and_revision_context(c
     assert "개정 이력" in text
     assert "RES-A" in text
     assert "/bill-determinants/1?lang=ko" in text
+
+
+def test_bill_determinant_detail_page_shows_missing_source_usage_guidance(client, session):
+    seed_demo_environment(session)
+    session.commit()
+    finalize_canonical_measurements(session, batch_id="demo-read-batch")
+    session.commit()
+    calculate_usage_transactions(session, usage_type="monthly_consumption")
+    session.commit()
+    calculate_bill_determinants(
+        session,
+        determinant_type="billing_cycle_consumption_total",
+    )
+    session.commit()
+
+    determinant = session.get(BillDeterminant, 1)
+    assert determinant is not None
+    details = dict(determinant.details or {})
+    details["provenance"] = {}
+    determinant.details = details
+    session.commit()
+
+    response = client.get("/bill-determinants/1?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이 청구 결정값과 연결된 원본 사용량 거래가 없습니다." in text
+    assert "원본 사용량 연계 정보가 아직 저장되지 않았거나, 현재 상세 화면에서 연결 가능한 사용량 항목이 없을 수 있습니다." in text
 
 
 def test_bill_determinant_detail_page_links_to_related_bill_charges(client, session):

@@ -227,6 +227,7 @@
     <pre class="bg-light border rounded p-3 mb-0"><code>{{ determinant_snapshot | tojson(indent=2) }}</code></pre>
     {% else %}
     <div class="text-secondary">{{ t("page.bill_charge_detail.no_source_determinant") }}</div>
+    <div class="small text-secondary mt-2">{{ t("page.bill_charge_detail.no_source_determinant_help") }}</div>
     {% endif %}
   </div>
 </div>
@@ -277,6 +278,7 @@
     </div>
     {% else %}
     <div class="text-secondary">{{ t("page.bill_charge_detail.no_revision_history") }}</div>
+    <div class="small text-secondary mt-2">{{ t("page.bill_charge_detail.no_revision_history_help") }}</div>
     {% endif %}
   </div>
 </div>

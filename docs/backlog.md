@@ -531,8 +531,11 @@ These items are not blockers for the current minimal baseline, but they should r
   - request-detail workflow placeholder cleanup completed for billing export
     and replay detail `no_pipeline`, `no_current_item`, `no_failed_items`, and
     export `no_focus_item` guidance
-  - defer the remaining lower-frequency lineage/detail-context `no_*` wording
-    sweep until repeated internal use shows a clearer ambiguity signal
+  - lineage/detail-context placeholder cleanup completed for usage,
+    bill-determinant, and bill-charge detail views that needed clearer
+    not-yet-calculated versus unavailable-lineage guidance
+  - defer the remaining lower-frequency event and exception context `no_*`
+    wording sweep until repeated internal use shows a clearer ambiguity signal
   - defer broader glossary or i18n taxonomy redesign until repeated internal
     use shows a stronger terminology signal than the current label cleanup
   - known-limitations communication for internal operators
