@@ -88,6 +88,9 @@ This directory captures the working engineering baseline for the `Minimal End-to
 79. [operator-workflows.md](/home/tprover/2604_sim_mdms_auto/docs/operator-workflows.md)
 80. [implementation-roadmap.md](/home/tprover/2604_sim_mdms_auto/docs/implementation-roadmap.md)
 81. [decision-log.md](/home/tprover/2604_sim_mdms_auto/docs/decision-log.md)
+82. [mdms-preproduct-operator-manual.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-manual.md)
+83. [mdms-preproduct-operator-slide-outline.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-slide-outline.md)
+84. [mdms-preproduct-operator-screen-capture-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-screen-capture-checklist.md)
 
 ## Intent
 
@@ -177,6 +180,9 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `operator-workflows.md` captures the minimal-stage operational flows the UI and APIs must support.
 - `implementation-roadmap.md` turns the planning set into an ordered execution sequence.
 - `decision-log.md` distinguishes locked decisions from open questions.
+- `mdms-preproduct-operator-manual.md` consolidates the current preproduct startup, shutdown, daily operating routine, key feature procedures, and first-line incident guidance into one operator-facing guide.
+- `mdms-preproduct-operator-slide-outline.md` turns that manual into a presentation structure suitable for later `pptx` packaging and onboarding.
+- `mdms-preproduct-operator-screen-capture-checklist.md` defines the screenshot set needed before assembling a screen-centered operator training deck.
 
 ## Current decision baseline
 
