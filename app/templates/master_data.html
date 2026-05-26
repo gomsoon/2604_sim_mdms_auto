@@ -24,6 +24,11 @@
   {% endfor %}
 {%- endmacro %}
 
+{% macro actor_visibility_lines(row) -%}
+  <div class="small text-secondary mt-1">{{ t("field.created_actor") }}: {{ format_actor_display(row.created_by_user_account) or t("field.actor_not_recorded") }}</div>
+  <div class="small text-secondary">{{ t("field.updated_actor") }}: {{ format_actor_display(row.updated_by_user_account) or t("field.actor_not_recorded") }}</div>
+{%- endmacro %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
@@ -127,7 +132,10 @@
                 {% for row in service_points %}
                 <tr>
                   <form method="post" action="{{ url_for('web.update_service_point_view', service_point_id=row.id) }}">
-                    <td>{{ row.id }}</td>
+                    <td>
+                      <div>{{ row.id }}</div>
+                      {{ actor_visibility_lines(row) }}
+                    </td>
                     <td><input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required></td>
                     <td><input class="form-control form-control-sm" name="external_id" value="{{ row.external_id }}" required></td>
                     <td><input class="form-control form-control-sm" name="name" value="{{ row.name or '' }}"></td>
@@ -251,7 +259,10 @@
                 {% for row in billing_context_rows %}
                 <tr>
                   <form method="post" action="{{ url_for('web.update_billing_context_view', billing_context_id=row.id) }}">
-                    <td>{{ row.id }}</td>
+                    <td>
+                      <div>{{ row.id }}</div>
+                      {{ actor_visibility_lines(row) }}
+                    </td>
                     <td>{{ row.service_point.external_id }}</td>
                     <td><input class="form-control form-control-sm" name="timezone_name" value="{{ row.timezone_name }}" required></td>
                     <td>
@@ -389,7 +400,10 @@
                 {% for row in tariff_assignment_rows %}
                 <tr>
                   <form method="post" action="{{ url_for('web.update_tariff_assignment_view', tariff_assignment_id=row.id) }}">
-                    <td>{{ row.id }}</td>
+                    <td>
+                      <div>{{ row.id }}</div>
+                      {{ actor_visibility_lines(row) }}
+                    </td>
                     <td>{{ row.service_point.external_id }}</td>
                     <td><input class="form-control form-control-sm" name="tariff_plan_code" value="{{ row.tariff_plan_code }}" required></td>
                     <td><input class="form-control form-control-sm" name="tariff_version_code" value="{{ row.tariff_version_code or '' }}"></td>
@@ -506,7 +520,10 @@
                 {% for row in devices %}
                 <tr>
                   <form method="post" action="{{ url_for('web.update_device_view', device_id=row.id) }}">
-                    <td>{{ row.id }}</td>
+                    <td>
+                      <div>{{ row.id }}</div>
+                      {{ actor_visibility_lines(row) }}
+                    </td>
                     <td><input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required></td>
                     <td><input class="form-control form-control-sm" name="external_meter_id" value="{{ row.external_meter_id }}" required></td>
                     <td><input class="form-control form-control-sm" name="serial_number" value="{{ row.serial_number or '' }}"></td>
@@ -625,7 +642,10 @@
                 {% for row in rows %}
                 <tr>
                   <form method="post" action="{{ url_for('web.update_component_view', component_id=row.id) }}">
-                    <td>{{ row.id }}</td>
+                    <td>
+                      <div>{{ row.id }}</div>
+                      {{ actor_visibility_lines(row) }}
+                    </td>
                     <td><input class="form-control form-control-sm" name="source_system" value="{{ row.source_system }}" required></td>
                     <td>
                       <select class="form-select form-select-sm" name="device_id" required>
@@ -742,7 +762,10 @@
                 {% for row in installations %}
                 <tr>
                   <form method="post" action="{{ url_for('web.update_installation_view', installation_id=row.id) }}">
-                    <td>{{ row.id }}</td>
+                    <td>
+                      <div>{{ row.id }}</div>
+                      {{ actor_visibility_lines(row) }}
+                    </td>
                     <td>
                       <select class="form-select form-select-sm" name="device_id" required>
                         {% for device in devices %}

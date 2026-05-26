@@ -65,6 +65,9 @@ through bounded internal use.
   representative detail reads and high-value execute routes across
   `operational_event`, `vee_exception`, replay-request, billing-export, and
   alert-lifecycle flows
+- HES and master-data admin mutation views now surface created and last-updated
+  actor visibility for admin-managed rows, so operators can confirm who last
+  created or changed registry and reference data without leaving the page
 
 ## Operating principles
 
@@ -133,10 +136,10 @@ Focus areas:
 
 Recommended next steps:
 
-- add created/updated actor visibility on admin mutation views such as HES and
-  master-data screens
 - expand critical-flow `user_action_audit` evidence only when a newly sensitive
   route or operator workflow is added
+- extend created/updated actor visibility to other admin-managed reference
+  views only if repeated internal use shows a real audit-readability need
 
 ### 4. Bug-fix loop with regression discipline
 

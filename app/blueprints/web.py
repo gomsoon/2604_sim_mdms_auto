@@ -459,6 +459,20 @@ def _format_datetime_local(value: datetime | None, timezone_name: str | None) ->
     return value.astimezone(ZoneInfo(zone_name)).strftime("%Y-%m-%dT%H:%M")
 
 
+def _format_user_account_display(user_account) -> str | None:
+    if user_account is None:
+        return None
+    display_name = (getattr(user_account, "display_name", "") or "").strip()
+    login_id = (getattr(user_account, "login_id", "") or "").strip()
+    if display_name and login_id:
+        return f"{display_name} ({login_id})"
+    if display_name:
+        return display_name
+    if login_id:
+        return login_id
+    return None
+
+
 def _build_vee_replay_request_prefill_from_request(replay_request) -> dict[str, str]:
     timezone_name = (
         replay_request.window_timezone_name
@@ -1360,6 +1374,7 @@ def hes_system_detail(hes_system_id: int):
         "hes_system_detail.html",
         detail=detail,
         form_data=_hes_system_form_from_model(detail.hes_system),
+        format_actor_display=_format_user_account_display,
     )
 
 
@@ -1429,6 +1444,7 @@ def update_hes_system_view(hes_system_id: int):
             "hes_system_detail.html",
             detail=detail,
             form_data=form_data,
+            format_actor_display=_format_user_account_display,
         )
 
 
@@ -1591,26 +1607,53 @@ def run_adapter_once_view(adapter_instance_id: int):
 def master_data():
     session = get_session()
     service_points = session.scalars(
-        select(ServicePoint).order_by(ServicePoint.id.desc()).limit(100)
+        select(ServicePoint)
+        .options(
+            joinedload(ServicePoint.created_by_user_account),
+            joinedload(ServicePoint.updated_by_user_account),
+        )
+        .order_by(ServicePoint.id.desc())
+        .limit(100)
     ).all()
     devices = session.scalars(
-        select(Device).options(joinedload(Device.service_point)).order_by(Device.id.desc()).limit(100)
+        select(Device)
+        .options(
+            joinedload(Device.service_point),
+            joinedload(Device.created_by_user_account),
+            joinedload(Device.updated_by_user_account),
+        )
+        .order_by(Device.id.desc())
+        .limit(100)
     ).all()
     components = session.scalars(
         select(MeasuringComponent)
-        .options(joinedload(MeasuringComponent.device), joinedload(MeasuringComponent.service_point))
+        .options(
+            joinedload(MeasuringComponent.device),
+            joinedload(MeasuringComponent.service_point),
+            joinedload(MeasuringComponent.created_by_user_account),
+            joinedload(MeasuringComponent.updated_by_user_account),
+        )
         .order_by(MeasuringComponent.id.desc())
         .limit(100)
     ).all()
     installations = session.scalars(
         select(InstallationHistory)
-        .options(joinedload(InstallationHistory.device), joinedload(InstallationHistory.service_point))
+        .options(
+            joinedload(InstallationHistory.device),
+            joinedload(InstallationHistory.service_point),
+            joinedload(InstallationHistory.created_by_user_account),
+            joinedload(InstallationHistory.updated_by_user_account),
+        )
         .order_by(InstallationHistory.id.desc())
         .limit(100)
     ).all()
     billing_context_rows = session.scalars(
         select(ServicePointBillingContext)
-        .options(joinedload(ServicePointBillingContext.service_point))
+        .options(
+            joinedload(ServicePointBillingContext.service_point),
+            joinedload(ServicePointBillingContext.created_by_user_account),
+            joinedload(ServicePointBillingContext.updated_by_user_account),
+        )
         .order_by(
             ServicePointBillingContext.is_current.desc(),
             ServicePointBillingContext.effective_from.desc(),
@@ -1620,7 +1663,11 @@ def master_data():
     ).all()
     tariff_assignment_rows = session.scalars(
         select(ServicePointTariffAssignment)
-        .options(joinedload(ServicePointTariffAssignment.service_point))
+        .options(
+            joinedload(ServicePointTariffAssignment.service_point),
+            joinedload(ServicePointTariffAssignment.created_by_user_account),
+            joinedload(ServicePointTariffAssignment.updated_by_user_account),
+        )
         .order_by(
             ServicePointTariffAssignment.is_current.desc(),
             ServicePointTariffAssignment.effective_from.desc(),
@@ -1651,6 +1698,7 @@ def master_data():
         prefill_data=prefill_data,
         prefill_hes_meter_references=prefill_hes_meter_references,
         format_local_datetime=_format_datetime_local,
+        format_actor_display=_format_user_account_display,
     )
 
 

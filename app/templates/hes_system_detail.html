@@ -43,6 +43,20 @@
           <dd class="col-sm-7">{{ detail.hes_system.timezone_name or t("common.none") }}</dd>
           <dt class="col-sm-5">{{ t("field.description") }}</dt>
           <dd class="col-sm-7">{{ detail.hes_system.description or t("common.none") }}</dd>
+          <dt class="col-sm-5">{{ t("field.created_actor") }}</dt>
+          <dd class="col-sm-7">
+            <div>{{ format_actor_display(detail.hes_system.created_by_user_account) or t("field.actor_not_recorded") }}</div>
+            {% if detail.hes_system.created_by_user_account %}
+            <div class="small text-secondary mt-1">{{ t("field.human_actor") }}</div>
+            {% endif %}
+          </dd>
+          <dt class="col-sm-5">{{ t("field.updated_actor") }}</dt>
+          <dd class="col-sm-7">
+            <div>{{ format_actor_display(detail.hes_system.updated_by_user_account) or t("field.actor_not_recorded") }}</div>
+            {% if detail.hes_system.updated_by_user_account %}
+            <div class="small text-secondary mt-1">{{ t("field.human_actor") }}</div>
+            {% endif %}
+          </dd>
           <dt class="col-sm-5">{{ t("table.adapter_count") }}</dt>
           <dd class="col-sm-7">{{ detail.adapter_rows|length }}</dd>
           <dt class="col-sm-5">{{ t("table.running_adapters") }}</dt>

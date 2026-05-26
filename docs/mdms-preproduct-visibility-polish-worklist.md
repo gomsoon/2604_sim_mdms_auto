@@ -109,18 +109,21 @@ share the exact same wording or display rule.
   critical detail-read and execute flows now have explicit
   `user_action_audit` regression evidence, so further work should move to
   admin-mutation actor visibility instead of more wording-only sweeps
+- admin-mutation actor visibility handoff:
+  HES detail and master-data rows now surface created and last-updated actor
+  lineage for admin-managed registry changes, so the first accountability
+  handoff is visible on the page instead of only in stored FKs
 
 ### Next recommended candidates
 
-- hand off to audit/accountability readability
-  - the visibility baseline is effectively closed, and operational-event plus
-    critical-flow audit evidence is in place, so the next preproduct slices
-    should prefer created/updated actor visibility on admin mutation views
-    over new wording-only sweeps
 - broader glossary or locale taxonomy redesign
   - revisit shared terminology only if repeated internal use still shows a
     stronger naming signal after the placeholder and audit-readability
     cleanup settles
+- otherwise prefer non-visibility preproduct work
+  - the visibility baseline is effectively closed, so future slices should
+    prefer bug-fix loop, direct live-ingest evidence, or newly sensitive
+    audit/accountability flows over more wording-only sweeps
 
 ### Later candidates
 

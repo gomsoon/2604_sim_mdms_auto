@@ -547,12 +547,14 @@ These items are not blockers for the current minimal baseline, but they should r
     representative detail-read and execute routes across operational events,
     VEE exception detail, replay requests, billing export requests, and alert
     lifecycle actions
+  - HES and master-data admin mutation actor visibility completed for created
+    and last-updated account lineage on registry and reference-data views
   - defer broader glossary or i18n taxonomy redesign until repeated internal
     use shows a stronger terminology signal than the current label cleanup
   - known-limitations communication for internal operators
-  - next audit/accountability readability candidates are created/updated actor
-    visibility on admin mutation views and any follow-on evidence sweep needed
-    for newly sensitive routes
+  - next audit/accountability readability candidates are any follow-on
+    evidence sweep needed for newly sensitive routes and any additional
+    admin-managed reference views that show real actor-readability friction
 - Keep each hardening slice small enough to update regression coverage in the
   same change set
 - Defer broader product expansion until repeated internal-use friction shows a

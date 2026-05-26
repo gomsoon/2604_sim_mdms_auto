@@ -15,7 +15,8 @@ from app.models import (
 )
 from app.services.billing_contexts import create_billing_context
 from app.services.hes_systems import sync_hes_meter_reference_alerts
-from app.services.master_data import create_device, create_service_point
+from app.services.installations import create_installation_history
+from app.services.master_data import create_device, create_measuring_component, create_service_point
 from app.services.tariff_assignments import create_tariff_assignment
 from app.services.seeds import seed_demo_environment
 
@@ -322,6 +323,85 @@ def test_master_data_page_shows_component_and_installation_guidance_after_device
     assert "장치와 서비스 포인트를 선택한 뒤 채널 매핑을 추가하세요." in text
     assert "아직 등록된 설치 이력이 없습니다." in text
     assert "첫 설치 이력을 추가해 장치와 서비스 포인트 연결을 기록하세요." in text
+
+
+def test_master_data_page_shows_actor_visibility_for_admin_managed_rows(client, session):
+    actor = session.scalar(select(UserAccount).where(UserAccount.login_id == "admin").limit(1))
+    assert actor is not None
+
+    service_point = create_service_point(
+        session,
+        source_system="HES",
+        external_id="SP-ACTOR-VIS-1001",
+        service_type="electric",
+        name="Actor Visibility Site",
+        status="active",
+        created_by_user_account_id=actor.id,
+    )
+    create_billing_context(
+        session,
+        service_point_id=service_point.id,
+        timezone_name="Asia/Seoul",
+        billing_cycle_mode="calendar_month",
+        billing_cycle_anchor_day=None,
+        currency_code="KRW",
+        effective_from="2026-05-01T00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="actor:billing-context",
+        created_by_user_account_id=actor.id,
+    )
+    create_tariff_assignment(
+        session,
+        service_point_id=service_point.id,
+        tariff_plan_code="ACTOR-RES-A",
+        tariff_version_code="v1",
+        effective_from="2026-05-01T00:00",
+        effective_to=None,
+        source_system="manual",
+        source_reference="actor:tariff-assignment",
+        created_by_user_account_id=actor.id,
+    )
+    device = create_device(
+        session,
+        source_system="HES",
+        external_meter_id="MTR-ACTOR-VIS-1001",
+        serial_number="SER-ACTOR-VIS-1001",
+        service_point_id=service_point.id,
+        status="active",
+        created_by_user_account_id=actor.id,
+    )
+    create_measuring_component(
+        session,
+        source_system="HES",
+        external_channel_id="CH-ACTOR-VIS-1001",
+        unit_of_measure="kWh",
+        multiplier="1",
+        status="active",
+        device_id=device.id,
+        service_point_id=service_point.id,
+        created_by_user_account_id=actor.id,
+    )
+    create_installation_history(
+        session,
+        device_id=device.id,
+        service_point_id=service_point.id,
+        installed_at="2026-05-01T00:00",
+        removed_at=None,
+        status="installed",
+        created_by_user_account_id=actor.id,
+    )
+    session.commit()
+
+    response = client.get("/master-data?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "생성 주체" in text
+    assert "마지막 수정 주체" in text
+    assert "Test Admin (admin)" in text
+    assert "SP-ACTOR-VIS-1001" in text
+    assert "MTR-ACTOR-VIS-1001" in text
 
 
 def test_create_device_via_web_closes_missing_device_alert_and_opens_missing_component_alert(

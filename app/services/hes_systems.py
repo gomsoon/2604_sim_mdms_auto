@@ -773,7 +773,11 @@ def get_hes_system_detail(session: Session, hes_system_id: int) -> HesSystemDeta
 
     hes_system = session.scalar(
         select(HesSystem)
-        .options(selectinload(HesSystem.adapter_instances).selectinload(AdapterInstance.adapter_definition))
+        .options(
+            selectinload(HesSystem.adapter_instances).selectinload(AdapterInstance.adapter_definition),
+            selectinload(HesSystem.created_by_user_account),
+            selectinload(HesSystem.updated_by_user_account),
+        )
         .where(HesSystem.id == hes_system_id)
         .limit(1)
     )

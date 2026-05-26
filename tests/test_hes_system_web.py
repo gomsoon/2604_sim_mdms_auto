@@ -16,6 +16,7 @@ from app.models import (
     VeeException,
     VeeReplayRequest,
 )
+from app.services.hes_systems import create_hes_system
 from app.services.processing_replay import reevaluate_vee_exception_and_replay
 from app.services.bill_determinants import calculate_bill_determinants
 from app.services.seeds import seed_demo_environment
@@ -128,6 +129,55 @@ def test_hes_system_detail_page_renders_linked_adapter_and_recent_batch(client, 
     assert "계량기 참조" in text
     assert "정상 매핑" in text
     assert "장치 누락" in text
+
+
+def test_hes_system_detail_page_shows_admin_actor_visibility(client, session):
+    response = client.post(
+        "/hes-systems?lang=ko",
+        data={
+            "hes_code": "AIMIR_ACTOR_HES",
+            "display_name": "AIMIR Actor HES",
+            "vendor_name": "NURI",
+            "source_family": "hes",
+            "default_delivery_mode": "poll",
+            "status": "active",
+            "timezone_name": "Asia/Seoul",
+            "description": "Actor visibility test",
+            "connection_config_masked": '{"host": "actor.hes.local"}',
+        },
+        follow_redirects=True,
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "생성 주체" in text
+    assert "마지막 수정 주체" in text
+    assert "Test Admin (admin)" in text
+    assert "사람 계정" in text
+
+
+def test_hes_system_detail_page_shows_actor_fallback_when_not_recorded(client, session):
+    hes_system = create_hes_system(
+        session,
+        hes_code="LEGACY_HES_NO_ACTOR",
+        display_name="Legacy HES",
+        vendor_name="Legacy",
+        source_family="hes",
+        default_delivery_mode="poll",
+        status="active",
+        timezone_name="Asia/Seoul",
+        description="Created without actor lineage",
+        connection_config_masked='{"host": "legacy.hes.local"}',
+    )
+    session.commit()
+
+    response = client.get(f"/hes-systems/{hes_system.id}?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "생성 주체" in text
+    assert "마지막 수정 주체" in text
+    assert "기록 없음" in text
 
 
 def test_hes_system_detail_page_renders_recent_alerts_and_events(client, session):
