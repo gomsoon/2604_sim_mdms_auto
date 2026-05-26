@@ -102,16 +102,25 @@ share the exact same wording or display rule.
   standalone fallbacks such as missing reprocess history or missing adapter
   definitions now explain whether the page is simply not used yet or still
   waiting for prerequisite setup
+- operational-event action snapshot readability:
+  action actor, actor kind, requested state, and request/completion hints now
+  appear in a structured snapshot before raw event JSON details
+- audit/accountability handoff baseline:
+  critical detail-read and execute flows now have explicit
+  `user_action_audit` regression evidence, so further work should move to
+  admin-mutation actor visibility instead of more wording-only sweeps
 
 ### Next recommended candidates
 
+- hand off to audit/accountability readability
+  - the visibility baseline is effectively closed, and operational-event plus
+    critical-flow audit evidence is in place, so the next preproduct slices
+    should prefer created/updated actor visibility on admin mutation views
+    over new wording-only sweeps
 - broader glossary or locale taxonomy redesign
   - revisit shared terminology only if repeated internal use still shows a
-    stronger naming signal after the placeholder cleanup settles
-- hand off to audit/accountability readability
-  - the visibility baseline is effectively closed, so the next preproduct
-    slices should prefer operational-event/action audit readability over new
-    wording-only sweeps
+    stronger naming signal after the placeholder and audit-readability
+    cleanup settles
 
 ### Later candidates
 

@@ -61,6 +61,10 @@ through bounded internal use.
 - the first audit/accountability readability slice is now in place for
   `operational_event` detail, where action actor, requested state, and request
   or completion hints are surfaced before raw JSON details
+- a first critical-flow `user_action_audit` evidence sweep is now in place for
+  representative detail reads and high-value execute routes across
+  `operational_event`, `vee_exception`, replay-request, billing-export, and
+  alert-lifecycle flows
 
 ## Operating principles
 
@@ -120,7 +124,8 @@ The next step is to make sure operators can read and trust it easily.
 
 Focus areas:
 
-- confirm `user_action_audit` is present on critical read and execute flows
+- keep explicit regression evidence that `user_action_audit` is present on
+  critical read and execute flows
 - make actor fallback rules consistent where legacy rows still exist
 - keep action snapshots in `operational_event.details` easy to interpret
 - prefer explicit actor wording like `display_name (login_id)` on sensitive
@@ -128,9 +133,10 @@ Focus areas:
 
 Recommended next steps:
 
-- sweep `user_action_audit` evidence across critical read and execute flows
 - add created/updated actor visibility on admin mutation views such as HES and
   master-data screens
+- expand critical-flow `user_action_audit` evidence only when a newly sensitive
+  route or operator workflow is added
 
 ### 4. Bug-fix loop with regression discipline
 

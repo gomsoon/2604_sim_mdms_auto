@@ -543,12 +543,16 @@ These items are not blockers for the current minimal baseline, but they should r
   - operational-event action snapshot readability completed for actor,
     requested-state, trigger, and request/completion summary fields that now
     appear before raw JSON event details
+  - critical-flow `user_action_audit` evidence sweep completed for
+    representative detail-read and execute routes across operational events,
+    VEE exception detail, replay requests, billing export requests, and alert
+    lifecycle actions
   - defer broader glossary or i18n taxonomy redesign until repeated internal
     use shows a stronger terminology signal than the current label cleanup
   - known-limitations communication for internal operators
-  - next audit/accountability readability candidates are critical-flow
-    `user_action_audit` evidence review and created/updated actor visibility on
-    admin mutation views
+  - next audit/accountability readability candidates are created/updated actor
+    visibility on admin mutation views and any follow-on evidence sweep needed
+    for newly sensitive routes
 - Keep each hardening slice small enough to update regression coverage in the
   same change set
 - Defer broader product expansion until repeated internal-use friction shows a
