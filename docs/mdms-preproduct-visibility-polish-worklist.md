@@ -3,10 +3,12 @@
 ## Purpose
 
 This document inventories the operator-facing visibility-polish work that
-remains in the `mdms-preproduct` phase.
+remained in the `mdms-preproduct` phase and records what is now effectively
+closed.
 
 It exists so that visibility work is chosen intentionally from a shared list
-instead of being picked ad hoc one view at a time.
+instead of being picked ad hoc one view at a time, and so that the team can
+see when visibility work should hand off to other preproduct streams.
 
 It complements:
 
@@ -114,29 +116,24 @@ share the exact same wording or display rule.
   lineage for admin-managed registry changes, so the first accountability
   handoff is visible on the page instead of only in stored FKs
 
-### Next recommended candidates
+### Residual candidates
 
 - broader glossary or locale taxonomy redesign
   - revisit shared terminology only if repeated internal use still shows a
     stronger naming signal after the placeholder and audit-readability
     cleanup settles
-- otherwise prefer non-visibility preproduct work
-  - the visibility baseline is effectively closed, so future slices should
-    prefer bug-fix loop, direct live-ingest evidence, or newly sensitive
-    audit/accountability flows over more wording-only sweeps
+- newly sensitive audit or admin-reference flows
+  - add follow-on actor or wording polish only when a newly exposed route or
+    operator workflow creates real ambiguity during bounded internal use
 
-### Later candidates
+### Preferred handoff
 
-- empty-state wording polish across lower-traffic views once the current
-  high-traffic wording slices settle
-- list-level filter and spotlight polish for broader row triage after repeated
-  internal use produces stronger signals
-- broader glossary or i18n taxonomy redesign after repeated internal use
-  produces a stronger terminology signal
-- remaining detail-page and subsection `no_*` wording cleanup after repeated
-  internal use produces a clearer ambiguity signal
+- bug-fix loop with regression discipline
+- direct live-ingest evidence if stricter operator-run proof is needed
+- newly sensitive audit/accountability flows that are not solved by the
+  current visibility baseline
 
-## Candidate inventory
+## Archived completed themes
 
 ### A. VEE queue and detail
 
@@ -194,12 +191,20 @@ share the exact same wording or display rule.
 - consolidate wording where the same concept currently appears with slightly
   different labels
 
-## Recommended execution order
+These themes are retained as historical inventory only.
+They should not be reopened by default unless repeated internal use shows that
+the current baseline still leaves a meaningful ambiguity.
 
-1. remaining event and exception context `no_*` wording sweep only if repeated
-   internal use still shows ambiguity in lower-frequency placeholders
-2. broader glossary or i18n taxonomy redesign only if repeated internal use
-   still finds a stronger terminology signal beyond the current label set
+## Close-out note
+
+The visibility baseline is effectively closed for `mdms-preproduct`.
+
+Future work should default to non-visibility slices unless:
+
+1. repeated internal use shows a real terminology or wording problem that the
+   current baseline does not resolve
+2. a newly sensitive route, audit surface, or admin workflow exposes a fresh
+   actor-visibility gap
 
 ## Explicitly deferred in this worklist
 
