@@ -1,0 +1,135 @@
+{
+  "generated_at": "2026-05-27T01:38:35+00:00",
+  "viewport": {
+    "width": 1440,
+    "height": 1400
+  },
+  "captures": [
+    {
+      "filename": "01-login.png",
+      "title": "로그인 화면",
+      "route": "/login?lang=ko",
+      "scenario": "login",
+      "note": "운영자 진입 화면"
+    },
+    {
+      "filename": "02-dashboard-normal.png",
+      "title": "대시보드 기본 상태",
+      "route": "/?lang=ko",
+      "scenario": "base_visibility",
+      "note": "일일 운영 시작 화면"
+    },
+    {
+      "filename": "04-hes-detail.png",
+      "title": "HES 상세",
+      "route": "/hes-systems/1?lang=ko",
+      "scenario": "base_visibility",
+      "note": "HES 중심 운영 화면"
+    },
+    {
+      "filename": "05-adapter-detail.png",
+      "title": "어댑터 상세",
+      "route": "/adapters/1?lang=ko",
+      "scenario": "base_visibility",
+      "note": "런타임 상태와 운영자 조치"
+    },
+    {
+      "filename": "06-master-data.png",
+      "title": "마스터 데이터",
+      "route": "/master-data?lang=ko",
+      "scenario": "base_visibility",
+      "note": "최소 마스터 데이터와 actor visibility"
+    },
+    {
+      "filename": "07-raw-reads.png",
+      "title": "원시 검침 가시성",
+      "route": "/raw-reads?lang=ko&meter_id=MTR-1001",
+      "scenario": "base_visibility",
+      "note": "원본 적재 가시성"
+    },
+    {
+      "filename": "03-dashboard-attention.png",
+      "title": "대시보드 주의 필요 상태",
+      "route": "/?lang=ko",
+      "scenario": "dashboard_attention",
+      "note": "알림, recent event, replay 신호를 함께 보는 상태"
+    },
+    {
+      "filename": "08-canonical-measurements.png",
+      "title": "표준 계측",
+      "route": "/canonical-measurements?lang=ko&batch_id=demo-read-batch&meter_id=MTR-1001",
+      "scenario": "lineage",
+      "note": "정규화 이후 진행 상태"
+    },
+    {
+      "filename": "09-final-measurements.png",
+      "title": "최종 계측",
+      "route": "/final-measurements?lang=ko&batch_id=demo-read-batch&meter_id=MTR-1001",
+      "scenario": "lineage",
+      "note": "권위 있는 최종 상태"
+    },
+    {
+      "filename": "10-vee-exception-queue.png",
+      "title": "VEE 예외 큐",
+      "route": "/vee-exceptions?lang=ko&exception_status=active&meter_id=MTR-1001",
+      "scenario": "vee",
+      "note": "차단/비차단 triage 시작점"
+    },
+    {
+      "filename": "11-vee-exception-detail.png",
+      "title": "VEE 예외 상세",
+      "route": "/vee-exceptions/1?lang=ko",
+      "scenario": "vee",
+      "note": "차단 사유와 다음 조치"
+    },
+    {
+      "filename": "12-estimation-audit-detail.png",
+      "title": "추정 감사 상세",
+      "route": "/estimation-audits/1?lang=ko",
+      "scenario": "estimation",
+      "note": "추정 보정 accountability"
+    },
+    {
+      "filename": "13-manual-edit-audit-detail.png",
+      "title": "수동 보정 감사 상세",
+      "route": "/manual-edit-audits/1?lang=ko",
+      "scenario": "manual_edit",
+      "note": "수동 보정 accountability"
+    },
+    {
+      "filename": "14-replay-request-list.png",
+      "title": "VEE 재평가 요청 목록",
+      "route": "/vee-replay-requests?lang=ko&status=processing",
+      "scenario": "replay",
+      "note": "queue-style request monitoring"
+    },
+    {
+      "filename": "15-replay-request-detail.png",
+      "title": "VEE 재평가 요청 상세",
+      "route": "/vee-replay-requests/1?lang=ko",
+      "scenario": "replay",
+      "note": "scope, progress, current item, failed items"
+    },
+    {
+      "filename": "16-billing-export-request-list.png",
+      "title": "청구 내보내기 요청 목록",
+      "route": "/billing-export-requests?lang=ko&status=processing&service_point=SP-1001&target_system_code=generic_json&requested_by=billing-export-web-tester",
+      "scenario": "billing_export",
+      "note": "status hint, progress, actor, spotlight"
+    },
+    {
+      "filename": "17-billing-export-request-detail.png",
+      "title": "청구 내보내기 요청 상세",
+      "route": "/billing-export-requests/2?lang=ko",
+      "scenario": "billing_export",
+      "note": "request summary, failed items, action context"
+    },
+    {
+      "filename": "18-operational-event-detail.png",
+      "title": "운영 이벤트 상세",
+      "route": "/operational-events/6?lang=ko",
+      "scenario": "operational_event",
+      "note": "action snapshot and raw details"
+    }
+  ]
+}

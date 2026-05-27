@@ -21,12 +21,59 @@ from xml.sax.saxutils import escape
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = ROOT / "docs"
 GENERATED_DIR = DOCS_DIR / "generated"
+SCREEN_DIR = GENERATED_DIR / "screens"
 
 MANUAL_MD = DOCS_DIR / "mdms-preproduct-operator-manual.md"
 SLIDE_MD = DOCS_DIR / "mdms-preproduct-operator-slide-outline.md"
 OUTPUT_HTML = GENERATED_DIR / "mdms-preproduct-operator-manual.html"
 OUTPUT_DOCX = GENERATED_DIR / "mdms-preproduct-operator-manual.docx"
 OUTPUT_PPTX = GENERATED_DIR / "mdms-preproduct-operator-training-draft.pptx"
+OUTPUT_PPTX_V2 = GENERATED_DIR / "mdms-preproduct-operator-training-v2.pptx"
+
+
+@dataclass
+class SlideScreen:
+    filename: str
+    caption: str
+
+
+SLIDE_SCREEN_MAP: dict[int, list[SlideScreen]] = {
+    1: [SlideScreen("02-dashboard-normal.png", "운영 시작 기준 화면")],
+    2: [SlideScreen("02-dashboard-normal.png", "시스템 전반 요약")],
+    3: [SlideScreen("01-login.png", "운영자 로그인 진입점")],
+    4: [SlideScreen("15-replay-request-detail.png", "진행 중 요청 확인 예시")],
+    5: [SlideScreen("03-dashboard-attention.png", "우선 확인 대상이 있는 대시보드")],
+    6: [
+        SlideScreen("04-hes-detail.png", "HES 상세"),
+        SlideScreen("05-adapter-detail.png", "어댑터 상세"),
+    ],
+    7: [SlideScreen("06-master-data.png", "기본 마스터 데이터와 actor visibility")],
+    8: [
+        SlideScreen("07-raw-reads.png", "원시 검침 가시성"),
+        SlideScreen("09-final-measurements.png", "최종 계측 가시성"),
+    ],
+    9: [
+        SlideScreen("10-vee-exception-queue.png", "VEE 예외 큐"),
+        SlideScreen("11-vee-exception-detail.png", "VEE 예외 상세"),
+    ],
+    10: [
+        SlideScreen("12-estimation-audit-detail.png", "추정 감사 상세"),
+        SlideScreen("13-manual-edit-audit-detail.png", "수동 보정 감사 상세"),
+    ],
+    11: [
+        SlideScreen("15-replay-request-detail.png", "재평가 요청 상세"),
+        SlideScreen("17-billing-export-request-detail.png", "청구 내보내기 요청 상세"),
+    ],
+    12: [
+        SlideScreen("18-operational-event-detail.png", "운영 이벤트 조치 스냅샷"),
+        SlideScreen("06-master-data.png", "관리 row actor visibility"),
+    ],
+    13: [
+        SlideScreen("03-dashboard-attention.png", "주의 필요 대시보드"),
+        SlideScreen("05-adapter-detail.png", "런타임 점검 예시"),
+    ],
+    14: [SlideScreen("02-dashboard-normal.png", "일일 마감 기준 화면")],
+}
 
 
 def clean_inline(text: str) -> str:
@@ -448,25 +495,160 @@ def pptx_shape(
     )
 
 
-def build_slide_xml(slide: Slide) -> str:
+def _read_png_dimensions(path: Path) -> tuple[int, int]:
+    raw = path.read_bytes()
+    if raw[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"Unsupported image format for PPTX embedding: {path}")
+    width = int.from_bytes(raw[16:20], "big")
+    height = int.from_bytes(raw[20:24], "big")
+    return width, height
+
+
+def _fit_image_into_box(
+    *,
+    width_px: int,
+    height_px: int,
+    box_x: int,
+    box_y: int,
+    box_cx: int,
+    box_cy: int,
+) -> tuple[int, int, int, int]:
+    scale = min(box_cx / width_px, box_cy / height_px)
+    scaled_cx = max(1, int(width_px * scale))
+    scaled_cy = max(1, int(height_px * scale))
+    scaled_x = box_x + max(0, (box_cx - scaled_cx) // 2)
+    scaled_y = box_y + max(0, (box_cy - scaled_cy) // 2)
+    return scaled_x, scaled_y, scaled_cx, scaled_cy
+
+
+def pptx_picture(
+    shape_id: int,
+    name: str,
+    x: int,
+    y: int,
+    cx: int,
+    cy: int,
+    rel_id: str,
+) -> str:
+    return (
+        "<p:pic>"
+        "<p:nvPicPr>"
+        f'<p:cNvPr id="{shape_id}" name="{escape(name)}"/>'
+        '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>'
+        "<p:nvPr/>"
+        "</p:nvPicPr>"
+        "<p:blipFill>"
+        f'<a:blip r:embed="{rel_id}"/>'
+        "<a:stretch><a:fillRect/></a:stretch>"
+        "</p:blipFill>"
+        "<p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+        "</p:spPr>"
+        "</p:pic>"
+    )
+
+
+def _build_visual_elements(visuals: list[dict[str, object]], *, start_shape_id: int) -> tuple[list[str], int]:
+    if not visuals:
+        return [], start_shape_id
+
+    visual_x = 4343400
+    visual_y = 1600200
+    visual_cx = 7391400
+    visual_cy = 4572000
+    gap = 228600
+    caption_cy = 342900
+    elements: list[str] = []
+    shape_id = start_shape_id
+
+    if len(visuals) == 1:
+        visual = visuals[0]
+        image_box_y = visual_y + caption_cy + 114300
+        image_box_cy = visual_cy - caption_cy - 114300
+        elements.append(
+            pptx_shape(
+                shape_id,
+                f"Caption {shape_id}",
+                visual_x,
+                visual_y,
+                visual_cx,
+                caption_cy,
+                str(visual["caption"]),
+                font_size=1500,
+                bold=True,
+            )
+        )
+        shape_id += 1
+        x, y, cx, cy = _fit_image_into_box(
+            width_px=int(visual["width_px"]),
+            height_px=int(visual["height_px"]),
+            box_x=visual_x,
+            box_y=image_box_y,
+            box_cx=visual_cx,
+            box_cy=image_box_cy,
+        )
+        elements.append(pptx_picture(shape_id, str(visual["filename"]), x, y, cx, cy, str(visual["rel_id"])))
+        shape_id += 1
+        return elements, shape_id
+
+    group_cy = (visual_cy - gap) // 2
+    image_box_cy = group_cy - caption_cy - 114300
+    for index, visual in enumerate(visuals[:2]):
+        group_y = visual_y + index * (group_cy + gap)
+        elements.append(
+            pptx_shape(
+                shape_id,
+                f"Caption {shape_id}",
+                visual_x,
+                group_y,
+                visual_cx,
+                caption_cy,
+                str(visual["caption"]),
+                font_size=1400,
+                bold=True,
+            )
+        )
+        shape_id += 1
+        x, y, cx, cy = _fit_image_into_box(
+            width_px=int(visual["width_px"]),
+            height_px=int(visual["height_px"]),
+            box_x=visual_x,
+            box_y=group_y + caption_cy + 114300,
+            box_cx=visual_cx,
+            box_cy=image_box_cy,
+        )
+        elements.append(pptx_picture(shape_id, str(visual["filename"]), x, y, cx, cy, str(visual["rel_id"])))
+        shape_id += 1
+    return elements, shape_id
+
+
+def build_slide_xml(slide: Slide, *, visuals: list[dict[str, object]] | None = None) -> str:
     body = "\n".join(slide.body_lines) if slide.body_lines else "• 본문 요약을 여기에 추가"
     visual = "\n".join(slide.visual_lines) if slide.visual_lines else "• representative UI screen capture goes here"
+    visuals = visuals or []
     shapes = [
         pptx_shape(2, "Title", 457200, 274320, 10363200, 1143000, slide.title, font_size=2600, bold=True),
-        pptx_shape(3, "Body", 457200, 1600200, 6858000, 4572000, body, font_size=1800),
-        pptx_shape(
-            4,
-            "Visual Placeholder",
-            7543800,
-            1600200,
-            3200400,
-            4572000,
-            "Screen Capture Placeholder\n\n" + visual,
-            font_size=1600,
-            fill="F8FAFC",
-            line="CBD5E1",
-        ),
+        pptx_shape(3, "Body", 457200, 1600200, 3429000, 4572000, body, font_size=1700),
     ]
+    if visuals:
+        visual_elements, _ = _build_visual_elements(visuals, start_shape_id=4)
+        shapes.extend(visual_elements)
+    else:
+        shapes.append(
+            pptx_shape(
+                4,
+                "Visual Placeholder",
+                4343400,
+                1600200,
+                7391400,
+                4572000,
+                "Screen Capture Placeholder\n\n" + visual,
+                font_size=1600,
+                fill="F8FAFC",
+                line="CBD5E1",
+            )
+        )
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
@@ -493,7 +675,46 @@ def build_slide_xml(slide: Slide) -> str:
     )
 
 
-def build_pptx_package(slides: list[Slide], out_path: Path) -> None:
+def build_slide_rels_xml(visuals: list[dict[str, object]]) -> str:
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        + "".join(
+            f'<Relationship Id="{visual["rel_id"]}" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+            f'Target="../media/{visual["media_name"]}"/>'
+            for visual in visuals
+        )
+        + "</Relationships>"
+    )
+
+
+def _resolve_slide_visuals(slide_index: int) -> list[dict[str, object]]:
+    visuals: list[dict[str, object]] = []
+    for item_index, screen in enumerate(SLIDE_SCREEN_MAP.get(slide_index, []), start=1):
+        path = SCREEN_DIR / screen.filename
+        if not path.exists():
+            continue
+        width_px, height_px = _read_png_dimensions(path)
+        visuals.append(
+            {
+                "filename": screen.filename,
+                "caption": screen.caption,
+                "path": path,
+                "width_px": width_px,
+                "height_px": height_px,
+                "rel_id": f"rId{item_index}",
+            }
+        )
+    return visuals
+
+
+def build_pptx_package(
+    slides: list[Slide],
+    out_path: Path,
+    *,
+    use_screens: bool = False,
+) -> None:
     created = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     content_overrides = [
         '<Override PartName="/ppt/presentation.xml" '
@@ -514,6 +735,7 @@ def build_pptx_package(slides: list[Slide], out_path: Path) -> None:
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
         '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Default Extension="png" ContentType="image/png"/>'
         + "".join(content_overrides) +
         "</Types>"
     )
@@ -587,6 +809,7 @@ def build_pptx_package(slides: list[Slide], out_path: Path) -> None:
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    media_parts: dict[str, bytes] = {}
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types)
         zf.writestr("_rels/.rels", root_rels)
@@ -595,7 +818,16 @@ def build_pptx_package(slides: list[Slide], out_path: Path) -> None:
         zf.writestr("docProps/core.xml", core)
         zf.writestr("docProps/app.xml", app)
         for idx, slide in enumerate(slides, start=1):
-            zf.writestr(f"ppt/slides/slide{idx}.xml", build_slide_xml(slide))
+            visuals = _resolve_slide_visuals(idx) if use_screens else []
+            for media_index, visual in enumerate(visuals, start=1):
+                media_name = f"slide{idx}_image{media_index}.png"
+                visual["media_name"] = media_name
+                media_parts[media_name] = Path(visual["path"]).read_bytes()
+            zf.writestr(f"ppt/slides/slide{idx}.xml", build_slide_xml(slide, visuals=visuals))
+            if visuals:
+                zf.writestr(f"ppt/slides/_rels/slide{idx}.xml.rels", build_slide_rels_xml(visuals))
+        for media_name, payload in media_parts.items():
+            zf.writestr(f"ppt/media/{media_name}", payload)
 
 
 def main() -> int:
@@ -612,11 +844,13 @@ def main() -> int:
     slide_blocks = parse_slide_outline(SLIDE_MD)
     build_html_manual(manual_blocks, OUTPUT_HTML)
     build_docx_package(manual_blocks, OUTPUT_DOCX)
-    build_pptx_package(slide_blocks, OUTPUT_PPTX)
+    build_pptx_package(slide_blocks, OUTPUT_PPTX, use_screens=False)
+    build_pptx_package(slide_blocks, OUTPUT_PPTX_V2, use_screens=True)
 
     print(f"Wrote {OUTPUT_HTML}")
     print(f"Wrote {OUTPUT_DOCX}")
     print(f"Wrote {OUTPUT_PPTX}")
+    print(f"Wrote {OUTPUT_PPTX_V2}")
     return 0
 
 
