@@ -13,36 +13,93 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body>
+    {% set request_path = request.path %}
+    {% set dashboard_active = request_path == "/" %}
+    {% set measurement_active = request_path.startswith("/ingest-batches") or request_path.startswith("/raw-reads") or request_path.startswith("/raw-events") or request_path.startswith("/canonical-measurements") or request_path.startswith("/final-measurements") %}
+    {% set billing_active = request_path.startswith("/usage-transactions") or request_path.startswith("/bill-determinants") or request_path.startswith("/bill-charges") %}
+    {% set correction_active = request_path.startswith("/exceptions") or request_path.startswith("/estimation-audits") or request_path.startswith("/manual-edit-audits") %}
+    {% set runtime_active = request_path.startswith("/adapters") %}
+    {% set vee_active = request_path.startswith("/vee-exceptions") %}
+    {% set replay_active = request_path.startswith("/vee-replay-requests") %}
+    {% set export_active = request_path.startswith("/billing-export-requests") %}
+    {% set hes_active = request_path.startswith("/hes-systems") or request_path.startswith("/hes-meter-references") %}
+    {% set events_active = request_path.startswith("/operational-events") %}
+    {% set master_active = request_path.startswith("/master-data") %}
     <nav class="navbar navbar-expand-lg border-bottom bg-white shadow-sm">
       <div class="container">
         <a class="navbar-brand fw-semibold" href="{{ url_for('web.dashboard') }}">{{ t("app.title") }}</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
         <div id="mainNav" class="collapse navbar-collapse">
-          <ul class="navbar-nav ms-auto gap-lg-2">
+          <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between w-100 gap-3">
             {% if current_user %}
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.dashboard') }}">{{ t("nav.dashboard") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.ingest_batches') }}">{{ t("nav.ingest_batches") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.raw_reads') }}">{{ t("nav.raw_reads") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.raw_events') }}">{{ t("nav.raw_events") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.canonical_measurements') }}">{{ t("nav.canonical_measurements") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.final_measurements') }}">{{ t("nav.final_measurements") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.usage_transactions') }}">{{ t("nav.usage_transactions") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.bill_determinants') }}">{{ t("nav.bill_determinants") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.bill_charges') }}">{{ t("nav.bill_charges") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.billing_export_requests') }}">{{ t("nav.billing_export_requests") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.estimation_audits') }}">{{ t("nav.estimation_audits") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.manual_edit_audits') }}">{{ t("nav.manual_edit_audits") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.hes_systems') }}">{{ t("nav.hes_systems") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.adapters') }}">{{ t("nav.adapters") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.exceptions') }}">{{ t("nav.exceptions") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.vee_exceptions') }}">{{ t("nav.vee_exceptions") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.vee_replay_requests') }}">{{ t("nav.vee_replay_requests") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.operational_events') }}">{{ t("nav.operational_events") }}</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('web.master_data') }}">{{ t("nav.master_data") }}</a></li>
+            <ul class="navbar-nav flex-column flex-lg-row flex-wrap align-items-lg-center gap-lg-1 me-lg-auto">
+              <li class="nav-item">
+                <a class="nav-link{% if dashboard_active %} active{% endif %}" href="{{ url_for('web.dashboard') }}">{{ t("nav.dashboard") }}</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{% if vee_active %} active{% endif %}" href="{{ url_for('web.vee_exceptions') }}">{{ t("nav.vee_exceptions") }}</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{% if replay_active %} active{% endif %}" href="{{ url_for('web.vee_replay_requests') }}">{{ t("nav.vee_replay_requests") }}</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{% if export_active %} active{% endif %}" href="{{ url_for('web.billing_export_requests') }}">{{ t("nav.billing_export_requests") }}</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{% if hes_active %} active{% endif %}" href="{{ url_for('web.hes_systems') }}">{{ t("nav.hes_systems") }}</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{% if master_active %} active{% endif %}" href="{{ url_for('web.master_data') }}">{{ t("nav.master_data") }}</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link{% if events_active %} active{% endif %}" href="{{ url_for('web.operational_events') }}">{{ t("nav.operational_events") }}</a>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle{% if measurement_active %} active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  {{ t("nav.measurement_ops") }}
+                </a>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="{{ url_for('web.ingest_batches') }}">{{ t("nav.ingest_batches") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.raw_reads') }}">{{ t("nav.raw_reads") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.raw_events') }}">{{ t("nav.raw_events") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.canonical_measurements') }}">{{ t("nav.canonical_measurements") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.final_measurements') }}">{{ t("nav.final_measurements") }}</a></li>
+                </ul>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle{% if billing_active %} active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  {{ t("nav.billing_ops") }}
+                </a>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="{{ url_for('web.usage_transactions') }}">{{ t("nav.usage_transactions") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.bill_determinants') }}">{{ t("nav.bill_determinants") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.bill_charges') }}">{{ t("nav.bill_charges") }}</a></li>
+                </ul>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle{% if correction_active %} active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  {{ t("nav.correction_ops") }}
+                </a>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="{{ url_for('web.estimation_audits') }}">{{ t("nav.estimation_audits") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.manual_edit_audits') }}">{{ t("nav.manual_edit_audits") }}</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('web.exceptions') }}">{{ t("nav.exceptions") }}</a></li>
+                </ul>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle{% if runtime_active %} active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  {{ t("nav.runtime_ops") }}
+                </a>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="{{ url_for('web.adapters') }}">{{ t("nav.adapters") }}</a></li>
+                </ul>
+              </li>
+            </ul>
             {% endif %}
-            <li class="nav-item d-flex align-items-center ms-lg-2">
+
+            <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-2 ms-lg-3">
               <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('nav.language') }}">
                 {% for locale_code in supported_locales %}
                 <a
@@ -53,26 +110,20 @@
                 </a>
                 {% endfor %}
               </div>
-            </li>
-            {% if current_user %}
-            <li class="nav-item d-flex align-items-center ms-lg-2">
+              {% if current_user %}
               <span class="navbar-text small text-muted">
                 {{ t("nav.signed_in_as") }}:
                 <strong>{{ current_user.display_name }}</strong>
                 <span class="badge text-bg-secondary">{{ t("role." ~ current_user.role_code) }}</span>
               </span>
-            </li>
-            <li class="nav-item d-flex align-items-center">
               <form method="post" action="{{ url_for('web.logout', lang=current_locale) }}" class="mb-0">
                 <button type="submit" class="btn btn-outline-secondary btn-sm">{{ t("nav.logout") }}</button>
               </form>
-            </li>
-            {% else %}
-            <li class="nav-item d-flex align-items-center">
+              {% else %}
               <a class="btn btn-outline-primary btn-sm" href="{{ url_for('web.login', lang=current_locale) }}">{{ t("nav.login") }}</a>
-            </li>
-            {% endif %}
-          </ul>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </div>
     </nav>

@@ -223,6 +223,26 @@ def test_api_routes_require_login(anonymous_client):
     assert payload["error_code"] == "authentication_required"
 
 
+def test_authenticated_layout_groups_navigation_into_primary_and_dropdown_sections(client):
+    response = client.get("/?lang=ko")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "대시보드" in text
+    assert "VEE 예외" in text
+    assert "VEE 재평가 요청" in text
+    assert "청구 내보내기" in text
+    assert "마스터 데이터" in text
+    assert "운영" in text
+    assert "계측" in text
+    assert "정산" in text
+    assert "보정" in text
+    assert "/raw-reads" in text
+    assert "/usage-transactions" in text
+    assert "/estimation-audits" in text
+    assert "/adapters" in text
+
+
 def test_login_succeeds_and_records_auth_audit(session, anonymous_client):
     create_user_account(
         session,

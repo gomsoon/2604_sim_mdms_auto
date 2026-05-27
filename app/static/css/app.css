@@ -35,5 +35,29 @@ body {
 
 .navbar-brand {
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
+.navbar-nav .nav-link,
+.navbar .dropdown-item,
+.navbar-text {
+  white-space: nowrap;
+}
+
+.navbar .dropdown-menu {
+  border: 1px solid var(--mdms-border);
+  border-radius: 0.9rem;
+  box-shadow: 0 1rem 2rem rgba(17, 51, 77, 0.12);
+}
+
+.navbar .dropdown-item {
+  font-size: 0.95rem;
+}
+
+@media (max-width: 991.98px) {
+  .navbar .dropdown-menu {
+    border: 0;
+    box-shadow: none;
+    padding-top: 0;
+  }
+}

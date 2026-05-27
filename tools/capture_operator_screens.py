@@ -469,21 +469,21 @@ def _run_base_visibility_captures(records: list[CaptureRecord]) -> None:
                     route="/?lang=ko",
                     note="일일 운영 시작 화면",
                     full_page=True,
-                    wait_for="text=최근 원시 검침",
+                    wait_for="main >> text=최근 원시 검침",
                 ),
                 CaptureTarget(
                     filename="04-hes-detail.png",
                     title="HES 상세",
                     route=f"/hes-systems/{hes_system.id}?lang=ko",
                     note="HES 중심 운영 화면",
-                    wait_for="text=연결된 어댑터",
+                    wait_for="main >> text=연결된 어댑터",
                 ),
                 CaptureTarget(
                     filename="05-adapter-detail.png",
                     title="어댑터 상세",
                     route=f"/adapters/{adapter_instance.id}?lang=ko",
                     note="런타임 상태와 운영자 조치",
-                    wait_for="text=어댑터 상세",
+                    wait_for="main >> text=어댑터 상세",
                 ),
                 CaptureTarget(
                     filename="06-master-data.png",
@@ -498,7 +498,7 @@ def _run_base_visibility_captures(records: list[CaptureRecord]) -> None:
                     title="원시 검침 가시성",
                     route="/raw-reads?lang=ko&meter_id=MTR-1001",
                     note="원본 적재 가시성",
-                    wait_for="text=원시 검침",
+                    wait_for="main >> text=원시 검침",
                 ),
             ]
             for target in targets:
@@ -521,7 +521,7 @@ def _run_dashboard_attention_capture(records: list[CaptureRecord]) -> None:
                     title="대시보드 주의 필요 상태",
                     route="/?lang=ko",
                     note="알림, recent event, replay 신호를 함께 보는 상태",
-                    wait_for="text=최근 VEE 재평가 요청",
+                    wait_for="main >> text=최근 VEE 재평가 요청",
                     full_page=True,
                 ),
             )
@@ -542,14 +542,14 @@ def _run_lineage_captures(records: list[CaptureRecord]) -> None:
                     title="표준 계측",
                     route="/canonical-measurements?lang=ko&batch_id=demo-read-batch&meter_id=MTR-1001",
                     note="정규화 이후 진행 상태",
-                    wait_for="text=표준 계측",
+                    wait_for="main >> text=표준 계측",
                 ),
                 CaptureTarget(
                     filename="09-final-measurements.png",
                     title="최종 계측",
                     route="/final-measurements?lang=ko&batch_id=demo-read-batch&meter_id=MTR-1001",
                     note="권위 있는 최종 상태",
-                    wait_for="text=최종 계측",
+                    wait_for="main >> text=최종 계측",
                 ),
             ]
             for target in targets:
@@ -571,14 +571,14 @@ def _run_vee_captures(records: list[CaptureRecord]) -> None:
                     title="VEE 예외 큐",
                     route="/vee-exceptions?lang=ko&exception_status=active&meter_id=MTR-1001",
                     note="차단/비차단 triage 시작점",
-                    wait_for="text=VEE 예외",
+                    wait_for="main >> text=VEE 예외",
                 ),
                 CaptureTarget(
                     filename="11-vee-exception-detail.png",
                     title="VEE 예외 상세",
                     route=f"/vee-exceptions/{vee_exception.id}?lang=ko",
                     note="차단 사유와 다음 조치",
-                    wait_for="text=VEE 예외 상세",
+                    wait_for="main >> text=VEE 예외 상세",
                 ),
             ]
             for target in targets:
@@ -601,7 +601,7 @@ def _run_estimation_capture(records: list[CaptureRecord]) -> None:
                     title="추정 감사 상세",
                     route=f"/estimation-audits/{estimation_audit_id}?lang=ko",
                     note="추정 보정 accountability",
-                    wait_for="text=추정 감사 상세",
+                    wait_for="main >> text=추정 감사 상세",
                     full_page=True,
                 ),
             )
@@ -623,7 +623,7 @@ def _run_manual_edit_capture(records: list[CaptureRecord]) -> None:
                     title="수동 보정 감사 상세",
                     route=f"/manual-edit-audits/{manual_edit_audit_id}?lang=ko",
                     note="수동 보정 accountability",
-                    wait_for="text=수동 보정 감사 상세",
+                    wait_for="main >> text=수동 보정 감사 상세",
                     full_page=True,
                 ),
             )
@@ -644,14 +644,14 @@ def _run_replay_captures(records: list[CaptureRecord]) -> None:
                     title="VEE 재평가 요청 목록",
                     route="/vee-replay-requests?lang=ko&status=processing",
                     note="queue-style request monitoring",
-                    wait_for="text=VEE 재평가 요청",
+                    wait_for="main >> text=VEE 재평가 요청",
                 ),
                 CaptureTarget(
                     filename="15-replay-request-detail.png",
                     title="VEE 재평가 요청 상세",
                     route=f"/vee-replay-requests/{request_id}?lang=ko",
                     note="scope, progress, current item, failed items",
-                    wait_for="text=VEE 재평가 요청 상세",
+                    wait_for="main >> text=VEE 재평가 요청 상세",
                     full_page=True,
                 ),
             ]
@@ -701,14 +701,14 @@ def _run_billing_export_captures(records: list[CaptureRecord]) -> None:
                         f"&requested_by={stale_request.requested_by}"
                     ),
                     note="status hint, progress, actor, spotlight",
-                    wait_for="text=청구 내보내기 요청",
+                    wait_for="main >> text=청구 내보내기 요청",
                 ),
                 CaptureTarget(
                     filename="17-billing-export-request-detail.png",
                     title="청구 내보내기 요청 상세",
                     route=f"/billing-export-requests/{failed_request_id}?lang=ko",
                     note="request summary, failed items, action context",
-                    wait_for="text=청구 내보내기 요청 상세",
+                    wait_for="main >> text=청구 내보내기 요청 상세",
                     full_page=True,
                 ),
             ]
@@ -732,7 +732,7 @@ def _run_operational_event_capture(records: list[CaptureRecord]) -> None:
                     title="운영 이벤트 상세",
                     route=f"/operational-events/{event_id}?lang=ko",
                     note="action snapshot and raw details",
-                    wait_for="text=조치 스냅샷",
+                    wait_for="main >> text=조치 스냅샷",
                     full_page=True,
                 ),
             )
