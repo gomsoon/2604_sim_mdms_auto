@@ -2,9 +2,10 @@
 """
 Generate DOCX and PPTX operator-manual package files from the Markdown sources.
 
-The generated PPTX is a training draft with text-first slide content and
-screen-capture placeholders. It is intended to be refined later with actual UI
-captures.
+The generated PPTX set includes:
+
+- operator training decks
+- a one-slide menu-map tree diagram
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ OUTPUT_HTML = GENERATED_DIR / "mdms-preproduct-operator-manual.html"
 OUTPUT_DOCX = GENERATED_DIR / "mdms-preproduct-operator-manual.docx"
 OUTPUT_PPTX = GENERATED_DIR / "mdms-preproduct-operator-training-draft.pptx"
 OUTPUT_PPTX_V2 = GENERATED_DIR / "mdms-preproduct-operator-training-v2.pptx"
+OUTPUT_MENU_MAP_PPTX = GENERATED_DIR / "mdms-preproduct-menu-map.pptx"
 
 
 @dataclass
@@ -437,7 +439,13 @@ def build_html_manual(blocks: list[ManualBlock], out_path: Path) -> None:
     out_path.write_text("\n".join(parts), encoding="utf-8")
 
 
-def pptx_text_runs(text: str, *, size: int = 2000, bold: bool = False) -> str:
+def pptx_text_runs(
+    text: str,
+    *,
+    size: int = 2000,
+    bold: bool = False,
+    color: str = "0F172A",
+) -> str:
     lines = text.splitlines() or [text]
     paragraphs: list[str] = []
     for line in lines:
@@ -447,7 +455,7 @@ def pptx_text_runs(text: str, *, size: int = 2000, bold: bool = False) -> str:
         bold_xml = ' b="1"' if bold else ""
         paragraphs.append(
             "<a:p>"
-            f'<a:r><a:rPr lang="ko-KR" sz="{size}"{bold_xml}/><a:t>{escape(line)}</a:t></a:r>'
+            f'<a:r><a:rPr lang="ko-KR" sz="{size}"{bold_xml}><a:solidFill><a:srgbClr val="{color}"/></a:solidFill></a:rPr><a:t>{escape(line)}</a:t></a:r>'
             '<a:endParaRPr lang="ko-KR"/>'
             "</a:p>"
         )
@@ -465,6 +473,7 @@ def pptx_shape(
     *,
     font_size: int = 1800,
     bold: bool = False,
+    font_color: str = "0F172A",
     fill: str | None = None,
     line: str | None = None,
 ) -> str:
@@ -489,8 +498,40 @@ def pptx_shape(
         "<p:txBody>"
         '<a:bodyPr wrap="square"/>'
         "<a:lstStyle/>"
-        f"{pptx_text_runs(text, size=font_size, bold=bold)}"
+        f"{pptx_text_runs(text, size=font_size, bold=bold, color=font_color)}"
         "</p:txBody>"
+        "</p:sp>"
+    )
+
+
+def pptx_line(
+    shape_id: int,
+    name: str,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    *,
+    color: str = "94A3B8",
+    width: int = 19050,
+) -> str:
+    x = min(x1, x2)
+    y = min(y1, y2)
+    cx = max(1, abs(x2 - x1))
+    cy = max(1, abs(y2 - y1))
+    return (
+        "<p:sp>"
+        "<p:nvSpPr>"
+        f'<p:cNvPr id="{shape_id}" name="{escape(name)}"/>'
+        "<p:cNvSpPr/>"
+        "<p:nvPr/>"
+        "</p:nvSpPr>"
+        "<p:spPr>"
+        f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        '<a:prstGeom prst="line"><a:avLst/></a:prstGeom>'
+        f'<a:ln w="{width}"><a:solidFill><a:srgbClr val="{color}"/></a:solidFill></a:ln>'
+        "</p:spPr>"
+        "<p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody>"
         "</p:sp>"
     )
 
@@ -689,9 +730,13 @@ def build_slide_rels_xml(visuals: list[dict[str, object]]) -> str:
     )
 
 
-def _resolve_slide_visuals(slide_index: int) -> list[dict[str, object]]:
+def _resolve_slide_visuals(
+    slide_index: int,
+    *,
+    screen_map: dict[int, list[SlideScreen]],
+) -> list[dict[str, object]]:
     visuals: list[dict[str, object]] = []
-    for item_index, screen in enumerate(SLIDE_SCREEN_MAP.get(slide_index, []), start=1):
+    for item_index, screen in enumerate(screen_map.get(slide_index, []), start=1):
         path = SCREEN_DIR / screen.filename
         if not path.exists():
             continue
@@ -709,13 +754,396 @@ def _resolve_slide_visuals(slide_index: int) -> list[dict[str, object]]:
     return visuals
 
 
+def _box_center_x(x: int, cx: int) -> int:
+    return x + (cx // 2)
+
+
+def _box_top_y(y: int) -> int:
+    return y
+
+
+def _box_bottom_y(y: int, cy: int) -> int:
+    return y + cy
+
+
+def _orthogonal_connector(
+    shape_id_start: int,
+    *,
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    mid_y: int,
+    color: str = "94A3B8",
+) -> tuple[list[str], int]:
+    elements: list[str] = []
+    shape_id = shape_id_start
+
+    if start_y != mid_y:
+        elements.append(pptx_line(shape_id, f"Line {shape_id}", start_x, start_y, start_x, mid_y, color=color))
+        shape_id += 1
+    if start_x != end_x:
+        elements.append(pptx_line(shape_id, f"Line {shape_id}", start_x, mid_y, end_x, mid_y, color=color))
+        shape_id += 1
+    if mid_y != end_y:
+        elements.append(pptx_line(shape_id, f"Line {shape_id}", end_x, mid_y, end_x, end_y, color=color))
+        shape_id += 1
+
+    return elements, shape_id
+
+
+def build_menu_map_tree_slide_xml() -> str:
+    shapes: list[str] = []
+    shape_id = 2
+
+    root = (4114800, 182880, 3962400, 457200)
+    primary_section = (411480, 914400, 2468880, 411480)
+    grouped_section = (3954780, 914400, 2956560, 411480)
+    utility_section = (9639300, 914400, 1859280, 411480)
+
+    primary_items = [
+        ("대시보드", 594360, 1554480, 2103120, 320040),
+        ("VEE 예외", 594360, 1965960, 2103120, 320040),
+        ("VEE 재평가 요청", 594360, 2377440, 2103120, 320040),
+        ("청구 내보내기", 594360, 2788920, 2103120, 320040),
+        ("HES", 594360, 3200400, 2103120, 320040),
+        ("마스터 데이터", 594360, 3611880, 2103120, 320040),
+        ("운영 이벤트", 594360, 4023360, 2103120, 320040),
+    ]
+
+    grouped_headers = [
+        ("계측", 3200400, 1554480, 1219200, 320040),
+        ("정산", 4663440, 1554480, 1219200, 320040),
+        ("보정", 6126480, 1554480, 1219200, 320040),
+        ("운영", 7589520, 1554480, 1219200, 320040),
+    ]
+
+    grouped_items = {
+        "계측": [
+            ("적재 배치", 3175000, 1965960, 1270000, 274320),
+            ("원시 검침", 3175000, 2326640, 1270000, 274320),
+            ("원시 이벤트", 3175000, 2687320, 1270000, 274320),
+            ("표준 계측", 3175000, 3048000, 1270000, 274320),
+            ("최종 계측", 3175000, 3408680, 1270000, 274320),
+        ],
+        "정산": [
+            ("사용량", 4638040, 1965960, 1270000, 274320),
+            ("청구 결정값", 4638040, 2326640, 1270000, 274320),
+            ("청구 금액", 4638040, 2687320, 1270000, 274320),
+        ],
+        "보정": [
+            ("추정 감사", 6101080, 1965960, 1270000, 274320),
+            ("수동 보정", 6101080, 2326640, 1270000, 274320),
+            ("오류 큐", 6101080, 2687320, 1270000, 274320),
+        ],
+        "운영": [
+            ("어댑터", 7564120, 1965960, 1270000, 274320),
+        ],
+    }
+
+    utility_items = [
+        ("언어 전환", 9517380, 1673860, 2103120, 320040),
+        ("로그인 상태 표시", 9517380, 2085340, 2103120, 320040),
+        ("로그인 / 로그아웃", 9517380, 2496820, 2103120, 320040),
+    ]
+
+    footer = (1554480, 5608320, 9083040, 411480)
+
+    shapes.append(
+        pptx_shape(
+            shape_id,
+            "Menu Root",
+            *root,
+            "MDMS MVP 웹 메뉴",
+            font_size=2200,
+            bold=True,
+            font_color="0F172A",
+            fill="DBEAFE",
+            line="60A5FA",
+        )
+    )
+    shape_id += 1
+
+    for name, x, y, cx, cy in [
+        ("Primary 메뉴", *primary_section),
+        ("Grouped 메뉴", *grouped_section),
+        ("공통 유틸리티", *utility_section),
+    ]:
+        shapes.append(
+            pptx_shape(
+                shape_id,
+                name,
+                x,
+                y,
+                cx,
+                cy,
+                name,
+                font_size=1700,
+                bold=True,
+                fill="BFDBFE",
+                line="60A5FA",
+            )
+        )
+        shape_id += 1
+
+    for label, x, y, cx, cy in primary_items:
+        shapes.append(
+            pptx_shape(
+                shape_id,
+                label,
+                x,
+                y,
+                cx,
+                cy,
+                label,
+                font_size=1450,
+                fill="F8FAFC",
+                line="CBD5E1",
+            )
+        )
+        shape_id += 1
+
+    for label, x, y, cx, cy in grouped_headers:
+        shapes.append(
+            pptx_shape(
+                shape_id,
+                label,
+                x,
+                y,
+                cx,
+                cy,
+                label,
+                font_size=1550,
+                bold=True,
+                fill="E0F2FE",
+                line="38BDF8",
+            )
+        )
+        shape_id += 1
+        for item_label, item_x, item_y, item_cx, item_cy in grouped_items[label]:
+            shapes.append(
+                pptx_shape(
+                    shape_id,
+                    item_label,
+                    item_x,
+                    item_y,
+                    item_cx,
+                    item_cy,
+                    item_label,
+                    font_size=1320,
+                    fill="F8FAFC",
+                    line="CBD5E1",
+                )
+            )
+            shape_id += 1
+
+    for label, x, y, cx, cy in utility_items:
+        shapes.append(
+            pptx_shape(
+                shape_id,
+                label,
+                x,
+                y,
+                cx,
+                cy,
+                label,
+                font_size=1420,
+                fill="F8FAFC",
+                line="CBD5E1",
+            )
+        )
+        shape_id += 1
+
+    shapes.append(
+        pptx_shape(
+            shape_id,
+            "Footer Note",
+            *footer,
+            "상세 화면은 상단 메뉴가 아니라 목록, 큐, 대시보드 row에서 drill-down으로 진입",
+            font_size=1350,
+            fill="F8FAFC",
+            line="CBD5E1",
+        )
+    )
+    shape_id += 1
+
+    connector_elements, shape_id = _orthogonal_connector(
+        shape_id,
+        start_x=_box_center_x(root[0], root[2]),
+        start_y=_box_bottom_y(root[1], root[3]),
+        end_x=_box_center_x(primary_section[0], primary_section[2]),
+        end_y=_box_top_y(primary_section[1]),
+        mid_y=777240,
+    )
+    shapes.extend(connector_elements)
+    connector_elements, shape_id = _orthogonal_connector(
+        shape_id,
+        start_x=_box_center_x(root[0], root[2]),
+        start_y=_box_bottom_y(root[1], root[3]),
+        end_x=_box_center_x(grouped_section[0], grouped_section[2]),
+        end_y=_box_top_y(grouped_section[1]),
+        mid_y=777240,
+    )
+    shapes.extend(connector_elements)
+    connector_elements, shape_id = _orthogonal_connector(
+        shape_id,
+        start_x=_box_center_x(root[0], root[2]),
+        start_y=_box_bottom_y(root[1], root[3]),
+        end_x=_box_center_x(utility_section[0], utility_section[2]),
+        end_y=_box_top_y(utility_section[1]),
+        mid_y=777240,
+    )
+    shapes.extend(connector_elements)
+
+    connector_elements, shape_id = _orthogonal_connector(
+        shape_id,
+        start_x=_box_center_x(grouped_section[0], grouped_section[2]),
+        start_y=_box_bottom_y(grouped_section[1], grouped_section[3]),
+        end_x=_box_center_x(grouped_headers[0][1], grouped_headers[0][3]),
+        end_y=_box_top_y(grouped_headers[0][2]),
+        mid_y=1371600,
+    )
+    shapes.extend(connector_elements)
+    for _, x, y, cx, cy in grouped_headers[1:]:
+        connector_elements, shape_id = _orthogonal_connector(
+            shape_id,
+            start_x=_box_center_x(grouped_section[0], grouped_section[2]),
+            start_y=_box_bottom_y(grouped_section[1], grouped_section[3]),
+            end_x=_box_center_x(x, cx),
+            end_y=_box_top_y(y),
+            mid_y=1371600,
+        )
+        shapes.extend(connector_elements)
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+        "<p:cSld>"
+        "<p:spTree>"
+        "<p:nvGrpSpPr>"
+        '<p:cNvPr id="1" name=""/>'
+        "<p:cNvGrpSpPr/>"
+        "<p:nvPr/>"
+        "</p:nvGrpSpPr>"
+        "<p:grpSpPr>"
+        '<a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm>'
+        "</p:grpSpPr>"
+        + "".join(shapes) +
+        "</p:spTree>"
+        "</p:cSld>"
+        '<p:clrMapOvr><a:overrideClrMapping '
+        'bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" '
+        'accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" '
+        'hlink="hlink" folHlink="folHlink"/></p:clrMapOvr>'
+        "</p:sld>"
+    )
+
+
+def build_single_slide_pptx_package(
+    slide_xml: str,
+    out_path: Path,
+    *,
+    document_title: str,
+) -> None:
+    created = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/ppt/presentation.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'
+        '<Override PartName="/ppt/slides/slide1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>'
+        '<Override PartName="/docProps/core.xml" '
+        'ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
+        '<Override PartName="/docProps/app.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'
+        "</Types>"
+    )
+    root_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        'Target="ppt/presentation.xml"/>'
+        '<Relationship Id="rId2" '
+        'Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" '
+        'Target="docProps/core.xml"/>'
+        '<Relationship Id="rId3" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" '
+        'Target="docProps/app.xml"/>'
+        "</Relationships>"
+    )
+    presentation_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+        '<p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst>'
+        '<p:sldSz cx="12192000" cy="6858000"/>'
+        '<p:notesSz cx="6858000" cy="9144000"/>'
+        "</p:presentation>"
+    )
+    presentation_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" '
+        'Target="slides/slide1.xml"/>'
+        "</Relationships>"
+    )
+    core = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<cp:coreProperties '
+        'xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
+        'xmlns:dc="http://purl.org/dc/elements/1.1/" '
+        'xmlns:dcterms="http://purl.org/dc/terms/" '
+        'xmlns:dcmitype="http://purl.org/dc/dcmitype/" '
+        'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+        f"<dc:title>{escape(document_title)}</dc:title>"
+        "<dc:creator>OpenAI Codex</dc:creator>"
+        "<cp:lastModifiedBy>OpenAI Codex</cp:lastModifiedBy>"
+        f'<dcterms:created xsi:type="dcterms:W3CDTF">{created}</dcterms:created>'
+        f'<dcterms:modified xsi:type="dcterms:W3CDTF">{created}</dcterms:modified>'
+        "</cp:coreProperties>"
+    )
+    app = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
+        'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
+        "<Application>OpenAI Codex</Application>"
+        "<PresentationFormat>On-screen Show (16:9)</PresentationFormat>"
+        "<Slides>1</Slides>"
+        "<Notes>0</Notes>"
+        "<HiddenSlides>0</HiddenSlides>"
+        "<MMClips>0</MMClips>"
+        "</Properties>"
+    )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("_rels/.rels", root_rels)
+        zf.writestr("ppt/presentation.xml", presentation_xml)
+        zf.writestr("ppt/_rels/presentation.xml.rels", presentation_rels)
+        zf.writestr("ppt/slides/slide1.xml", slide_xml)
+        zf.writestr("docProps/core.xml", core)
+        zf.writestr("docProps/app.xml", app)
+
+
 def build_pptx_package(
     slides: list[Slide],
     out_path: Path,
     *,
     use_screens: bool = False,
+    screen_map: dict[int, list[SlideScreen]] | None = None,
+    document_title: str = "MDMS Preproduct Operator Training Draft",
 ) -> None:
     created = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    screen_map = screen_map or SLIDE_SCREEN_MAP
     content_overrides = [
         '<Override PartName="/ppt/presentation.xml" '
         'ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>',
@@ -788,7 +1216,7 @@ def build_pptx_package(
         'xmlns:dcterms="http://purl.org/dc/terms/" '
         'xmlns:dcmitype="http://purl.org/dc/dcmitype/" '
         'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-        "<dc:title>MDMS Preproduct Operator Training Draft</dc:title>"
+        f"<dc:title>{escape(document_title)}</dc:title>"
         "<dc:creator>OpenAI Codex</dc:creator>"
         "<cp:lastModifiedBy>OpenAI Codex</cp:lastModifiedBy>"
         f'<dcterms:created xsi:type="dcterms:W3CDTF">{created}</dcterms:created>'
@@ -818,7 +1246,7 @@ def build_pptx_package(
         zf.writestr("docProps/core.xml", core)
         zf.writestr("docProps/app.xml", app)
         for idx, slide in enumerate(slides, start=1):
-            visuals = _resolve_slide_visuals(idx) if use_screens else []
+            visuals = _resolve_slide_visuals(idx, screen_map=screen_map) if use_screens else []
             for media_index, visual in enumerate(visuals, start=1):
                 media_name = f"slide{idx}_image{media_index}.png"
                 visual["media_name"] = media_name
@@ -838,19 +1266,36 @@ def main() -> int:
         raise SystemExit(f"Missing manual source: {MANUAL_MD}")
     if not SLIDE_MD.exists():
         raise SystemExit(f"Missing slide source: {SLIDE_MD}")
-
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
     manual_blocks = parse_manual_blocks(MANUAL_MD)
     slide_blocks = parse_slide_outline(SLIDE_MD)
     build_html_manual(manual_blocks, OUTPUT_HTML)
     build_docx_package(manual_blocks, OUTPUT_DOCX)
-    build_pptx_package(slide_blocks, OUTPUT_PPTX, use_screens=False)
-    build_pptx_package(slide_blocks, OUTPUT_PPTX_V2, use_screens=True)
+    build_pptx_package(
+        slide_blocks,
+        OUTPUT_PPTX,
+        use_screens=False,
+        screen_map=SLIDE_SCREEN_MAP,
+        document_title="MDMS Preproduct Operator Training Draft",
+    )
+    build_pptx_package(
+        slide_blocks,
+        OUTPUT_PPTX_V2,
+        use_screens=True,
+        screen_map=SLIDE_SCREEN_MAP,
+        document_title="MDMS Preproduct Operator Training v2",
+    )
+    build_single_slide_pptx_package(
+        build_menu_map_tree_slide_xml(),
+        OUTPUT_MENU_MAP_PPTX,
+        document_title="MDMS Preproduct Menu Map",
+    )
 
     print(f"Wrote {OUTPUT_HTML}")
     print(f"Wrote {OUTPUT_DOCX}")
     print(f"Wrote {OUTPUT_PPTX}")
     print(f"Wrote {OUTPUT_PPTX_V2}")
+    print(f"Wrote {OUTPUT_MENU_MAP_PPTX}")
     return 0
 
 

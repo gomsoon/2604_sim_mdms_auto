@@ -91,6 +91,7 @@ This directory captures the working engineering baseline for the `Minimal End-to
 82. [mdms-preproduct-operator-manual.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-manual.md)
 83. [mdms-preproduct-operator-slide-outline.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-slide-outline.md)
 84. [mdms-preproduct-operator-screen-capture-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-screen-capture-checklist.md)
+85. [mdms-preproduct-menu-map.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-menu-map.md)
 
 ## Intent
 
@@ -183,6 +184,7 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `mdms-preproduct-operator-manual.md` consolidates the current preproduct startup, shutdown, daily operating routine, key feature procedures, and first-line incident guidance into one operator-facing guide.
 - `mdms-preproduct-operator-slide-outline.md` turns that manual into a presentation structure suitable for later `pptx` packaging and onboarding.
 - `mdms-preproduct-operator-screen-capture-checklist.md` defines the screenshot set needed before assembling a screen-centered operator training deck.
+- `mdms-preproduct-menu-map.md` records the current implemented web-menu structure, grouped navigation model, and contextual drill-down surfaces for operator onboarding and future nav changes.
 
 ## Current decision baseline
 
