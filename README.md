@@ -47,7 +47,13 @@ make test
 make test-functional
 ```
 
-`make test` runs `pytest` with branch coverage enabled for the `app` package and enforces a minimum `80%` branch coverage baseline. The test fixtures use PostgreSQL and isolate each test in its own schema under `TEST_DATABASE_URL`.
+`make test` runs `pytest` with branch coverage enabled for the `app` package and enforces the current explicit regression gate:
+
+- combined total coverage: `80%` minimum
+- repository statement coverage: `88.5%` minimum
+- repository branch coverage: `75.0%` minimum
+
+The test fixtures use PostgreSQL and isolate each test in its own schema under `TEST_DATABASE_URL`.
 
 `pytest-xdist` is now installed in the development environment and was evaluated with `n=4` workers on this 16-core machine. Several harness-hardening ideas were explored during the evaluation, but repeated `xdist` validation is still flaky enough that the repository baseline remains serial for now.
 

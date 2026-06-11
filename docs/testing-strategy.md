@@ -42,7 +42,11 @@ This document defines the minimum testing expectations for all code changes in t
 ### Branch coverage is part of the baseline
 
 - The repository should measure branch coverage, not line coverage only.
-- The current baseline should enforce a minimum `80%` branch coverage threshold for the application package.
+- The current repository baseline should enforce:
+  - combined total coverage: `80%` minimum
+  - repository statement coverage: `88.5%` minimum
+  - repository branch coverage: `75.0%` minimum
+- The branch baseline should continue to increase gradually toward `80%` and beyond as higher-signal regression slices land.
 - Thresholds should continue to increase gradually toward higher confidence instead of jumping unrealistically to `100%` all at once.
 - The repository should prefer a dual policy:
   - gradual global threshold increases

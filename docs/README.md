@@ -92,6 +92,8 @@ This directory captures the working engineering baseline for the `Minimal End-to
 83. [mdms-preproduct-operator-slide-outline.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-slide-outline.md)
 84. [mdms-preproduct-operator-screen-capture-checklist.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-operator-screen-capture-checklist.md)
 85. [mdms-preproduct-menu-map.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-menu-map.md)
+86. [mdms-preproduct-regression-baseline-review.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-regression-baseline-review.md)
+87. [mdms-preproduct-coverage-uplift-plan.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-coverage-uplift-plan.md)
 
 ## Intent
 
@@ -185,6 +187,8 @@ These documents are meant to reduce ambiguity before feature work begins.
 - `mdms-preproduct-operator-slide-outline.md` turns that manual into a presentation structure suitable for later `pptx` packaging and onboarding.
 - `mdms-preproduct-operator-screen-capture-checklist.md` defines the screenshot set needed before assembling a screen-centered operator training deck.
 - `mdms-preproduct-menu-map.md` records the current implemented web-menu structure, grouped navigation model, and contextual drill-down surfaces for operator onboarding and future nav changes.
+- `mdms-preproduct-regression-baseline-review.md` summarizes the current regression suite, the latest verified coverage baseline, strengths, and the main gaps still visible in the testing posture.
+- `mdms-preproduct-coverage-uplift-plan.md` turns that review into a practical next-step plan for improving coverage without drifting into low-signal global test inflation.
 
 ## Current decision baseline
 

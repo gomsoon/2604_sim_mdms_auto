@@ -77,6 +77,10 @@ Keep repository-wide branch coverage as a gradual target.
 Recommended approach:
 
 - keep the current gate stable while strengthening tests
+- keep the baseline explicit:
+  - combined total coverage: `80%` minimum
+  - repository statement coverage: `88.5%` minimum
+  - repository branch coverage: `75.0%` minimum
 - raise the global branch threshold in controlled steps later
 - do not hold the whole repository hostage to low-signal coverage work
 
