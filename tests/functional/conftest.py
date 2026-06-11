@@ -9,10 +9,11 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import Browser, Error as PlaywrightError, Page, sync_playwright
+from sqlalchemy.orm import sessionmaker
 from werkzeug.serving import make_server
 
 from app import create_app
-from app.db import get_session
+from app.db import get_engine, get_session
 from app.migrations import upgrade_db
 from app.services.auth import create_user_account
 from app.services.seeds import seed_demo_environment
@@ -43,7 +44,7 @@ def _resolve_chrome_executable() -> str | None:
 
 
 @pytest.fixture(scope="session")
-def functional_app():
+def functional_app(browser: Browser):
     test_database_url = resolve_test_database_url()
     schema_name = build_schema_name(prefix="functional")
     schema_url = build_schema_url(test_database_url, schema_name)
@@ -93,6 +94,19 @@ def live_server(functional_app):
     finally:
         server.shutdown()
         thread.join(timeout=5)
+
+
+@pytest.fixture
+def functional_session(functional_app):
+    session = sessionmaker(
+        bind=get_engine(),
+        autoflush=False,
+        expire_on_commit=False,
+    )()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture(scope="session")

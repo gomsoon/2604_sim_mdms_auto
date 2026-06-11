@@ -19,7 +19,7 @@ The current repository-level regression suite is already broad.
 
 At the current review point:
 
-- `586` tests are collected by the main `pytest` suite
+- `590` tests are collected by the main `pytest` suite
 - the main regression path remains serial
 - functional browser smoke remains a separate command
 
@@ -41,7 +41,7 @@ Reference:
 The last verified full non-functional regression baseline for the current
 preproduct close-out path was:
 
-- `586 passed`
+- `590 passed`
 - combined total coverage: `86.28%`
 - repository statement coverage: `88.98%`
 - repository branch coverage: `75.30%`
@@ -123,6 +123,8 @@ The current repository posture clearly prioritizes:
 ### 4. Functional smoke regression
 
 Browser-driven smoke regression exists and is intentionally narrow.
+It is now broader than the original minimal baseline, but still deliberately
+bounded.
 
 Current suite:
 
@@ -133,9 +135,13 @@ Current smoke intent:
 - dashboard reachability
 - raw-read visibility
 - exception queue and detail reachability
+- replay request list and detail reachability
+- billing export request list and detail reachability
+- HES detail reachability
+- master-data reachability
 
-This is useful, but still closer to a bounded smoke baseline than to broad UI
-workflow automation.
+This is now a good bounded operator smoke baseline, but it is still far from
+full browser workflow automation.
 
 ## High-signal strengths in the current baseline
 
@@ -202,17 +208,18 @@ That gives the repository:
 - a clear branch floor that cannot silently regress
 - room to raise the branch threshold in later high-signal hardening slices
 
-### Functional browser coverage is still intentionally thin
+### Functional browser coverage is still intentionally bounded
 
-The browser smoke suite is valuable, but still small relative to the operator
-surface now implemented.
+The browser smoke suite is now meaningfully better than the original 3-test
+baseline, but it is still intentionally small relative to the operator surface
+now implemented.
 
-The current suite does not yet broadly lock:
+The current suite still does not broadly lock:
 
-- replay request list and detail
-- billing export list and detail
-- VEE queue and detail
-- HES and master-data admin flows
+- operator mutation flows through the browser
+- alert acknowledge and close flows
+- replay or export lifecycle actions through the browser
+- HES and master-data admin mutation flows through the browser
 - operational-event detail
 
 ### API coverage is not yet as strong as web and service coverage
@@ -248,9 +255,10 @@ The next testing move should not be blind repository-wide test inflation.
 
 The next move should be:
 
-1. fix the coverage-policy and gate mismatch
-2. expand browser smoke for a few critical flows
-3. add API or route parity only where it closes a real regression gap
+1. keep the explicit coverage gate stable
+2. add API or route parity only where it closes a real regression gap
+3. add targeted route and startup regression where structural breadth still
+   exceeds current protection
 
 ## Recommended next document
 

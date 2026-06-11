@@ -13,8 +13,8 @@ It does not recommend blind pursuit of repository-wide `100%`.
 
 At the latest verified full-regression baseline:
 
-- `586` tests collected
-- `586` tests passed in the main regression run
+- `590` tests collected
+- `590` tests passed in the main regression run
 - combined total coverage: `86.28%`
 - repository statement coverage: `88.98%`
 - repository branch coverage: `75.30%`
@@ -23,9 +23,9 @@ See:
 
 - [mdms-preproduct-regression-baseline-review.md](/home/tprover/2604_sim_mdms_auto/docs/mdms-preproduct-regression-baseline-review.md)
 
-## Priority order
+## Completed baseline slices
 
-### Priority 1. Coverage gate semantics cleanup
+### Completed 1. Coverage gate semantics cleanup
 
 Goal:
 
@@ -50,33 +50,34 @@ Why this still comes first:
 - an explicit branch floor is better than an implied branch promise
 - later threshold raises can now happen without policy ambiguity
 
-### Priority 2. Expand browser smoke on the highest-value operator flows
+### Completed 2. Expand browser smoke on the highest-value operator flows
 
 Goal:
 
 - raise confidence in the operator-facing surface without building a huge UI
   test suite
 
-Recommended first additions:
+Completed additions:
 
 - dashboard already covered
-- add:
-  - VEE exception queue
-  - VEE exception detail
-  - replay request list
-  - replay request detail
-  - billing export request list
-  - billing export request detail
-  - HES detail
-  - master-data visibility
+- VEE exception queue
+- VEE exception detail
+- replay request list
+- replay request detail
+- billing export request list
+- billing export request detail
+- HES detail
+- master-data visibility
 
 Primary target file:
 
 - [tests/functional/test_smoke.py](/home/tprover/2604_sim_mdms_auto/tests/functional/test_smoke.py)
 
-This should remain a bounded smoke suite, not a full browser regression stack.
+This remains a bounded smoke suite, not a full browser regression stack.
 
-### Priority 3. Strengthen API parity only on critical flows
+## Next priority order
+
+### Priority 1. Strengthen API parity only on critical flows
 
 Goal:
 
@@ -93,7 +94,7 @@ The point is not to duplicate all web assertions.
 
 The point is to protect the public boundary where a regression would matter.
 
-### Priority 4. Add targeted regression around structurally large files
+### Priority 2. Add targeted regression around structurally large files
 
 Goal:
 
@@ -114,7 +115,7 @@ Recommended approach:
   - startup/config fallback paths
   - error-handling branches that can affect bounded internal use
 
-### Priority 5. Raise the global threshold only after the first two waves land
+### Priority 3. Raise the global threshold only after the next two waves land
 
 Goal:
 
@@ -122,10 +123,11 @@ Goal:
 
 Recommended approach:
 
-1. complete the policy/gate alignment
-2. land the first smoke and API uplift slices
-3. observe the new steady-state coverage
-4. raise the global threshold in small increments
+1. keep the policy/gate alignment stable
+2. land the next API uplift slice
+3. land the large-file targeted hardening slice
+4. observe the new steady-state coverage
+5. raise the global threshold in small increments
 
 Avoid:
 
@@ -143,27 +145,28 @@ These are not the recommended first move for the next phase:
 
 ## Recommended first implementation slices
 
-### Slice 1. Coverage baseline semantics cleanup
+### Completed slice 1. Coverage baseline semantics cleanup
 
 Output:
 
 - policy and command alignment
 - no ambiguity about what `80%` means
 
-### Slice 2. Functional smoke expansion
+### Completed slice 2. Functional smoke expansion
 
 Output:
 
-- `tests/functional/test_smoke.py` expanded to cover the main operator queues
-  and request-detail flows
+- `tests/functional/test_smoke.py` now covers the main operator queues and
+  request-detail flows for replay, billing export, HES detail, and
+  master-data visibility
 
-### Slice 3. Replay and export API parity
+### Next slice 3. Replay and export API parity
 
 Output:
 
 - critical request lifecycle boundaries protected beyond service-only coverage
 
-### Slice 4. Large-file targeted route hardening
+### Next slice 4. Large-file targeted route hardening
 
 Output:
 
